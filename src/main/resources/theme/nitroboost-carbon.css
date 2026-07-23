@@ -1,0 +1,419 @@
+/*
+ * NITRO BOOST - Tema "Carbono & Verde Turbo" (Fase 4)
+ *
+ * Paleta oficial (ver secao 4.1 de NITRO-BOOST-documentacao-completa.md):
+ *   fundo principal ...... #0A0A0A
+ *   paineis/cards ........ #161616
+ *   verde neon (destaque). #39FF14
+ *   verde tecnico ........ #00C853
+ *   vermelho (essencial).. #FF3B30
+ *   ambar (depende) ...... #FFB300
+ *   texto principal ...... #E8E8E8
+ *   texto secundario ..... #7A7A7A
+ *   bordas ............... #2A2A2A (glow #39FF14 a 20% no hover)
+ *
+ * Tipografia: nao ha acesso garantido a rede neste ambiente para baixar
+ * Google Fonts (Orbitron/Rajdhani), entao usamos fontes ja presentes no
+ * Windows como fallback pragmatico: "Consolas" (monoespacada, visual
+ * "HUD/tecnico") para titulos e numeros de destaque, "Segoe UI" para texto
+ * corrido legivel. Documentado tambem em PROGRESS.md.
+ *
+ * Textura "fibra de carbono": simulada 100% via CSS puro usando
+ * linear-gradient(...) com o modificador "repeat" (sem PNG externo) -
+ * ver .carbon-bg-subtle / .carbon-bg-strong abaixo.
+ */
+
+* {
+    -fx-focus-color: #39FF14;
+    -fx-faint-focus-color: #39FF1433;
+}
+
+.root {
+    -fx-background-color: #0A0A0A;
+    -fx-text-fill: #E8E8E8;
+    -fx-font-family: "Segoe UI", sans-serif;
+    -fx-font-size: 13px;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Textura de fibra de carbono (gradientes lineares repetidos, sem PNG)   */
+/* ---------------------------------------------------------------------- */
+
+.carbon-bg-subtle {
+    -fx-background-color:
+        linear-gradient(from 0px 0px to 16px 16px, repeat, #0A0A0A 0%, #0A0A0A 49%, #121212 50%, #121212 99%, #0A0A0A 100%),
+        linear-gradient(from 16px 0px to 0px 16px, repeat, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 49%, rgba(255,255,255,0.012) 50%, rgba(0,0,0,0) 51%, rgba(0,0,0,0) 100%);
+}
+
+.carbon-bg-strong {
+    -fx-background-color:
+        linear-gradient(from 0px 0px to 10px 10px, repeat, #101010 0%, #101010 48%, #1c1c1c 50%, #1c1c1c 98%, #101010 100%),
+        linear-gradient(from 10px 0px to 0px 10px, repeat, rgba(57,255,20,0) 0%, rgba(57,255,20,0) 47%, rgba(57,255,20,0.05) 50%, rgba(57,255,20,0) 53%, rgba(57,255,20,0) 100%);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Layout geral / navegacao lateral                                       */
+/* ---------------------------------------------------------------------- */
+
+.app-header {
+    -fx-padding: 14 24 14 24;
+    -fx-border-color: transparent transparent #2A2A2A transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.app-title {
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #39FF14;
+    -fx-effect: dropshadow(gaussian, rgba(57,255,20,0.55), 12, 0.25, 0, 0);
+}
+
+.app-subtitle {
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 10.5px;
+    -fx-text-fill: #7A7A7A;
+    -fx-letter-spacing: 1px;
+}
+
+.sidebar {
+    -fx-background-color: #101010;
+    -fx-border-color: transparent #2A2A2A transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 16 0 16 0;
+}
+
+.nav-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #E8E8E8;
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 12.5px;
+    -fx-alignment: CENTER_LEFT;
+    -fx-padding: 12 18 12 18;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent transparent transparent transparent;
+    -fx-border-width: 0 0 0 3;
+    -fx-cursor: hand;
+    -fx-pref-width: 190px;
+}
+
+.nav-button:hover {
+    -fx-background-color: #161616;
+    -fx-text-fill: #39FF14;
+    -fx-border-color: transparent transparent transparent #39FF1466;
+}
+
+.nav-button-active {
+    -fx-background-color: #161616;
+    -fx-text-fill: #39FF14;
+    -fx-border-color: transparent transparent transparent #39FF14;
+    -fx-font-weight: bold;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Tipografia utilitaria                                                  */
+/* ---------------------------------------------------------------------- */
+
+.title-hud {
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #E8E8E8;
+    -fx-letter-spacing: 1.5px;
+}
+
+.subtitle-hud {
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: #00C853;
+    -fx-letter-spacing: 1px;
+}
+
+.text-secondary {
+    -fx-text-fill: #7A7A7A;
+    -fx-font-size: 12px;
+}
+
+.text-body {
+    -fx-text-fill: #E8E8E8;
+    -fx-font-size: 13px;
+    -fx-wrap-text: true;
+}
+
+.text-danger {
+    -fx-text-fill: #FF3B30;
+}
+
+.text-success {
+    -fx-text-fill: #39FF14;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Botoes "estilo turbo"                                                  */
+/* ---------------------------------------------------------------------- */
+
+.btn-turbo {
+    -fx-background-color: #0F1A0F;
+    -fx-text-fill: #39FF14;
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+    -fx-letter-spacing: 1px;
+    -fx-border-color: #39FF14;
+    -fx-border-width: 2;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-padding: 12 28 12 28;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(57,255,20,0.35), 10, 0.2, 0, 0);
+}
+
+.btn-turbo:hover {
+    -fx-background-color: #142614;
+    -fx-effect: dropshadow(gaussian, rgba(57,255,20,0.75), 18, 0.35, 0, 0);
+}
+
+.btn-turbo:pressed {
+    -fx-background-color: #1a331a;
+}
+
+.btn-turbo:disabled {
+    -fx-opacity: 0.5;
+    -fx-effect: none;
+}
+
+.btn-secondary {
+    -fx-background-color: #161616;
+    -fx-text-fill: #E8E8E8;
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 11.5px;
+    -fx-border-color: #2A2A2A;
+    -fx-border-width: 1;
+    -fx-background-radius: 3;
+    -fx-border-radius: 3;
+    -fx-padding: 6 14 6 14;
+    -fx-cursor: hand;
+}
+
+.btn-secondary:hover {
+    -fx-border-color: #39FF1466;
+    -fx-text-fill: #39FF14;
+}
+
+.btn-danger {
+    -fx-background-color: #1a0f0f;
+    -fx-text-fill: #FF3B30;
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 11.5px;
+    -fx-font-weight: bold;
+    -fx-border-color: #FF3B30;
+    -fx-border-width: 1;
+    -fx-background-radius: 3;
+    -fx-border-radius: 3;
+    -fx-padding: 6 14 6 14;
+    -fx-cursor: hand;
+}
+
+.btn-danger:hover {
+    -fx-effect: dropshadow(gaussian, rgba(255,59,48,0.55), 10, 0.25, 0, 0);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Barra de progresso "estilo RPM"                                        */
+/* ---------------------------------------------------------------------- */
+
+.progress-rpm > .track {
+    -fx-background-color: #161616;
+    -fx-background-radius: 4;
+    -fx-border-color: #2A2A2A;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+}
+
+.progress-rpm > .bar {
+    -fx-background-color: linear-gradient(to right, #00C853, #39FF14);
+    -fx-background-insets: 1;
+    -fx-background-radius: 3;
+    -fx-effect: dropshadow(gaussian, rgba(57,255,20,0.45), 6, 0.2, 0, 0);
+}
+
+.progress-rpm.progress-critical > .bar {
+    -fx-background-color: linear-gradient(to right, #b8241c, #FF3B30);
+    -fx-effect: dropshadow(gaussian, rgba(255,59,48,0.55), 8, 0.25, 0, 0);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Velocimetro (gauge) do dashboard                                       */
+/* ---------------------------------------------------------------------- */
+
+.gauge-pane {
+    -fx-padding: 10;
+}
+
+.gauge-track {
+    -fx-stroke: #2A2A2A;
+    -fx-stroke-width: 10;
+}
+
+.gauge-arc {
+    -fx-stroke-width: 10;
+    -fx-stroke-line-cap: round;
+}
+
+.gauge-value {
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 30px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #E8E8E8;
+}
+
+.gauge-caption {
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 10px;
+    -fx-text-fill: #7A7A7A;
+    -fx-letter-spacing: 1px;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Cards / paineis                                                        */
+/* ---------------------------------------------------------------------- */
+
+.card {
+    -fx-background-color: #161616;
+    -fx-border-color: #2A2A2A;
+    -fx-border-width: 1;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-padding: 16;
+}
+
+.card-glow {
+    -fx-effect: dropshadow(gaussian, rgba(57,255,20,0.18), 14, 0.15, 0, 0);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Controles de formulario (combo/texto)                                  */
+/* ---------------------------------------------------------------------- */
+
+.combo-box, .text-field, .text-area {
+    -fx-background-color: #161616;
+    -fx-text-fill: #E8E8E8;
+    -fx-border-color: #2A2A2A;
+    -fx-border-width: 1;
+    -fx-background-radius: 3;
+    -fx-border-radius: 3;
+}
+
+.combo-box .list-cell {
+    -fx-text-fill: #E8E8E8;
+    -fx-background-color: #161616;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: #161616;
+    -fx-border-color: #2A2A2A;
+}
+
+.combo-box-popup .list-cell:hover {
+    -fx-background-color: #1c1c1c;
+    -fx-text-fill: #39FF14;
+}
+
+.text-area .content {
+    -fx-background-color: #161616;
+}
+
+/* ---------------------------------------------------------------------- */
+/* TableView / ListView                                                   */
+/* ---------------------------------------------------------------------- */
+
+.table-view, .list-view {
+    -fx-background-color: #0A0A0A;
+    -fx-border-color: #2A2A2A;
+    -fx-border-width: 1;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: #161616;
+}
+
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent #2A2A2A transparent;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: #7A7A7A;
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+.table-row-cell {
+    -fx-background-color: #0A0A0A;
+    -fx-border-color: transparent transparent #161616 transparent;
+    -fx-text-fill: #E8E8E8;
+}
+
+.table-row-cell:odd {
+    -fx-background-color: #0d0d0d;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: #14261a;
+    -fx-border-color: transparent transparent transparent transparent;
+}
+
+.table-view .cell, .list-cell {
+    -fx-text-fill: #E8E8E8;
+}
+
+.list-cell:filled:hover {
+    -fx-background-color: #161616;
+}
+
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #2A2A2A;
+    -fx-background-radius: 4;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #39FF1466;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Modal de detalhes do item                                              */
+/* ---------------------------------------------------------------------- */
+
+.detail-root {
+    -fx-background-color: #0A0A0A;
+    -fx-padding: 20;
+    -fx-spacing: 12;
+}
+
+.status-badge {
+    -fx-padding: 3 10 3 10;
+    -fx-background-radius: 12;
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: bold;
+}
+
+.status-badge-safe {
+    -fx-background-color: #0f2914;
+    -fx-text-fill: #39FF14;
+}
+
+.status-badge-essential {
+    -fx-background-color: #2a0f0f;
+    -fx-text-fill: #FF3B30;
+}
+
+.status-badge-depends {
+    -fx-background-color: #2a2110;
+    -fx-text-fill: #FFB300;
+}
