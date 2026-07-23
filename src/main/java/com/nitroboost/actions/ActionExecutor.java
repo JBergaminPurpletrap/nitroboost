@@ -1,6 +1,8 @@
 package com.nitroboost.actions;
 
+import com.nitroboost.core.AiFeatureScanner;
 import com.nitroboost.core.BloatwareScanner;
+import com.nitroboost.core.ConsumerFeatureScanner;
 import com.nitroboost.core.GamingScanner;
 import com.nitroboost.core.PerformanceScanner;
 import com.nitroboost.core.PowerPlanScanner;
@@ -61,6 +63,8 @@ public class ActionExecutor {
     private final TelemetryScanner telemetryScanner = new TelemetryScanner();
     private final PerformanceScanner performanceScanner = new PerformanceScanner();
     private final GamingScanner gamingScanner = new GamingScanner();
+    private final AiFeatureScanner aiFeatureScanner = new AiFeatureScanner();
+    private final ConsumerFeatureScanner consumerFeatureScanner = new ConsumerFeatureScanner();
 
     /** Nome fixo de catalogo para o "conceito" de plano de energia ativo (so existe um por vez). */
     private static final String POWER_PLAN_ITEM_NAME = "ActivePowerPlan";
@@ -785,12 +789,45 @@ public class ActionExecutor {
         return restoreRegistryDwordChange("gaming", backupId);
     }
 
+    // ------------------------------------------------------------------
+    // IA (chaves de registro/politica - Fase 8 Parte 2)
+    // ------------------------------------------------------------------
+
+    /** Altera um valor de recurso de IA conhecido (Copilot/Recall/Click to Do/Cocreator/Edge), com backup previo. */
+    public ActionResult setAiFeatureValue(AiFeatureScanner.AiFeatureKeyDefinition definition, String newValue) {
+        AiFeatureScanner.AiFeatureKeyInfo before = aiFeatureScanner.readValue(definition);
+        String previousState = before.exists() ? before.currentValue() : "nao definido";
+        return applyRegistryDwordChange("ai", definition.friendlyName(), definition.friendlyName(),
+                definition.registryPath(), definition.valueName(), previousState, before.exists(), newValue);
+    }
+
+    public ActionResult restoreAiFeatureValue(long backupId) {
+        return restoreRegistryDwordChange("ai", backupId);
+    }
+
+    // ------------------------------------------------------------------
+    // Recursos de Consumidor / Segundo Plano (chaves de registro - Fase 8 Parte 2)
+    // ------------------------------------------------------------------
+
+    /** Altera um valor de recurso de consumidor/segundo plano conhecido, com backup previo. */
+    public ActionResult setConsumerFeatureValue(ConsumerFeatureScanner.ConsumerFeatureKeyDefinition definition, String newValue) {
+        ConsumerFeatureScanner.ConsumerFeatureKeyInfo before = consumerFeatureScanner.readValue(definition);
+        String previousState = before.exists() ? before.currentValue() : "nao definido";
+        return applyRegistryDwordChange("consumer", definition.friendlyName(), definition.friendlyName(),
+                definition.registryPath(), definition.valueName(), previousState, before.exists(), newValue);
+    }
+
+    public ActionResult restoreConsumerFeatureValue(long backupId) {
+        return restoreRegistryDwordChange("consumer", backupId);
+    }
+
     /**
-     * Mecanica compartilhada por {@link #setPerformanceValue} e {@link #setGamingValue}: ambas as
-     * categorias sao, por baixo, o mesmo mecanismo generico ja validado em {@code setTelemetryValue}
-     * desde a Fase 3 (uma chave/valor DWORD alterada via {@code reg add}, com backup previo e
-     * historico) - extraido aqui para nao duplicar essa logica duas vezes nesta fase, sem alterar
-     * o metodo original de telemetria (ja testado, sem motivo para arriscar uma regressao nele).
+     * Mecanica compartilhada por {@link #setPerformanceValue}, {@link #setGamingValue},
+     * {@link #setAiFeatureValue} e {@link #setConsumerFeatureValue}: todas essas categorias sao, por
+     * baixo, o mesmo mecanismo generico ja validado em {@code setTelemetryValue} desde a Fase 3 (uma
+     * chave/valor DWORD alterada via {@code reg add}, com backup previo e historico) - extraido aqui
+     * para nao duplicar essa logica a cada categoria nova, sem alterar o metodo original de telemetria
+     * (ja testado, sem motivo para arriscar uma regressao nele).
      *
      * @param itemName usado tanto como identificador no catalogo/lock/historico quanto como nome de
      *                 exibicao - as chamadas usam o nome amigavel da definicao, o mesmo valor exposto
@@ -1037,6 +1074,8 @@ public class ActionExecutor {
                 case "performance" -> restorePerformanceValue(backupId);
                 case "gaming" -> restoreGamingValue(backupId);
                 case "hibernation" -> restoreHibernationState(backupId);
+                case "ai" -> restoreAiFeatureValue(backupId);
+                case "consumer" -> restoreConsumerFeatureValue(backupId);
                 default -> new ActionResult(false,
                         "Tipo de item '" + entry.itemType() + "' nao possui reversao automatica implementada.", backupId);
             };
