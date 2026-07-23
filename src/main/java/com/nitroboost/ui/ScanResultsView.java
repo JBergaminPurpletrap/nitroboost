@@ -74,7 +74,8 @@ public class ScanResultsView extends BorderPane {
 
         categoryFilter.getItems().addAll("Todos", SystemScanTask.CATEGORY_PROCESS, SystemScanTask.CATEGORY_SERVICE,
                 SystemScanTask.CATEGORY_STARTUP, SystemScanTask.CATEGORY_TASK, SystemScanTask.CATEGORY_POWERPLAN,
-                SystemScanTask.CATEGORY_TELEMETRY, SystemScanTask.CATEGORY_BLOATWARE);
+                SystemScanTask.CATEGORY_TELEMETRY, SystemScanTask.CATEGORY_BLOATWARE,
+                SystemScanTask.CATEGORY_PERFORMANCE, SystemScanTask.CATEGORY_GAMING);
         categoryFilter.setValue("Todos");
         categoryFilter.setOnAction(e -> applyFilter());
 
@@ -250,7 +251,8 @@ public class ScanResultsView extends BorderPane {
 
     /** Dispara uma nova varredura completa em background e atualiza a tabela ao concluir. */
     public void startScan() {
-        statusLabel.setText("Escaneando o sistema (processos, servicos, startup, tarefas, energia, telemetria, bloatware)...");
+        statusLabel.setText("Escaneando o sistema (processos, servicos, startup, tarefas, energia, telemetria, "
+                + "bloatware, performance, jogos)...");
         progressIndicator.setVisible(true);
 
         SystemScanTask task = new SystemScanTask(context.knowledgeBase());

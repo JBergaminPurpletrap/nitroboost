@@ -1,6 +1,8 @@
 package com.nitroboost.ui;
 
 import com.nitroboost.core.BloatwareScanner;
+import com.nitroboost.core.GamingScanner;
+import com.nitroboost.core.PerformanceScanner;
 import com.nitroboost.core.PowerPlanScanner;
 import com.nitroboost.core.ProcessScanner;
 import com.nitroboost.core.ServiceScanner;
@@ -15,7 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Roda os 7 scanners do backend em uma thread de fundo (nunca na UI thread do
+ * Roda os 9 scanners do backend em uma thread de fundo (nunca na UI thread do
  * JavaFX - regra do guia de skills tecnicas) e devolve uma lista unica de
  * {@link ScannedItem}, cada um ja classificado pela {@link KnowledgeBase}.
  *
@@ -33,6 +35,11 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
     public static final String CATEGORY_POWERPLAN = "Planos de Energia";
     public static final String CATEGORY_TELEMETRY = "Telemetria";
     public static final String CATEGORY_BLOATWARE = "Bloatware";
+    public static final String CATEGORY_PERFORMANCE = "Performance e Energia";
+    public static final String CATEGORY_GAMING = "Otimizacoes para Jogos";
+
+    /** Nome fixo do item de hibernacao - mesmo valor usado por {@link com.nitroboost.actions.ActionExecutor}. */
+    private static final String HIBERNATION_ITEM_NAME = "Arquivo de Hibernacao";
 
     // ponytail: limite pratico para nao empilhar centenas de processos irrelevantes
     // na tabela - os processos mais pesados (RAM) sao os que mais importam para o
@@ -55,6 +62,8 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
         scanSafely(items, "planos de energia", this::scanPowerPlans);
         scanSafely(items, "telemetria", this::scanTelemetry);
         scanSafely(items, "bloatware", this::scanBloatware);
+        scanSafely(items, "performance", this::scanPerformance);
+        scanSafely(items, "jogos", this::scanGaming);
         return items;
     }
 
@@ -131,6 +140,31 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
         // padrao de build() abaixo). Ver PROGRESS.md "Fase 8 - Correcao".
         for (BloatwareScanner.AppxInfo app : new BloatwareScanner().scan()) {
             result.add(build(CATEGORY_BLOATWARE, "bloatware", app.name(), "Instalado (" + app.category() + ")", app));
+        }
+        return result;
+    }
+
+    private List<ScannedItem> scanPerformance() {
+        List<ScannedItem> result = new ArrayList<>();
+        for (PerformanceScanner.PerformanceKeyInfo info : new PerformanceScanner().scan()) {
+            String state = info.exists() ? "Valor atual: " + info.currentValue() : "Nao definido (padrao do Windows)";
+            // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setPerformanceValue espera.
+            result.add(build(CATEGORY_PERFORMANCE, "performance", info.definition().friendlyName(), state, info.definition()));
+        }
+        PerformanceScanner.HibernationStatus hibernation = new PerformanceScanner().checkHibernationFile();
+        String hibernationState = hibernation.checkFailed()
+                ? "Nao foi possivel verificar"
+                : (hibernation.fileExists() ? "Ativado (arquivo presente)" : "Desativado (arquivo ausente)");
+        result.add(build(CATEGORY_PERFORMANCE, "hibernation", HIBERNATION_ITEM_NAME, hibernationState, hibernation));
+        return result;
+    }
+
+    private List<ScannedItem> scanGaming() {
+        List<ScannedItem> result = new ArrayList<>();
+        for (GamingScanner.GamingKeyInfo info : new GamingScanner().scan()) {
+            String state = info.exists() ? "Valor atual: " + info.currentValue() : "Nao definido (padrao do Windows)";
+            // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setGamingValue espera.
+            result.add(build(CATEGORY_GAMING, "gaming", info.definition().friendlyName(), state, info.definition()));
         }
         return result;
     }

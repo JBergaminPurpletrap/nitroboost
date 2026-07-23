@@ -2,6 +2,8 @@ package com.nitroboost.ui;
 
 import com.nitroboost.actions.ActionExecutor;
 import com.nitroboost.core.BloatwareScanner;
+import com.nitroboost.core.GamingScanner;
+import com.nitroboost.core.PerformanceScanner;
 import com.nitroboost.core.PowerPlanScanner;
 import com.nitroboost.core.ProcessScanner;
 import com.nitroboost.core.StartupScanner;
@@ -58,6 +60,17 @@ public final class ItemActionDispatcher {
                 // (nao exige elevacao extra) - decisao pragmatica para a Fase 4, documentada em PROGRESS.md.
                 case "bloatware" ->
                         executor.uninstallBloatwareApp((BloatwareScanner.AppxInfo) item.source(), false, false);
+                case "performance" -> {
+                    var definition = (PerformanceScanner.PerformanceKeyDefinition) item.source();
+                    yield executor.setPerformanceValue(definition, definition.recommendedValue());
+                }
+                case "gaming" -> {
+                    var definition = (GamingScanner.GamingKeyDefinition) item.source();
+                    yield executor.setGamingValue(definition, definition.recommendedValue());
+                }
+                // O arquivo de hibernacao so tem sentido como um "toggle": a acao principal desativa
+                // (caso comum de liberar espaco em disco) - se ja estiver desativado, e um no-op seguro.
+                case "hibernation" -> executor.setHibernationEnabled(false);
                 default -> new ActionExecutor.ActionResult(false, "Tipo de item desconhecido: " + item.type(), null);
             };
         } catch (Exception e) {
