@@ -10,7 +10,9 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
@@ -24,6 +26,8 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -42,9 +46,16 @@ public class ScanResultsView extends BorderPane {
     private final FilteredList<ScannedItem> filteredItems = new FilteredList<>(masterItems, i -> true);
     private final TableView<ScannedItem> table = new TableView<>(filteredItems);
 
+    private static final String CLASSIFICATION_FILTER_ALL = "Todos os status";
+    private static final String CLASSIFICATION_FILTER_SEGURO = "🟢 Seguro";
+    private static final String CLASSIFICATION_FILTER_DEPENDE = "🟡 Depende";
+    private static final String CLASSIFICATION_FILTER_ESSENCIAL = "🔴 Essencial";
+
     private final Label statusLabel = new Label("Nenhuma varredura executada ainda.");
     private final ProgressIndicator progressIndicator = new ProgressIndicator();
     private final ComboBox<String> categoryFilter = new ComboBox<>();
+    private final ComboBox<String> classificationFilter = new ComboBox<>();
+    private final Button closeAllGreenButton = new Button("FECHAR TODOS OS ITENS VERDES");
 
     public ScanResultsView(AppContext context, Runnable openTutorialCallback) {
         this.context = context;
@@ -65,11 +76,20 @@ public class ScanResultsView extends BorderPane {
         categoryFilter.setValue("Todos");
         categoryFilter.setOnAction(e -> applyFilter());
 
+        classificationFilter.getItems().addAll(CLASSIFICATION_FILTER_ALL, CLASSIFICATION_FILTER_SEGURO,
+                CLASSIFICATION_FILTER_DEPENDE, CLASSIFICATION_FILTER_ESSENCIAL);
+        classificationFilter.setValue(CLASSIFICATION_FILTER_ALL);
+        classificationFilter.setOnAction(e -> applyFilter());
+
         Button rescanButton = new Button("↻ ESCANEAR NOVAMENTE");
         rescanButton.getStyleClass().add("btn-secondary");
         rescanButton.setOnAction(e -> startScan());
 
-        HBox toolbar = new HBox(14, new Label("Filtrar por categoria:"), categoryFilter, rescanButton, progressIndicator);
+        closeAllGreenButton.getStyleClass().add("btn-turbo");
+        closeAllGreenButton.setOnAction(e -> closeAllGreen());
+
+        HBox toolbar = new HBox(14, new Label("Filtrar por categoria:"), categoryFilter,
+                new Label("Status:"), classificationFilter, rescanButton, closeAllGreenButton, progressIndicator);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         for (var node : toolbar.getChildren()) {
             if (node instanceof Label l) {
@@ -136,12 +156,85 @@ public class ScanResultsView extends BorderPane {
     }
 
     private void applyFilter() {
-        String selected = categoryFilter.getValue();
-        if (selected == null || selected.equals("Todos")) {
-            filteredItems.setPredicate(item -> true);
-        } else {
-            filteredItems.setPredicate(item -> item.category().equals(selected));
+        String selectedCategory = categoryFilter.getValue();
+        ItemClassification selectedClassification = classificationFromFilterLabel(classificationFilter.getValue());
+        filteredItems.setPredicate(item -> {
+            boolean categoryOk = selectedCategory == null || selectedCategory.equals("Todos")
+                    || item.category().equals(selectedCategory);
+            boolean classificationOk = selectedClassification == null || item.classification() == selectedClassification;
+            return categoryOk && classificationOk;
+        });
+    }
+
+    private ItemClassification classificationFromFilterLabel(String label) {
+        if (label == null) {
+            return null;
         }
+        return switch (label) {
+            case CLASSIFICATION_FILTER_SEGURO -> ItemClassification.SEGURO;
+            case CLASSIFICATION_FILTER_DEPENDE -> ItemClassification.DEPENDE;
+            case CLASSIFICATION_FILTER_ESSENCIAL -> ItemClassification.ESSENCIAL;
+            default -> null;
+        };
+    }
+
+    /**
+     * Executa a acao principal (finalizar/desativar/desinstalar, conforme o tipo)
+     * em todos os itens classificados como "seguro" (verde) atualmente visiveis
+     * na tabela (respeitando os filtros ativos), um por vez. Cada item passa
+     * pelo fluxo normal do ActionExecutor (lock + backup + historico) - a acao
+     * em massa nao pula nenhuma dessas garantias, so dispara varias sequenciais.
+     */
+    private void closeAllGreen() {
+        List<ScannedItem> targets = filteredItems.stream()
+                .filter(item -> item.classification() == ItemClassification.SEGURO)
+                .toList();
+        if (targets.isEmpty()) {
+            statusLabel.getStyleClass().removeAll("text-danger", "text-success");
+            statusLabel.setText("Nenhum item verde (seguro) na lista atual para fechar.");
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Confirmar acao em massa");
+        confirm.setHeaderText("Fechar " + targets.size() + " item(ns) classificado(s) como seguro?");
+        confirm.setContentText("Cada item passa pelo backup e historico normal antes de ser desativado. "
+                + "Itens bloqueados serao recusados automaticamente, sem interromper os demais.");
+        if (confirm.showAndWait().filter(b -> b == ButtonType.OK).isEmpty()) {
+            return;
+        }
+
+        closeAllGreenButton.setDisable(true);
+        statusLabel.getStyleClass().removeAll("text-danger", "text-success");
+        statusLabel.setText("Fechando " + targets.size() + " item(ns) verde(s)...");
+
+        Thread thread = new Thread(() -> {
+            List<ScannedItem> succeeded = new ArrayList<>();
+            int failed = 0;
+            for (ScannedItem item : targets) {
+                try {
+                    ActionExecutor.ActionResult result = ItemActionDispatcher.performPrimaryAction(context.actionExecutor(), item);
+                    if (result.success()) {
+                        succeeded.add(item);
+                    } else {
+                        failed++;
+                    }
+                } catch (Exception e) {
+                    failed++;
+                }
+            }
+            int finalFailed = failed;
+            Platform.runLater(() -> {
+                masterItems.removeAll(succeeded);
+                closeAllGreenButton.setDisable(false);
+                statusLabel.getStyleClass().removeAll("text-danger", "text-success");
+                statusLabel.getStyleClass().add(finalFailed == 0 ? "text-success" : "text-danger");
+                statusLabel.setText(succeeded.size() + " item(ns) fechado(s) com sucesso"
+                        + (finalFailed > 0 ? ", " + finalFailed + " falharam (ver Historico para detalhes)." : "."));
+            });
+        }, "nitroboost-bulk-close-green");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     /** Dispara uma nova varredura completa em background e atualiza a tabela ao concluir. */
