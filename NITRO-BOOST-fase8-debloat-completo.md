@@ -57,8 +57,8 @@ Antes de adicionar as categorias novas, corrigir o bug já diagnosticado:
 
 ## 5. Checklist de Implementação (Fase 8)
 
-- [ ] Corrigir `scanBloatware()` para usar `.scan()` em vez de `.knownBloatware()`
-- [ ] Adicionar toggle "Mostrar apenas conhecidos / Mostrar todos" na `ScanResultsView`
+- [x] Corrigir `scanBloatware()` para usar `.scan()` em vez de `.knownBloatware()`
+- [x] Adicionar toggle "Mostrar apenas conhecidos / Mostrar todos" na `ScanResultsView`
 - [ ] Expandir `BloatwareScanner.classify()` com novas categorias: `AI_COPILOT`, `AI_RECALL`, `AI_CLICK_TO_DO`, `AI_COCREATOR` (quando o pacote Appx corresponder), mantendo `OTHER_KNOWN_BLOAT`/`UNKNOWN` para o restante
 - [ ] Criar `AiFeatureScanner.java` (novo, em `core/`) — lê o estado atual das políticas de IA (`WindowsAI`, `WindowsCopilot`, Edge `HubsSidebarEnabled`) via `reg query`, seguindo exatamente o mesmo padrão defensivo dos scanners existentes (nunca lançar exceção, chave ausente = estado "não definido", não erro)
 - [ ] Criar `ConsumerFeatureScanner.java` (novo, em `core/`) — lê as chaves de `ContentDeliveryManager`, `Explorer\Advanced` e `Windows Search` listadas nas seções 2 e 3
