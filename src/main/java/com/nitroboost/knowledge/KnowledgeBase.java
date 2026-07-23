@@ -31,9 +31,16 @@ public class KnowledgeBase {
      * Um item conhecido da base, com sua classificacao e explicacoes em
      * portugues claro (regra de ouro do projeto: texto para o usuario final,
      * sem jargao tecnico excessivo).
+     *
+     * @param recommendedValue valor recomendado ("valor_recomendado" no JSON) para o item, quando existe
+     *                         uma verificacao objetiva possivel (ex: chave DWORD com "0"/"1" recomendado) -
+     *                         usado por {@link com.nitroboost.audit.SystemAuditEngine} para comparar com o
+     *                         valor atual lido da maquina. String vazia quando nao aplicavel (mesmo padrao
+     *                         de default dos demais campos de texto desta classe, via {@link #textOrEmpty}).
      */
     public record KnowledgeEntry(String name, String type, ItemClassification classification,
-                                  String description, String disableImpact, String keepImpact) {
+                                  String description, String disableImpact, String keepImpact,
+                                  String recommendedValue) {
     }
 
     private static final String RESOURCE_PATH = "/knowledge-base.json";
@@ -192,7 +199,8 @@ public class KnowledgeBase {
                     ItemClassification.fromLabel(textOrEmpty(node, "classificacao")),
                     textOrEmpty(node, "descricao"),
                     textOrEmpty(node, "impacto_desativar"),
-                    textOrEmpty(node, "impacto_manter")
+                    textOrEmpty(node, "impacto_manter"),
+                    textOrEmpty(node, "valor_recomendado")
             ));
         }
         return new LoadedData(result, textOrEmpty(root, "version"), textOrEmpty(root, "updatedAt"));

@@ -1,5 +1,5 @@
 {
-  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware/performance/gaming/hibernation/ai/consumer), classificacao (seguro/essencial/depende), descricao, impacto_desativar e impacto_manter - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura). Os campos 'version'/'updatedAt' foram adicionados na Fase 7 (Expansao Online) para permitir comparar esta base local com uma base remota - ver com.nitroboost.knowledge.RemoteKnowledgeUpdater. Os tipos performance/gaming/hibernation foram adicionados na Fase 9 Parte 1 (Novos scanners de Performance e Jogos). Os tipos ai/consumer foram adicionados na Fase 8 Parte 2 (Debloat Real Completo, incluindo IAs do Windows 11) - ver AiFeatureScanner e ConsumerFeatureScanner.",
+  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware/performance/gaming/hibernation/ai/consumer), classificacao (seguro/essencial/depende), descricao, impacto_desativar, impacto_manter e (opcional) valor_recomendado - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura). Os campos 'version'/'updatedAt' foram adicionados na Fase 7 (Expansao Online) para permitir comparar esta base local com uma base remota - ver com.nitroboost.knowledge.RemoteKnowledgeUpdater. Os tipos performance/gaming/hibernation foram adicionados na Fase 9 Parte 1 (Novos scanners de Performance e Jogos). Os tipos ai/consumer foram adicionados na Fase 8 Parte 2 (Debloat Real Completo, incluindo IAs do Windows 11) - ver AiFeatureScanner e ConsumerFeatureScanner. O campo 'valor_recomendado' foi adicionado na Fase 9 Parte 2 (Diagnostico do Sistema) para as 36 chaves de registro com verificacao objetiva possivel (telemetry/performance/gaming/ai/consumer) - usado por com.nitroboost.audit.SystemAuditEngine para comparar com o valor atual lido da maquina. O item de hibernacao (tipo hibernation) e os demais tipos ficam sem esse campo por nao terem um valor 'certo' unico e objetivo (dependem do uso do usuario).",
   "version": "1.0",
   "updatedAt": "2026-07-23",
   "items": [
@@ -364,7 +364,8 @@
       "classificacao": "seguro",
       "descricao": "Controle central de quantos dados de diagnostico e uso o Windows envia para a Microsoft, definido via politica de grupo (tem prioridade sobre a configuracao normal do sistema).",
       "impacto_desativar": "Reduzir para o nivel minimo (0 ou 1) nao afeta nenhuma funcionalidade do dia a dia do Windows para a grande maioria dos usuarios domesticos.",
-      "impacto_manter": "Quanto mais alto o nivel, mais dados de diagnostico (uso de apps, erros, desempenho) sao enviados automaticamente para a Microsoft."
+      "impacto_manter": "Quanto mais alto o nivel, mais dados de diagnostico (uso de apps, erros, desempenho) sao enviados automaticamente para a Microsoft.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Nivel de Telemetria (Configuracao do Sistema)",
@@ -372,7 +373,8 @@
       "classificacao": "seguro",
       "descricao": "Mesmo controle de telemetria acima, mas na chave usada quando nao ha uma politica de grupo aplicada - a situacao mais comum em PCs domesticos.",
       "impacto_desativar": "Reduzir para o nivel minimo nao afeta nenhuma funcionalidade do dia a dia do Windows para a grande maioria dos usuarios domesticos.",
-      "impacto_manter": "Quanto mais alto o nivel, mais dados de diagnostico sao enviados automaticamente para a Microsoft."
+      "impacto_manter": "Quanto mais alto o nivel, mais dados de diagnostico sao enviados automaticamente para a Microsoft.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "ID de Publicidade",
@@ -380,7 +382,8 @@
       "classificacao": "seguro",
       "descricao": "Identificador unico usado pelos aplicativos da Microsoft Store para mostrar anuncios mais 'personalizados' com base no que voce usa no PC.",
       "impacto_desativar": "Voce continua vendo anuncios (em apps que os exibem), mas eles deixam de ser personalizados com base no seu uso do PC.",
-      "impacto_manter": "Apps podem rastrear seu uso entre si para direcionar anuncios mais especificos ao seu perfil."
+      "impacto_manter": "Apps podem rastrear seu uso entre si para direcionar anuncios mais especificos ao seu perfil.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Experiencias Personalizadas com Dados de Diagnostico",
@@ -388,7 +391,8 @@
       "classificacao": "seguro",
       "descricao": "Permite que a Microsoft personalize dicas, sugestoes e recomendacoes dentro do Windows com base nos dados de diagnostico enviados pelo seu PC.",
       "impacto_desativar": "Voce recebe menos dicas/sugestoes 'personalizadas' do Windows - nenhuma funcionalidade essencial e afetada.",
-      "impacto_manter": "A Microsoft usa os dados de diagnostico do seu PC para tentar sugerir recursos e dicas relevantes."
+      "impacto_manter": "A Microsoft usa os dados de diagnostico do seu PC para tentar sugerir recursos e dicas relevantes.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Frequencia de Pedidos de Feedback",
@@ -396,7 +400,8 @@
       "classificacao": "seguro",
       "descricao": "Controla com que frequencia o Windows pede para voce avaliar sua experiencia de uso, atraves de notificacoes do programa de feedback.",
       "impacto_desativar": "Voce para de receber (ou recebe bem menos) esses popups pedindo para avaliar o Windows.",
-      "impacto_manter": "O Windows pode interromper seu uso periodicamente com pedidos de avaliacao/feedback."
+      "impacto_manter": "O Windows pode interromper seu uso periodicamente com pedidos de avaliacao/feedback.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Relatorio de Erros do Windows",
@@ -404,7 +409,8 @@
       "classificacao": "depende",
       "descricao": "Quando um programa trava ou o Windows encontra um erro serio, esse recurso pode enviar um relatorio automatico do problema para a Microsoft, e por vezes ajudar a encontrar uma solucao.",
       "impacto_desativar": "Voce deixa de enviar relatorios automaticos de erro, e tambem perde as sugestoes de solucao que o Windows as vezes mostra apos um travamento (baseadas nesses relatorios).",
-      "impacto_manter": "Ajuda a Microsoft (e, ocasionalmente, voce mesmo) a diagnosticar a causa de travamentos, mas envia detalhes tecnicos do erro pela internet."
+      "impacto_manter": "Ajuda a Microsoft (e, ocasionalmente, voce mesmo) a diagnosticar a causa de travamentos, mas envia detalhes tecnicos do erro pela internet.",
+      "valor_recomendado": "1"
     },
     {
       "nome": "Rastreamento de Apps Mais Usados",
@@ -412,7 +418,8 @@
       "classificacao": "depende",
       "descricao": "Controla se o Windows rastreia quais programas voce mais abre, para personalizar sugestoes no menu Iniciar e nos resultados de busca.",
       "impacto_desativar": "O menu Iniciar e a busca deixam de sugerir programas 'mais usados' automaticamente - voce ainda encontra tudo pesquisando pelo nome.",
-      "impacto_manter": "O Windows usa seu historico de uso de programas para tentar deixar o menu Iniciar e a busca mais 'inteligentes'."
+      "impacto_manter": "O Windows usa seu historico de uso de programas para tentar deixar o menu Iniciar e a busca mais 'inteligentes'.",
+      "valor_recomendado": "0"
     },
 
     {
@@ -541,7 +548,8 @@
       "classificacao": "seguro",
       "descricao": "Controla as animacoes, sombras e efeitos de transicao do Windows (janelas, menus, sombras de icones). Ajustar para 'melhor desempenho' remove a maioria desses efeitos.",
       "impacto_desativar": "A interface fica visualmente mais 'seca' (sem animacoes/sombras), mas libera um pouco de CPU/GPU - efeito puramente cosmetico, nenhuma funcao do Windows e perdida.",
-      "impacto_manter": "Windows continua com a aparencia padrao (animado), consumindo um pouco mais de recursos graficos para renderizar as transicoes."
+      "impacto_manter": "Windows continua com a aparencia padrao (animado), consumindo um pouco mais de recursos graficos para renderizar as transicoes.",
+      "valor_recomendado": "2"
     },
     {
       "nome": "Transparencia da Interface (Acrilico/Fluent)",
@@ -549,7 +557,8 @@
       "classificacao": "seguro",
       "descricao": "Controla o efeito de transparencia (acrilico) de janelas, menu Iniciar e barra de tarefas.",
       "impacto_desativar": "Janelas e menus passam a ter fundo solido em vez de transparente/desfocado - efeito puramente cosmetico, reduz um pouco o uso de GPU para renderizar a interface.",
-      "impacto_manter": "Visual com transparencia (Fluent Design) mantido, com leve custo extra de GPU para compor o efeito."
+      "impacto_manter": "Visual com transparencia (Fluent Design) mantido, com leve custo extra de GPU para compor o efeito.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "GPU Hardware-Accelerated Scheduling",
@@ -557,7 +566,8 @@
       "classificacao": "depende",
       "descricao": "Deixa a propria GPU gerenciar sua fila de memoria de video em vez do driver fazer isso via CPU, reduzindo latencia - ganho real em jogos, mas requer GPU/driver compativel e reinicio do Windows para valer.",
       "impacto_desativar": "Volta ao gerenciamento tradicional (via driver/CPU) - comportamento padrao de fabrica, sem risco.",
-      "impacto_manter": "Em GPUs/drivers compativeis, pode reduzir latencia em jogos; em hardware nao compativel ou drivers desatualizados, o valor simplesmente nao tem efeito (nao quebra nada, mas tambem nao ajuda)."
+      "impacto_manter": "Em GPUs/drivers compativeis, pode reduzir latencia em jogos; em hardware nao compativel ou drivers desatualizados, o valor simplesmente nao tem efeito (nao quebra nada, mas tambem nao ajuda).",
+      "valor_recomendado": "2"
     },
     {
       "nome": "Inicializacao Rapida (Fast Startup)",
@@ -565,7 +575,8 @@
       "classificacao": "depende",
       "descricao": "Recurso que acelera o boot salvando parte do estado do sistema em disco ao desligar (uma especie de hibernacao parcial), em vez de um desligamento completo.",
       "impacto_desativar": "O boot fica um pouco mais lento, porem mais 'limpo' - recomendado para quem usa dual-boot com outro sistema operacional ou tem problemas apos atualizar drivers/hardware.",
-      "impacto_manter": "Boot mais rapido no dia a dia; em desktops (nao notebooks) pode ocasionalmente causar inconsistencias apos trocar hardware ou em configuracoes de dual-boot."
+      "impacto_manter": "Boot mais rapido no dia a dia; em desktops (nao notebooks) pode ocasionalmente causar inconsistencias apos trocar hardware ou em configuracoes de dual-boot.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Indice de Limitacao de Rede (Network Throttling)",
@@ -573,7 +584,8 @@
       "classificacao": "depende",
       "descricao": "Configuracao antiga do Windows que limita a banda de rede disponivel para priorizar audio/multimidia em segundo plano.",
       "impacto_desativar": "Remove o limite de rede - pode ajudar em jogos online sensiveis a latencia; em cenarios raros com audio/video simultaneos a rede pesada, pode haver leve engasgo de midia.",
-      "impacto_manter": "Comportamento padrao do Windows, priorizando estabilidade de audio/midia sobre desempenho maximo de rede."
+      "impacto_manter": "Comportamento padrao do Windows, priorizando estabilidade de audio/midia sobre desempenho maximo de rede.",
+      "valor_recomendado": "0xffffffff"
     },
     {
       "nome": "Otimizacao de Entrega do Windows Update (Delivery Optimization)",
@@ -581,7 +593,8 @@
       "classificacao": "seguro",
       "descricao": "Por padrao, o Windows pode compartilhar atualizacoes ja baixadas com outros PCs pela internet (like um P2P), consumindo banda de upload da sua conexao.",
       "impacto_desativar": "Voce deixa de compartilhar atualizacoes com PCs de fora da sua rede (ou desativa o compartilhamento por completo) - o recebimento de atualizacoes do Windows continua funcionando normalmente, so muda a 'forma de entrega'.",
-      "impacto_manter": "Seu PC pode usar banda de upload para ajudar outros PCs (dentro ou fora da sua rede, dependendo da configuracao) a baixar atualizacoes mais rapido - util para a comunidade, mas consome sua banda."
+      "impacto_manter": "Seu PC pode usar banda de upload para ajudar outros PCs (dentro ou fora da sua rede, dependendo da configuracao) a baixar atualizacoes mais rapido - util para a comunidade, mas consome sua banda.",
+      "valor_recomendado": "1"
     },
     {
       "nome": "Arquivo de Hibernacao",
@@ -597,7 +610,8 @@
       "classificacao": "depende",
       "descricao": "Recurso do Windows que roda jogos 'tela cheia' num modo similar a janela sem bordas por baixo dos panos, para permitir alternar de tela mais rapido. Desativar forca o modo de tela cheia exclusivo tradicional.",
       "impacto_desativar": "Alguns jogos ganham menor input lag/melhor desempenho em modo tela cheia exclusivo; a troca entre janelas pode ficar um pouco mais lenta durante o jogo.",
-      "impacto_manter": "Troca entre janelas mais rapida durante o jogo (Alt+Tab quase instantaneo); em alguns jogos/GPUs pode haver um pequeno impacto de desempenho ou input lag comparado ao modo exclusivo."
+      "impacto_manter": "Troca entre janelas mais rapida durante o jogo (Alt+Tab quase instantaneo); em alguns jogos/GPUs pode haver um pequeno impacto de desempenho ou input lag comparado ao modo exclusivo.",
+      "valor_recomendado": "2"
     },
     {
       "nome": "Game DVR (Gravacao em Segundo Plano)",
@@ -605,7 +619,8 @@
       "classificacao": "seguro",
       "descricao": "Recurso do Xbox Game Bar que grava continuamente um buffer em segundo plano para permitir salvar os 'ultimos minutos' de jogo, mesmo sem estar gravando ativamente.",
       "impacto_desativar": "Voce perde a funcao de salvar clipes automaticos do Xbox Game Bar; a gravacao manual (Win+Alt+R) pode continuar disponivel dependendo da configuracao.",
-      "impacto_manter": "Consome CPU/GPU/disco continuamente para manter o buffer de gravacao, mesmo em jogos onde voce nunca salva um clipe."
+      "impacto_manter": "Consome CPU/GPU/disco continuamente para manter o buffer de gravacao, mesmo em jogos onde voce nunca salva um clipe.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Modo de Jogo (Game Mode) do Windows",
@@ -613,7 +628,8 @@
       "classificacao": "depende",
       "descricao": "Quando ativo, o Windows prioriza automaticamente recursos do sistema (CPU/GPU) para o jogo em primeiro plano, pausando notificacoes e reduzindo atividade em segundo plano.",
       "impacto_desativar": "O Windows para de priorizar automaticamente o jogo em primeiro plano - alguns usuarios avancados preferem isso para ter controle manual total sobre prioridades.",
-      "impacto_manter": "Geralmente melhora a estabilidade de FPS na maioria dos jogos; em casos raros pode interferir em overlays ou ferramentas de streaming/gravacao de terceiros."
+      "impacto_manter": "Geralmente melhora a estabilidade de FPS na maioria dos jogos; em casos raros pode interferir em overlays ou ferramentas de streaming/gravacao de terceiros.",
+      "valor_recomendado": "1"
     },
     {
       "nome": "Prioridade de Processador para Jogos",
@@ -621,7 +637,8 @@
       "classificacao": "depende",
       "descricao": "Controla como o Windows divide o tempo de CPU entre o programa em primeiro plano (ex: o jogo) e processos em segundo plano.",
       "impacto_desativar": "Volta a divisao padrao (mais igualitaria) entre primeiro e segundo plano - melhor se voce roda tarefas pesadas em segundo plano enquanto joga (ex: gravacao, transmissao ao vivo).",
-      "impacto_manter": "O jogo em primeiro plano recebe mais tempo de CPU, o que geralmente melhora a fluidez - processos em segundo plano (incluindo gravacao/streaming) podem ficar levemente menos responsivos."
+      "impacto_manter": "O jogo em primeiro plano recebe mais tempo de CPU, o que geralmente melhora a fluidez - processos em segundo plano (incluindo gravacao/streaming) podem ficar levemente menos responsivos.",
+      "valor_recomendado": "38"
     },
     {
       "nome": "Windows Copilot (Usuario Atual)",
@@ -629,7 +646,8 @@
       "classificacao": "seguro",
       "descricao": "Assistente de Inteligencia Artificial integrado ao Windows 11, acessivel pela barra de tarefas. Se voce nao usa IA no dia a dia, e seguro desativar.",
       "impacto_desativar": "O Copilot deixa de responder/abrir para o seu usuario. Nenhuma outra funcao do Windows e afetada.",
-      "impacto_manter": "Fica disponivel na barra de tarefas, pronto para uso a qualquer momento - sem custo perceptivel de desempenho quando nao esta em uso."
+      "impacto_manter": "Fica disponivel na barra de tarefas, pronto para uso a qualquer momento - sem custo perceptivel de desempenho quando nao esta em uso.",
+      "valor_recomendado": "1"
     },
     {
       "nome": "Windows Copilot (Todos os Usuarios)",
@@ -637,7 +655,8 @@
       "classificacao": "seguro",
       "descricao": "Mesma politica do Windows Copilot acima, mas aplicada a todos os usuarios cadastrados neste PC (chave em HKLM - normalmente exige rodar o NITRO BOOST como Administrador para alterar).",
       "impacto_desativar": "O Copilot deixa de responder/abrir para qualquer usuario deste PC, nao so o atual.",
-      "impacto_manter": "Fica disponivel para todos os usuarios do PC que quiserem usar."
+      "impacto_manter": "Fica disponivel para todos os usuarios do PC que quiserem usar.",
+      "valor_recomendado": "1"
     },
     {
       "nome": "Botao do Copilot na Barra de Tarefas",
@@ -645,7 +664,8 @@
       "classificacao": "seguro",
       "descricao": "Icone/botao de atalho para o Copilot exibido na barra de tarefas do Windows 11.",
       "impacto_desativar": "O icone do Copilot some da barra de tarefas, deixando ela mais limpa.",
-      "impacto_manter": "O icone fica visivel na barra de tarefas, ocupando um pequeno espaco visual."
+      "impacto_manter": "O icone fica visivel na barra de tarefas, ocupando um pequeno espaco visual.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Windows Recall (Retomar)",
@@ -653,7 +673,8 @@
       "classificacao": "depende",
       "descricao": "Recurso de IA (Copilot+ PCs, Windows 11 24H2 em diante) que tira 'fotos' periodicas da sua tela e as indexa por IA, para voce depois buscar algo que viu antes. ATENCAO A PRIVACIDADE: essas capturas ficam guardadas no seu PC e podem incluir senhas, conversas ou qualquer coisa que apareceu na tela - avalie com cuidado antes de manter ativado. Se a chave de politica nao existir na sua maquina, o Recall pode nao estar disponivel na sua edicao do Windows, ou so pode ser desativado manualmente (ver tutorial 'Desativando o Recall pelas Configuracoes' na aba Tutoriais).",
       "impacto_desativar": "O Windows para de capturar e indexar instantaneos periodicos da tela - reduz o uso de disco/CPU em segundo plano e elimina o risco de privacidade de ter um historico visual detalhado guardado no PC.",
-      "impacto_manter": "Voce ganha a capacidade de buscar por IA algo que viu na tela antigamente, mas o Windows fica continuamente tirando e guardando capturas de tela em segundo plano, com implicacao real de privacidade caso outra pessoa tenha acesso ao seu usuario no PC."
+      "impacto_manter": "Voce ganha a capacidade de buscar por IA algo que viu na tela antigamente, mas o Windows fica continuamente tirando e guardando capturas de tela em segundo plano, com implicacao real de privacidade caso outra pessoa tenha acesso ao seu usuario no PC.",
+      "valor_recomendado": "1"
     },
     {
       "nome": "Click to Do",
@@ -661,7 +682,8 @@
       "classificacao": "depende",
       "descricao": "Recurso de IA que sugere acoes contextuais (copiar texto, resumir, abrir link) sobre o conteudo que esta na tela no momento.",
       "impacto_desativar": "Voce perde as sugestoes automaticas de acao sobre o conteudo da tela - continua podendo fazer tudo manualmente (copiar, abrir, etc).",
-      "impacto_manter": "Fica disponivel para agilizar tarefas repetitivas com sugestoes de IA sobre o que esta na tela; alguns usuarios acham a sugestao constante um pouco intrusiva."
+      "impacto_manter": "Fica disponivel para agilizar tarefas repetitivas com sugestoes de IA sobre o que esta na tela; alguns usuarios acham a sugestao constante um pouco intrusiva.",
+      "valor_recomendado": "1"
     },
     {
       "nome": "Cocreator / Criacao de Imagem por IA (Paint e Fotos)",
@@ -669,7 +691,8 @@
       "classificacao": "depende",
       "descricao": "Recurso de geracao de imagens por IA (Cocreator) disponivel nos apps Paint e Fotos do Windows 11. NOTA DE TRANSPARENCIA: a Microsoft nao disponibiliza uma chave exclusiva so para o Cocreator - desativar este item tambem desativa o 'Windows Recall' (e vice-versa), porque os dois compartilham a mesma politica por baixo.",
       "impacto_desativar": "Os apps Paint e Fotos deixam de oferecer a geracao/edicao de imagem por IA. Como consequencia (mesma chave), o Windows Recall tambem e desativado junto.",
-      "impacto_manter": "Voce pode gerar/editar imagens com IA direto no Paint e no Fotos; como consequencia (mesma chave), o Windows Recall tambem continua disponivel."
+      "impacto_manter": "Voce pode gerar/editar imagens com IA direto no Paint e no Fotos; como consequencia (mesma chave), o Windows Recall tambem continua disponivel.",
+      "valor_recomendado": "1"
     },
     {
       "nome": "Copilot no Microsoft Edge (Barra Lateral)",
@@ -677,7 +700,8 @@
       "classificacao": "seguro",
       "descricao": "Barra lateral de IA (Copilot/Bing Chat) integrada ao navegador Microsoft Edge.",
       "impacto_desativar": "A barra lateral de IA some do Edge; a navegacao normal nao e afetada.",
-      "impacto_manter": "Fica disponivel como atalho de IA dentro do proprio navegador."
+      "impacto_manter": "Fica disponivel como atalho de IA dentro do proprio navegador.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Sugestoes e Anuncios no Menu Iniciar",
@@ -685,7 +709,8 @@
       "classificacao": "seguro",
       "descricao": "Apps 'sugeridos' (as vezes patrocinados) que aparecem misturados na lista de apps do Menu Iniciar.",
       "impacto_desativar": "O Menu Iniciar mostra so os apps que voce realmente instalou, sem sugestoes de terceiros.",
-      "impacto_manter": "O Menu Iniciar pode exibir apps que voce nunca instalou, as vezes com fins promocionais."
+      "impacto_manter": "O Menu Iniciar pode exibir apps que voce nunca instalou, as vezes com fins promocionais.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Dicas e Sugestoes do Windows",
@@ -693,7 +718,8 @@
       "classificacao": "seguro",
       "descricao": "Notificacoes do tipo 'Experimente isso' que o proprio Windows envia sugerindo recursos ou apps.",
       "impacto_desativar": "Voce para de receber essas notificacoes promocionais do sistema.",
-      "impacto_manter": "De vez em quando aparecem notificacoes sugerindo algo para experimentar no Windows."
+      "impacto_manter": "De vez em quando aparecem notificacoes sugerindo algo para experimentar no Windows.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Instalacao Silenciosa de Apps Sugeridos",
@@ -701,7 +727,8 @@
       "classificacao": "seguro",
       "descricao": "Permite que o Windows instale sozinho, sem perguntar, apps 'recomendados' (comum em instalacoes novas do Windows).",
       "impacto_desativar": "Nenhum app novo e instalado sozinho pelo Windows sem sua acao direta.",
-      "impacto_manter": "O Windows pode instalar apps promocionais automaticamente de tempos em tempos, sem pedir confirmacao previa."
+      "impacto_manter": "O Windows pode instalar apps promocionais automaticamente de tempos em tempos, sem pedir confirmacao previa.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Sugestoes no Painel de Configuracoes",
@@ -709,7 +736,8 @@
       "classificacao": "seguro",
       "descricao": "Sugestoes promocionais exibidas dentro do proprio app Configuracoes do Windows.",
       "impacto_desativar": "O app Configuracoes fica mais limpo, sem sugestoes misturadas as opcoes reais do sistema.",
-      "impacto_manter": "Aparecem sugestoes ocasionais (as vezes promocionais) dentro das telas de Configuracoes."
+      "impacto_manter": "Aparecem sugestoes ocasionais (as vezes promocionais) dentro das telas de Configuracoes.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Tela de Bloqueio com Conteudo Dinamico (Windows Spotlight)",
@@ -717,7 +745,8 @@
       "classificacao": "seguro",
       "descricao": "Imagens e dicas que trocam automaticamente na tela de bloqueio, as vezes com conteudo promocional (Windows Spotlight).",
       "impacto_desativar": "A tela de bloqueio para de trocar de imagem sozinha (volta a usar uma imagem fixa escolhida por voce).",
-      "impacto_manter": "A tela de bloqueio muda de imagem periodicamente, podendo incluir dicas ou conteudo promocional."
+      "impacto_manter": "A tela de bloqueio muda de imagem periodicamente, podendo incluir dicas ou conteudo promocional.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Pesquisa do Bing no Menu Iniciar (Politica)",
@@ -725,7 +754,8 @@
       "classificacao": "seguro",
       "descricao": "Via politica de grupo, controla se a pesquisa do Windows traz resultados da web (Bing) junto com os resultados locais do seu PC. Tem prioridade sobre a configuracao de usuario, quando definida.",
       "impacto_desativar": "A pesquisa do Menu Iniciar passa a mostrar so resultados locais (arquivos, apps, configuracoes do seu PC), sem misturar resultados da web.",
-      "impacto_manter": "A pesquisa mistura resultados locais com resultados da web (Bing), o que pode deixar a busca mais lenta e cheia de conteudo nao relacionado ao seu PC."
+      "impacto_manter": "A pesquisa mistura resultados locais com resultados da web (Bing), o que pode deixar a busca mais lenta e cheia de conteudo nao relacionado ao seu PC.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Pesquisa do Bing no Menu Iniciar (Usuario)",
@@ -733,7 +763,8 @@
       "classificacao": "seguro",
       "descricao": "Mesmo controle de pesquisa web acima, mas na configuracao do usuario (usada quando nao ha politica de grupo aplicada - a maioria dos PCs domesticos).",
       "impacto_desativar": "A pesquisa do Menu Iniciar passa a mostrar so resultados locais.",
-      "impacto_manter": "A pesquisa mistura resultados locais com resultados da web (Bing)."
+      "impacto_manter": "A pesquisa mistura resultados locais com resultados da web (Bing).",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Notificacoes de Sincronizacao do OneDrive",
@@ -741,7 +772,8 @@
       "classificacao": "seguro",
       "descricao": "Pop-ups do Windows insistindo para voce configurar backup de arquivos no OneDrive.",
       "impacto_desativar": "Esses pop-ups deixam de aparecer. O OneDrive continua funcionando normalmente se voce ja o usa.",
-      "impacto_manter": "De tempos em tempos aparecem lembretes pedindo para configurar o backup no OneDrive."
+      "impacto_manter": "De tempos em tempos aparecem lembretes pedindo para configurar o backup no OneDrive.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Icone de Chat (Teams Pessoal) na Barra de Tarefas",
@@ -749,7 +781,8 @@
       "classificacao": "seguro",
       "descricao": "Icone de Chat (versao consumidor do Microsoft Teams) exibido na barra de tarefas do Windows.",
       "impacto_desativar": "O icone de Chat some da barra de tarefas, deixando ela mais limpa.",
-      "impacto_manter": "O icone fica disponivel na barra de tarefas para chamadas/mensagens pessoais via Teams."
+      "impacto_manter": "O icone fica disponivel na barra de tarefas para chamadas/mensagens pessoais via Teams.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Apps em Segundo Plano (Politica Geral)",
@@ -757,7 +790,8 @@
       "classificacao": "depende",
       "descricao": "Controla, para todos os apps UWP instalados, se eles podem continuar rodando em segundo plano mesmo depois de fechados (recebendo notificacoes, atualizando dados, etc).",
       "impacto_desativar": "Apps UWP param de consumir bateria/RAM em segundo plano quando fechados - porem alguns apps (ex: mensagens, e-mail) podem parar de avisar sobre notificacoes novas ate voce abri-los manualmente.",
-      "impacto_manter": "Apps UWP continuam disponiveis para notificar/atualizar mesmo fechados, ao custo de consumir RAM e, em notebooks, bateria em segundo plano."
+      "impacto_manter": "Apps UWP continuam disponiveis para notificar/atualizar mesmo fechados, ao custo de consumir RAM e, em notebooks, bateria em segundo plano.",
+      "valor_recomendado": "2"
     },
     {
       "nome": "Limpeza Automatica de Arquivos (Storage Sense)",
@@ -765,7 +799,8 @@
       "classificacao": "depende",
       "descricao": "ALERTA: controla a limpeza AUTOMATICA de arquivos temporarios e da lixeira feita pelo Storage Sense, sem confirmacao a cada execucao. Desativar essa limpeza automatica e seguro (voce continua podendo limpar manualmente quando quiser); manter ativado nao arrisca travar o sistema, mas pode apagar arquivos da lixeira/temporarios que voce nao esperava perder, se voce costuma guardar coisas la 'por garantia'.",
       "impacto_desativar": "O Windows para de apagar arquivos temporarios/lixeira sozinho - o espaco em disco so e liberado quando voce limpar manualmente (ou rodar a limpeza pelo NITRO BOOST/Configuracoes sob demanda).",
-      "impacto_manter": "O Windows libera espaco em disco automaticamente de tempos em tempos - conveniente, mas pode remover arquivos da lixeira/temporarios antes do que voce esperava."
+      "impacto_manter": "O Windows libera espaco em disco automaticamente de tempos em tempos - conveniente, mas pode remover arquivos da lixeira/temporarios antes do que voce esperava.",
+      "valor_recomendado": "0"
     },
     {
       "nome": "Coleta de Dados de Digitacao (Typing Insights)",
@@ -773,7 +808,8 @@
       "classificacao": "seguro",
       "descricao": "Coleta de dados sobre como voce digita, usada pela Microsoft para 'melhorar sugestoes' de texto e teclado.",
       "impacto_desativar": "Nenhum impacto perceptivel no uso do teclado. Apenas a Microsoft deixa de receber esses dados de digitacao.",
-      "impacto_manter": "O Windows envia dados sobre padroes de digitacao para a Microsoft em segundo plano."
+      "impacto_manter": "O Windows envia dados sobre padroes de digitacao para a Microsoft em segundo plano.",
+      "valor_recomendado": "0"
     }
   ]
 }
