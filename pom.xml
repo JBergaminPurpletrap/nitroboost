@@ -19,6 +19,13 @@
 
         <!-- Classe principal (JavaFX Application) -->
         <mainClass>com.nitroboost.Main</mainClass>
+        <!--
+            Classe de entrada do jar empacotado/jpackage (nao a Application em si -
+            ver Javadoc de Launcher.java para o motivo: evita o erro "componentes de
+            runtime do JavaFX nao encontrados" ao rodar via "java -jar"/jpackage fora
+            do module-path).
+        -->
+        <launcherClass>com.nitroboost.Launcher</launcherClass>
 
         <!-- Versoes das dependencias -->
         <javafx.version>21.0.12</javafx.version>
@@ -106,6 +113,25 @@
             </plugin>
 
             <!--
+                maven-jar-plugin: define o Main-Class do manifesto como o
+                Launcher (nao a Application diretamente - ver launcherClass acima
+                e o Javadoc de Launcher.java), para que "java -jar target/nitroboost.jar"
+                funcione sozinho (usado pelo jpackage no empacotamento da Fase 6).
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>${launcherClass}</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <!--
                 javafx-maven-plugin: resolve os artefatos nativos do JavaFX pelo
                 classifier correto do SO automaticamente (evita configurar
                 module-path / add-modules manualmente e baixar SDK JavaFX a parte).
@@ -129,6 +155,33 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.6.3</version>
+            </plugin>
+
+            <!--
+                maven-dependency-plugin: copia todas as dependencias de runtime (incluindo
+                os jars nativos do JavaFX com classifier "win", resolvidos automaticamente
+                pelo perfil de SO do proprio POM do OpenJFX) para target/jpackage-input a
+                cada "mvn package". O jpackage usa essa pasta (junto do nitroboost.jar
+                principal) como classpath da aplicacao empacotada - ver secao "Empacotamento"
+                do README.md e o script scripts/jpackage-build.bat.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.8.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-runtime-deps-for-jpackage</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/jpackage-input</outputDirectory>
+                            <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
