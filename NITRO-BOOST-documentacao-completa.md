@@ -274,15 +274,18 @@ nitroboost/
 
 ### ✅ FASE 6 — Refinamento, Generalização e Empacotamento
 
-- [ ] Revisar todo o código em busca de caminhos/valores fixos (hardcoded) específicos do PC de desenvolvimento
-- [ ] Testar em uma segunda máquina (ou VM) com hardware diferente
-- [ ] Ajustar UI para diferentes resoluções de tela
-- [ ] Empacotar aplicação como `.exe` usando `jpackage`
-- [ ] Criar instalador simples (ou ao menos um `.bat` que solicite execução como administrador)
-- [ ] Revisar e finalizar `README.md` com instruções de instalação e uso
-- [ ] Commit: `[Fase6] Aplicação empacotada e pronta para distribuição`
+- [x] Revisar todo o código em busca de caminhos/valores fixos (hardcoded) específicos do PC de desenvolvimento
+- [ ] Testar em uma segunda máquina (ou VM) com hardware diferente — **não foi possível neste
+      ambiente** (uma única máquina de desenvolvimento Windows disponível, sem VM/segunda máquina
+      real). Ver `BLOCKERS.md` e `PROGRESS.md` (Fase 6) para detalhes e o que ficou pendente do
+      usuário.
+- [x] Ajustar UI para diferentes resoluções de tela
+- [x] Empacotar aplicação como `.exe` usando `jpackage`
+- [x] Criar instalador simples (ou ao menos um `.bat` que solicite execução como administrador)
+- [x] Revisar e finalizar `README.md` com instruções de instalação e uso
+- [x] Commit: `[Fase6] Aplicação empacotada e pronta para distribuição`
 
-**Critério de conclusão da fase:** o app roda em uma máquina diferente da original sem ajustes manuais no código.
+**Critério de conclusão da fase:** o app roda em uma máquina diferente da original sem ajustes manuais no código. *(Não verificável neste ambiente por falta de uma segunda máquina/VM — ver nota acima. O código foi revisado e nenhum caminho/valor hardcoded de máquina foi encontrado, então não há motivo técnico conhecido para o app não rodar em outra máquina Windows 11, mas a confirmação real fica pendente do usuário.)*
 
 ---
 

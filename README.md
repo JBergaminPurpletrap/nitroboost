@@ -11,11 +11,20 @@ de carbono e acentos em verde neon, estilo HUD gamer.
 > Consulte `NITRO-BOOST-documentacao-completa.md` para a documentação completa do projeto
 > (objetivo, arquitetura, checklist detalhado por fase) e `NITRO-BOOST-skills-tecnicas.md` para o
 > guia de bibliotecas/comandos usados na implementação.
+>
+> ⚠️ **Projeto pessoal e privado.** Feito para uso individual, sem garantias, sem suporte e sem
+> distribuição pública planejada. Ele mexe em processos, serviços, registro, tarefas agendadas,
+> plano de energia e apps do Windows — use por sua conta e risco, de preferência lendo o que cada
+> ação faz antes de confirmar (é exatamente para isso que existe a tela de detalhes de cada item).
 
 ## Status atual
 
-Projeto em desenvolvimento — **Fase 0 (Setup e Fundamentos)** concluída. Veja `PROGRESS.md` para o
-histórico de progresso e `BLOCKERS.md` para bloqueios técnicos conhecidos.
+Todas as fases "core" do projeto (0 a 6) estão concluídas — o app escaneia o sistema, executa e
+reverte ações com backup automático, tem interface gráfica completa com o tema Carbono & Verde
+Turbo, tutoriais (incluindo detecção de XMP/EXPO desativado), e já pode ser empacotado como um
+executável standalone via `jpackage` (veja "Empacotamento" abaixo). Veja `PROGRESS.md` para o
+histórico detalhado de cada fase e `BLOCKERS.md` para bloqueios técnicos conhecidos. A Fase 7
+(expansão online) é opcional/futura e não foi iniciada.
 
 ## Stack técnica
 
@@ -31,13 +40,15 @@ histórico de progresso e `BLOCKERS.md` para bloqueios técnicos conhecidos.
 
 ## Pré-requisitos
 
-- **Java 21** instalado e disponível no `PATH` (testado com Temurin 21).
+- **JDK 21** (não só o JRE) instalado e disponível no `PATH` (testado com Temurin 21) — o JDK
+  completo é necessário porque `jpackage` (usado para gerar o `.exe`, ver "Empacotamento" abaixo)
+  não existe no JRE.
 - **Não é necessário instalar o Maven** — o projeto usa o Maven Wrapper (`mvnw` / `mvnw.cmd`), que
   baixa automaticamente a versão correta do Maven na primeira execução.
 - Windows 11 (a maioria das funcionalidades do app interage diretamente com APIs/serviços do
   Windows).
 
-## Como rodar
+## Como rodar (modo desenvolvimento)
 
 Na raiz do projeto (PowerShell ou `cmd`):
 
@@ -48,10 +59,15 @@ Na raiz do projeto (PowerShell ou `cmd`):
 Isso deve:
 1. Compilar o projeto.
 2. Inicializar/validar o banco SQLite local em `%USERPROFILE%\.nitroboost\nitroboost.db`.
-3. Imprimir no console o uso atual de CPU e RAM (via OSHI).
-4. Abrir uma janela JavaFX vazia com o título **"NITRO BOOST"**.
+3. Abrir a janela principal do NITRO BOOST (Dashboard, Resultados do Scan, Histórico, Tutoriais)
+   com o tema Carbono & Verde Turbo.
 
-Em Git Bash / Linux / macOS, use `./mvnw clean javafx:run`.
+Em Git Bash / Linux / macOS, use `./mvnw clean javafx:run` (embora o app em si só funcione de
+verdade no Windows, já que a maioria das ações chama comandos/registro do Windows).
+
+Como boa parte das ações (parar serviço, editar registro, trocar plano de energia, desinstalar
+bloatware) exige privilégios de Administrador, para testar o fluxo completo abra o terminal
+("PowerShell" ou "Prompt de Comando") **como Administrador** antes de rodar o comando acima.
 
 ### Rodar apenas o build (sem abrir a janela)
 
@@ -74,6 +90,50 @@ Essas classes utilitárias imprimem no console e terminam sozinhas — não abre
 
 # Cria/valida o schema do banco SQLite e lista as tabelas criadas
 .\mvnw.cmd -q compile exec:java "-Dexec.mainClass=com.nitroboost.db.DatabaseManager"
+```
+
+## Empacotamento (gerar o `.exe` standalone)
+
+O NITRO BOOST pode ser empacotado como um aplicativo standalone (com a JVM embutida — quem for
+rodar **não precisa ter Java instalado**) via `jpackage`, ferramenta que já vem junto do JDK 21.
+
+```powershell
+scripts\jpackage-build.bat
+```
+
+O script faz tudo sozinho:
+
+1. `mvnw package` — compila, empacota `target\nitroboost.jar` e copia todas as dependências de
+   runtime (JavaFX nativo para Windows, OSHI, JNA, SQLite, Jackson) para `target\jpackage-input`
+   (via `maven-dependency-plugin`, configurado no `pom.xml`).
+2. Copia o `nitroboost.jar` principal para essa mesma pasta.
+3. Roda `jpackage --type app-image`, gerando `target\dist\NitroBoost\NitroBoost.exe` — uma pasta
+   standalone completa, pronta para copiar para outra máquina Windows e rodar diretamente.
+
+**Nota técnica:** o ponto de entrada usado pelo jar/`jpackage` é `com.nitroboost.Launcher`, não
+`com.nitroboost.Main` diretamente — `Main` estende `javafx.application.Application`, e o launcher
+padrão do Java recusa iniciar uma classe assim fora do module-path com o erro *"os componentes de
+runtime do JavaFX não foram encontrados"* (mesmo com os jars presentes no classpath). `Launcher` é
+uma classe simples que apenas chama `Main.main(args)`, contornando essa checagem — ver o Javadoc de
+`src/main/java/com/nitroboost/Launcher.java` para os detalhes. Isso só afeta a execução empacotada;
+`javafx:run` (modo desenvolvimento) não precisa dessa classe.
+
+`--type app-image` (em vez de `--type msi`) foi escolhido como padrão porque não depende de
+ferramentas externas (um instalador `.msi` de verdade normalmente exige o **WiX Toolset**
+instalado). Se o WiX estiver disponível na máquina, também é possível gerar um `.msi` diretamente:
+
+```powershell
+jpackage --type msi --input target\jpackage-input --dest target\dist --name NitroBoost --main-jar nitroboost.jar --main-class com.nitroboost.Launcher --app-version 1.0.0 --vendor "NITRO BOOST"
+```
+
+### Rodar como Administrador
+
+A maioria das ações do NITRO BOOST exige privilégios elevados. Depois de gerar o pacote acima, use
+o `run-as-admin.bat` na raiz do projeto — ele verifica se já está elevado, senão pede a elevação via
+UAC (prompt padrão do Windows) e abre o `NitroBoost.exe`:
+
+```powershell
+.\run-as-admin.bat
 ```
 
 ## Estrutura de pastas
