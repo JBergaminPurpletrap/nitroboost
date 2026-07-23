@@ -578,3 +578,145 @@ Fase 5).
 Todos os itens do checklist da Fase 5 estão marcados `[x]` em `NITRO-BOOST-documentacao-completa.md`.
 
 Próximo passo (não iniciado): **Fase 6 — Refinamento, Generalização e Empacotamento**.
+
+---
+
+## 2026-07-23 — Fase 6 concluída (Refinamento, Generalização e Empacotamento)
+
+Última fase "core" do projeto. O NITRO BOOST agora pode ser gerado como um executável standalone
+(`NitroBoost.exe`, JVM embutida) via `jpackage` e rodado como Administrador com um duplo-clique.
+Resumo do que foi feito:
+
+### 6.1 Varredura de hardcode (caminhos/valores específicos da máquina de desenvolvimento)
+
+Revisão completa do código-fonte (`grep` por padrões de caminho absoluto tipo `C:\Users\<nome>`,
+nome de usuário/máquina, GUIDs fixos usados em lógica real, nomes de processo/serviço fixados fora
+de contexto de teste) — **nenhum item hardcoded específico desta máquina foi encontrado**:
+
+- Todos os caminhos de sistema (`%APPDATA%`, `%ProgramData%`, pasta do usuário para o banco SQLite)
+  já eram resolvidos dinamicamente via `System.getenv()`/`System.getProperty("user.home")` desde as
+  fases anteriores — confirmado revisando `DatabaseManager` e `StartupScanner`.
+- A única ocorrência de `"C:\\ProgramData"` (`StartupScanner`) é um **fallback** defensivo para o
+  caso raro da variável de ambiente `ProgramData` não existir — é o caminho padrão do próprio
+  Windows (não específico de usuário/máquina), já comentado no código como tal.
+- O único GUID de plano de energia no código (`PowerPlanScanner`) aparece apenas dentro de um
+  **comentário de exemplo** explicando o formato da linha de saída do `powercfg /list` — o regex de
+  parsing usado de fato (`PLAN_LINE_PATTERN`) busca o padrão genérico de GUID, nunca um valor fixo.
+- Nomes de processo/entrada de teste (`ping.exe`, `NitroBoostTestEntry*`, `NitroBoostTestTask*`)
+  existem apenas dentro das classes `Phase*ConsoleDemo.java` (ferramentas de teste manual, não
+  fazem parte do fluxo de produção da UI) — confirmado que nenhuma classe fora desses demos
+  referencia esses nomes.
+
+Conclusão: as fases anteriores já seguiram a regra de ouro "nada de hardcode" de forma rigorosa;
+esta varredura não encontrou nada a corrigir.
+
+### 6.2 Teste em segunda máquina/VM — não realizável neste ambiente
+
+Registrado em `BLOCKERS.md` (item 4, Fase 6): este ambiente automatizado só tem acesso à própria
+máquina de desenvolvimento Windows, sem uma segunda máquina real nem um hypervisor/VM disponível
+para provisionar uma instância limpa. Como mitigação parcial, a varredura de hardcode (6.1) reduz o
+risco de o app depender de algo específico desta máquina, mas a confirmação real (rodar o pacote
+gerado em outra máquina Windows 11 e ver funcionar sem ajustes) fica pendente do usuário.
+
+### 6.3 Responsividade da UI para diferentes resoluções
+
+Revisão de todas as views (`ui/*.java`) em busca de tamanhos rígidos que impediriam a UI de se
+adaptar a resoluções/escalas de tela diferentes:
+
+- **Confirmado que a estrutura principal já era responsiva** desde a Fase 4: `Main.java` usa
+  `BorderPane` com `setMinWidth(1024)`/`setMinHeight(700)` (não um tamanho fixo travado), sidebar e
+  header crescem/encolhem com a janela; `ScanResultsView` e `HistoryView` já usavam
+  `TableView.CONSTRAINED_RESIZE_POLICY` (colunas proporcionais) e `VBox.setVgrow(tabela,
+  Priority.ALWAYS)`; `DashboardView` usa `Priority.ALWAYS` no gráfico de linha. Os poucos
+  `setPrefWidth`/`setMaxWidth` restantes (ex: `TutorialView` limitando a largura do texto a 720-760px
+  para legibilidade, barras de progresso do dashboard com largura preferencial de 320px) são
+  escolhas de legibilidade/HUD, não travas que impedem redimensionar a janela — revisados e mantidos
+  como estão.
+- **Ponto genuinamente rígido corrigido:** `ItemDetailView` (modal de detalhes do item) usava uma
+  `Scene` de tamanho fixo exato (480x460, `stage.setResizable` nunca chamado, que por padrão do
+  JavaFX deixaria a janela travada nesse tamanho) sem `ScrollPane` — em telas com escala de DPI
+  maior (comum em notebooks 125%/150%) ou uma descrição de item mais longa, o conteúdo poderia ser
+  cortado sem chance de rolar ou redimensionar. Corrigido: o conteúdo do modal agora fica dentro de
+  um `ScrollPane` (`setFitToWidth(true)`, reaproveitando o estilo `.scroll-pane` transparente já
+  existente no tema desde a Fase 5), e a `Stage` passou a ser explicitamente redimensionável
+  (`setResizable(true)`) com um tamanho mínimo (`420x360`) em vez de um tamanho fixo rígido.
+
+### 6.4 Empacotamento via `jpackage`
+
+- **`pom.xml`:** adicionado `maven-dependency-plugin` (execução `copy-dependencies` bound à fase
+  `package`) para copiar todas as dependências de runtime — incluindo os jars nativos do JavaFX com
+  classifier `win` (resolvidos automaticamente pelo próprio POM do OpenJFX via profile de SO, sem
+  precisar do `os-maven-plugin`) — para `target/jpackage-input`. Adicionado também
+  `maven-jar-plugin` configurado para gravar o `Main-Class` correto no manifesto do jar.
+- **Bug real encontrado e corrigido durante o empacotamento:** a primeira tentativa de rodar
+  `jpackage`/`java -jar` com `Main` (que estende `javafx.application.Application`) diretamente como
+  classe principal falhava com **"os componentes de runtime do JavaFX não foram encontrados"**,
+  mesmo com todos os jars do JavaFX presentes no classpath — um comportamento conhecido do launcher
+  do Java (desde o JDK 11): quando a classe principal indicada no manifesto/`--main-class` estende
+  `Application` diretamente, o launcher exige o módulo `javafx.graphics` no **module-path**
+  especificamente, e recusa reconhecê-lo apenas no classpath. Isso nunca apareceu antes porque
+  `javafx:run` (usado em todas as fases anteriores) monta o module-path corretamente sozinho.
+  Corrigido criando **`com.nitroboost.Launcher`** (novo, `src/main/java/com/nitroboost/`) — uma
+  classe simples que **não** estende `Application`, cujo único `main()` chama `Main.main(args)` —
+  e usando essa classe como `Main-Class` do jar (`maven-jar-plugin`) e como `--main-class` do
+  `jpackage`. Solução padrão documentada pela própria comunidade OpenJFX para este problema exato.
+- **`scripts/jpackage-build.bat`** (novo): script que roda `mvnw package`, copia o
+  `nitroboost.jar` principal para `target/jpackage-input` e chama `jpackage --type app-image`,
+  gerando `target/dist/NitroBoost/NitroBoost.exe` — pasta standalone completa (~183 MB, JVM
+  embutida) pronta para copiar para outra máquina.
+- **`--type app-image` escolhido como padrão** (em vez de `--type msi`) por não depender de
+  ferramentas externas. Curiosamente, ao testar `jpackage --type msi` nesta máquina especificamente
+  como validação extra, o comando **funcionou e gerou um `.msi` de ~87 MB sem erro** — indício de
+  que o WiX Toolset já está instalado neste ambiente (não foi instalado por esta fase). Isso não
+  mudou a decisão de manter `app-image` como padrão do projeto (continua funcionando em qualquer
+  máquina com JDK 21, com ou sem WiX), mas o comando exato para gerar o `.msi` ficou documentado no
+  `README.md` para quem quiser um instalador de verdade. Detalhes em `BLOCKERS.md` (item 5, Fase 6).
+- **Validação real do executável gerado:** o `NitroBoost.exe` empacotado foi de fato lançado como
+  processo destacado (mesma técnica de `Start-Process` das Fases 4/5, nunca bloqueando o terminal) —
+  confirmado via `Get-CimInstance`/`Get-Process` que o processo abriu, ficou `Responding=True` e a
+  janela abriu com o título **"NITRO BOOST"** corretamente (o único log de stderr foi o aviso
+  inofensivo e esperado "Unsupported JavaFX configuration: classes were loaded from unnamed module",
+  padrão de qualquer app JavaFX rodando via classpath em vez de module-path). O processo foi
+  encerrado com `Stop-Process -Force` ao final do teste e confirmado sem nenhum processo
+  `NitroBoost.exe`/`java.exe` órfão relacionado ao projeto na máquina depois.
+
+### 6.5 Instalador simples / execução como Administrador
+
+- **`run-as-admin.bat`** (novo, raiz do projeto): verifica se já está rodando elevado (`net
+  session`); se não estiver, relança a si mesmo via UAC (`Start-Process -Verb RunAs` do
+  PowerShell) e, uma vez elevado, abre `target\dist\NitroBoost\NitroBoost.exe`.
+
+### 6.6 `README.md` finalizado
+
+Reescrito com: aviso de projeto pessoal/privado, pré-requisitos atualizados (JDK completo, não só
+JRE, por causa do `jpackage`), instruções de modo desenvolvimento (`javafx:run`, com nota sobre
+rodar como Administrador para testar o fluxo completo), nova seção **"Empacotamento"** completa
+(como gerar o `.exe` via `scripts\jpackage-build.bat`, explicação da classe `Launcher` e por que ela
+existe, comando alternativo para gerar `.msi`) e seção "Rodar como Administrador" cobrindo o
+`run-as-admin.bat`.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros, após todas as mudanças (Launcher, ItemDetailView,
+  pom.xml).
+- `./mvnw -q clean package -DskipTests` — OK, gera `target/nitroboost.jar` (com `Main-Class:
+  com.nitroboost.Launcher` confirmado via `unzip -p ... META-INF/MANIFEST.MF`) e popula
+  `target/jpackage-input` com as 17 dependências de runtime corretas (incluindo os 4 jars
+  `-win` do JavaFX).
+- `jpackage --type app-image ...` — OK, gera `target/dist/NitroBoost/NitroBoost.exe` (~183 MB).
+- Execução real do `.exe` gerado validada (ver 6.4) — abriu, respondeu, título correto, encerrado
+  sem deixar processo órfão.
+- Teste extra de `jpackage --type msi` — gerou `.msi` de ~87 MB sem erro nesta máquina (WiX já
+  instalado aqui); arquivos de teste (`target/dist-msi-test`, log) removidos após a validação, não
+  fazem parte do pacote final do projeto.
+
+Nenhum bloqueio bloqueante restou desta fase — o único item não concluído (teste em segunda
+máquina/VM) é uma limitação estrutural do ambiente, documentada em `BLOCKERS.md` como pendência
+explícita do usuário, não pulada silenciosamente.
+
+Checklist da Fase 6 marcado em `NITRO-BOOST-documentacao-completa.md`: todos os itens `[x]` exceto
+"testar em uma segunda máquina/VM", que permanece `[ ]` com a nota explicando o motivo.
+
+**Esta é a conclusão do escopo "core" do projeto (Fases 0 a 6).** A Fase 7 (expansão online) é
+opcional/futura e **não foi iniciada**, conforme instrução explícita de aguardar validação do
+usuário antes de começá-la.

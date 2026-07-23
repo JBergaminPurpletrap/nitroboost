@@ -69,6 +69,43 @@ projeto (nunca pular uma tarefa silenciosamente por causa de um bloqueio).
 
 ---
 
+## Fase 6 — Refinamento, Generalização e Empacotamento
+
+### 4. Teste em uma segunda máquina/VM com hardware diferente — impossível neste ambiente
+- **Status:** Não resolvido (limitação do ambiente, não do código).
+- **Descrição:** o critério de conclusão da Fase 6 pede validação em uma máquina/VM diferente da
+  de desenvolvimento. Este ambiente automatizado tem acesso a **uma única máquina Windows** (a
+  própria máquina de desenvolvimento) — não há uma segunda máquina real nem um hypervisor/VM
+  disponível para provisionar uma instância limpa do Windows 11.
+- **Mitigação aplicada:** como mitigação parcial, foi feita uma varredura completa do código em
+  busca de qualquer caminho, GUID, nome de usuário ou nome de máquina fixado (hardcoded) que
+  pudesse impedir o app de rodar em outra máquina — nenhum item hardcoded foi encontrado (ver
+  `PROGRESS.md`, seção "Fase 6", para o detalhe da varredura). Isso reduz o risco, mas não
+  substitui a validação real.
+- **Ação pendente:** o usuário deve rodar o pacote gerado (`target\dist\NitroBoost\NitroBoost.exe`,
+  copiando a pasta inteira) em uma segunda máquina Windows 11 real (ou uma VM criada manualmente,
+  ex: Hyper-V/VirtualBox) e confirmar que o app abre e funciona sem qualquer ajuste manual no
+  código/configuração.
+
+### 5. Instalador `.msi` — WiX Toolset (achado: já está disponível nesta máquina)
+- **Status:** Não é um bloqueio de fato — registrado aqui apenas para deixar claro o que foi
+  testado, já que a instrução da Fase 6 pedia documentar exatamente esse tipo de obstáculo caso
+  ocorresse.
+- **Descrição:** a documentação do projeto antecipava que gerar um instalador `.msi` de verdade via
+  `jpackage --type msi` provavelmente exigiria o WiX Toolset instalado (ferramenta que normalmente
+  não vem com o JDK nem é instalada por padrão no Windows). Ao testar nesta máquina, o comando
+  `jpackage --type msi ...` **funcionou e gerou `NitroBoost-1.0.0.msi` (~87 MB) sem erro**,
+  indicando que o WiX Toolset já está instalado neste ambiente (não foi instalado por esta fase).
+- **Decisão tomada:** mesmo com o `.msi` funcionando aqui, o empacotamento padrão do projeto
+  (`scripts\jpackage-build.bat`) continua usando `--type app-image` (pasta standalone com o `.exe`,
+  sem instalador), porque é o tipo mais simples e **não depende de nenhuma ferramenta externa** -
+  continua funcionando em qualquer máquina com JDK 21, mesmo que o WiX não esteja instalado nela.
+  O comando exato para gerar o `.msi`, para quem quiser um instalador de verdade nesta máquina (ou
+  em outra que já tenha o WiX), está documentado no `README.md` (seção "Empacotamento").
+- **Nenhuma ação pendente.**
+
+---
+
 ## Itens sem bloqueio (apenas para referência)
 
 - Repositório GitHub remoto: criado com `gh repo create nitroboost --private --source=. --remote=origin`
