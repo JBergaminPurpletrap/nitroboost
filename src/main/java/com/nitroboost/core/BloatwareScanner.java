@@ -28,10 +28,20 @@ import java.util.concurrent.TimeUnit;
  */
 public class BloatwareScanner {
 
-    /** Categoria de bloatware conhecida, conforme pedido na Fase 3 do projeto. */
+    /**
+     * Categoria de bloatware conhecida, conforme pedido na Fase 3 do projeto.
+     * As categorias {@code AI_*} foram adicionadas na Fase 8 - Parte 2, para
+     * identificar pacotes Appx especificamente ligados a recursos de IA do
+     * Windows 11 (complementar aos itens de politica lidos por
+     * {@link AiFeatureScanner}, que cobre o mecanismo de registro/politica -
+     * aqui e so a deteccao do PACOTE instalado pelo nome).
+     */
     public enum Category {
         WIDGETS,
-        COPILOT,
+        AI_COPILOT,
+        AI_RECALL,
+        AI_CLICK_TO_DO,
+        AI_COCREATOR,
         GAME_BAR,
         XBOX,
         ONEDRIVE,
@@ -126,8 +136,21 @@ public class BloatwareScanner {
         if (lower.contains("webexperience")) {
             return Category.WIDGETS; // MicrosoftWindows.Client.WebExperience
         }
+        // Deteccao de recursos de IA pelo nome do pacote Appx (Fase 8 - Parte 2). Padroes
+        // mais especificos (recall/click to do/cocreator) sao checados antes do generico
+        // "copilot", ja que a Microsoft pode empacotar esses recursos com nomes derivados
+        // do proprio Copilot (ex: "...Copilot.Recall...") em builds futuras.
+        if (lower.contains("recall")) {
+            return Category.AI_RECALL;
+        }
+        if (lower.contains("clicktodo") || lower.contains("click2do")) {
+            return Category.AI_CLICK_TO_DO;
+        }
+        if (lower.contains("cocreator") || lower.contains("imagecreator")) {
+            return Category.AI_COCREATOR;
+        }
         if (lower.contains("copilot")) {
-            return Category.COPILOT;
+            return Category.AI_COPILOT;
         }
         if (lower.contains("xboxgamingoverlay") || lower.contains("xboxgameoverlay")) {
             return Category.GAME_BAR;
