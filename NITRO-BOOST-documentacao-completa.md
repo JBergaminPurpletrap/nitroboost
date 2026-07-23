@@ -153,14 +153,14 @@ nitroboost/
 
 ### ✅ FASE 2 — Segurança e Controle (Backup completo + Lock + Histórico)
 
-- [ ] Expandir `BackupManager` para registrar todas as ações com timestamp, tipo de ação, estado anterior e novo estado
-- [ ] Implementar `LockManager.lockItem(item)` — marca item como "protegido" no banco
-- [ ] Implementar verificação: antes de qualquer ação em `ActionExecutor`, checar se o item está bloqueado; se estiver, recusar a ação e avisar
-- [ ] Implementar `ActionExecutor` registrando toda ação na tabela `actions_history`
-- [ ] Criar consulta para listar histórico completo (mais recente primeiro)
-- [ ] Criar método de reversão a partir de uma entrada específica do histórico
-- [ ] Testar cenário: bloquear item → tentar desativar → confirmar que a ação foi recusada
-- [ ] Commit: `[Fase2] Sistema de backup, bloqueio e histórico completo`
+- [x] Expandir `BackupManager` para registrar todas as ações com timestamp, tipo de ação, estado anterior e novo estado
+- [x] Implementar `LockManager.lockItem(item)` — marca item como "protegido" no banco
+- [x] Implementar verificação: antes de qualquer ação em `ActionExecutor`, checar se o item está bloqueado; se estiver, recusar a ação e avisar
+- [x] Implementar `ActionExecutor` registrando toda ação na tabela `actions_history`
+- [x] Criar consulta para listar histórico completo (mais recente primeiro)
+- [x] Criar método de reversão a partir de uma entrada específica do histórico
+- [x] Testar cenário: bloquear item → tentar desativar → confirmar que a ação foi recusada
+- [x] Commit: `[Fase2] Sistema de backup, bloqueio e histórico completo`
 
 **Critério de conclusão da fase:** nenhuma ação é feita sem passar por backup + histórico, e itens bloqueados não podem ser alterados sem desbloqueio manual explícito.
 

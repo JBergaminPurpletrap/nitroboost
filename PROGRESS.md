@@ -125,3 +125,77 @@ Todos os itens do checklist da Fase 1 estão marcados `[x]` em
 `NITRO-BOOST-documentacao-completa.md`.
 
 Próximo passo (não iniciado): **Fase 2 — Segurança e Controle (Backup completo + Lock + Histórico)**.
+
+---
+
+## 2026-07-23 — Fase 2 concluída (Segurança e Controle: Backup completo + Lock + Histórico)
+
+Nenhuma ação passa mais batido: todo item pode ser protegido contra alterações, e toda ação
+(inclusive as recusadas) fica registrada no histórico com rastro completo até o backup que a
+originou. Resumo do que foi feito:
+
+- **`LockManager`** (`actions/`, novo): `lockItem(name, type, reason)` marca um item como
+  protegido na tabela `locks` (usa `INSERT ... ON CONFLICT(item_id) DO UPDATE` para ser
+  idempotente) e atualiza o flag de conveniência `items.is_locked`; `unlockItem(name, type)`
+  remove a proteção; `isLocked(name, type)` é a consulta usada pelo `ActionExecutor` antes de
+  agir. Cria o item no catálogo automaticamente se ainda não existir (nunca falha por FK). Toda
+  chamada de `lockItem`/`unlockItem` grava uma entrada `lock`/`unlock` em `actions_history`.
+- **`ActionExecutor` — verificação de bloqueio:** `killProcess`, `stopService`/`disableService`
+  (via `runServiceAction`, exceto a variante `enable` usada em restores) e `disableStartupItem`
+  agora chamam `LockManager.isLocked` **antes** de criar qualquer backup ou tocar no sistema
+  operacional. Se o item estiver bloqueado, a ação é recusada sem exceção — devolve um
+  `ActionResult(success=false, ...)` com mensagem clara e grava a recusa em `actions_history`
+  (com `previous_state` preenchido e `new_state = null`), sem criar backup nenhum.
+- **Rastreabilidade backup ↔ histórico:** `BackupManager` ganhou `linkToHistory(backupId,
+  historyId)` e `findByActionHistoryId(historyId)`. Como o backup é criado *antes* da ação (e
+  portanto antes de existir uma entrada de histórico para referenciar), o vínculo é feito logo
+  depois: `ActionHistoryRepository.record(...)` agora retorna o id gerado, e o helper interno
+  `recordHistory` do `ActionExecutor` usa esse id para popular `backups.action_history_id`
+  (coluna que já existia no schema mas não era usada).
+- **Histórico completo:** `ActionHistoryRepository` ganhou `HistoryEntry` (record tipado),
+  `findById(id)` e `findRecent(limit)` (mais recente primeiro); `printRecentHistory` foi
+  reescrito para reusar `findRecent` em vez de duplicar a consulta.
+- **Reversão por entrada de histórico:** `ActionExecutor.restoreFromHistory(historyId)` busca a
+  entrada de histórico, localiza o backup vinculado a ela (com fallback para o backup mais
+  recente não restaurado do mesmo item, caso o vínculo direto não exista), e despacha para
+  `restoreProcess`/`restoreService`/`restoreStartupItem` conforme o tipo do item.
+- **Integração/teste (`Phase2ConsoleDemo`):** dois cenários completos via console, cada um contra
+  um item de teste próprio (processo `ping.exe` de teste; entrada de registro de teste
+  `NitroBoostTestEntryFase2` em `HKCU\...\Run`, nunca uma entrada real):
+  1. Bloqueia o item → tenta agir (kill / disable) → confirma que a ação foi **recusada** (sem
+     backup criado, item intacto) → desbloqueia → age novamente → confirma sucesso → localiza a
+     entrada de histórico recém-criada e reverte via `restoreFromHistory(historyId)` (não
+     `restoreProcess`/`restoreStartupItem` diretamente, para validar o caminho novo de ponta a
+     ponta) → confirma que o item voltou ao estado original.
+  Nenhuma ação foi feita em processo, serviço ou entrada de startup essencial da máquina real; ao
+  final da execução não sobrou nenhum processo `ping` órfão nem entrada de registro de teste.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase2ConsoleDemo` — roda até o fim. Trecho
+  relevante confirmando a recusa por bloqueio:
+  ```
+  lockItem() -> sucesso=true | Item 'PING' (process) bloqueado com sucesso.
+  Tentando matar o processo bloqueado...
+  killProcess() [item bloqueado] -> sucesso=false | Acao 'kill' recusada: o item 'PING' esta
+  bloqueado (protegido). Desbloqueie o item manualmente antes de tentar novamente.
+  [OK] Acao recusada corretamente: nenhum backup criado, processo continua vivo.
+  Processo ainda vivo apos tentativa recusada: true
+  ```
+  e, após desbloquear, o round-trip completo com reversão por histórico:
+  ```
+  killProcess() [item desbloqueado] -> sucesso=true | Processo 'PING' (PID 31564) finalizado
+  com sucesso.
+  Entrada de historico #16 localizada para a acao 'kill'.
+  restoreFromHistory(#16) -> sucesso=true | Processo 'PING' relancado com sucesso (novo PID 7492).
+  ```
+  O mesmo padrão (bloqueio recusa → desbloqueio permite → reversão por histórico) foi repetido e
+  validado com sucesso para o item de startup de teste.
+- Verificado após a execução: nenhum processo `ping.exe` órfão (`Get-Process ping` vazio) e
+  nenhuma entrada `NitroBoostTestEntryFase2` remanescente no registro.
+
+Todos os itens do checklist da Fase 2 estão marcados `[x]` em
+`NITRO-BOOST-documentacao-completa.md`.
+
+Próximo passo (não iniciado): **Fase 3 — Expansão de Varredura**.
