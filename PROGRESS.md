@@ -69,3 +69,59 @@ rodando `.\mvnw.cmd clean javafx:run` na máquina real. Ver `BLOCKERS.md` item 2
 - [x] Banco SQLite existe localmente com as 4 tabelas criadas — validado.
 
 Próximo passo (não iniciado): **Fase 1 — MVP Core (Processos, Serviços, Startup)**.
+
+---
+
+## 2026-07-23 — Fase 1 concluída (MVP Core: Processos, Serviços, Startup)
+
+Fluxo completo escanear → classificar → agir → backup → reverter, validado via console
+(`Phase1ConsoleDemo`). Resumo do que foi feito:
+
+- **`ProcessScanner`** (`core/`): lista processos via OSHI (`OperatingSystem.getProcesses()`) com
+  nome, PID, RAM e % CPU; busca por PID.
+- **`ServiceScanner`** (`core/`): lista serviços do Windows via PowerShell `Get-Service`/`Get-CimInstance`,
+  extraindo nome, estado (Running/Stopped) e tipo de inicialização.
+- **`StartupScanner`** (`core/`): lê `HKCU\...\Run`, `HKLM\...\Run` via `reg query` e as pastas de
+  Startup (usuário e "All Users"), sempre resolvendo os caminhos dinamicamente (`%APPDATA%`,
+  `%PROGRAMDATA%` etc. — nunca hardcoded).
+- **`ActionExecutor`** (`actions/`): `killProcess`, `restoreProcess`, `stopService`,
+  `disableService`, `disableStartupItem`/`restoreStartupItem` — todos com try/catch, backup prévio
+  obrigatório e registro no histórico (`actions_history`), mesmo quando a ação falha.
+- **`BackupManager`** (`actions/`, versão básica): `snapshotBeforeAction` grava snapshot em JSON
+  na tabela `backups` antes de qualquer ação; `restore`/métodos específicos revertem a partir do
+  snapshot salvo.
+- **Base de conhecimento:** `knowledge-base.json` expandido para **30 itens** (processos, serviços
+  e entradas de startup comuns do Windows 11 — OneDrive, Xbox Game Bar, Widgets, telemetria etc.),
+  com descrições em português claro. `KnowledgeBase.java` (`knowledge/`) carrega via Jackson e
+  permite consulta por nome.
+- **Persistência:** `ItemRepository` e `ActionHistoryRepository` (`db/`) para gravar itens
+  escaneados e histórico de ações no SQLite.
+- **Integração/teste (`Phase1ConsoleDemo`):** escaneia processos/serviços/startup, classifica cada
+  item pela base de conhecimento, e roda dois round-trips reais de ação + backup + reversão:
+  1. Mata e restaura um processo de teste (`ping.exe`, escolhido por ser um executável clássico
+     que mantém o mesmo PID durante toda a execução — ver bug corrigido abaixo).
+  2. Desativa e restaura uma entrada de registro de teste própria (`NitroBoostTestEntry` em
+     `HKCU\...\Run`), nunca uma entrada real do usuário.
+  Nenhuma ação foi feita em processo, serviço ou entrada de startup essencial da máquina real.
+
+### Bug encontrado e corrigido durante o teste
+
+O teste de kill/restore de processo usava inicialmente `notepad.exe` como processo de teste e
+falhava de forma **intermitente**. Causa raiz: no Windows 11, `notepad.exe` (System32) é um stub de
+app empacotada (MSIX) que repassa a execução para um processo host com outro PID e encerra sozinho
+quase imediatamente — o PID capturado pelo `ProcessBuilder` às vezes já tinha morrido antes do
+`killProcess` rodar. Corrigido trocando o processo de teste para `ping.exe -n 60 127.0.0.1`, um
+executável clássico que mantém PID estável durante 60s. Reexecutado o teste várias vezes após a
+correção — 100% de sucesso, sem processos órfãos deixados na máquina.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase1ConsoleDemo` — roda até o fim,
+  imprime top 10 processos por RAM, até 15 serviços em execução (132 no total), itens de startup
+  reais da máquina, e os dois round-trips de ação/backup/reversão com sucesso.
+
+Todos os itens do checklist da Fase 1 estão marcados `[x]` em
+`NITRO-BOOST-documentacao-completa.md`.
+
+Próximo passo (não iniciado): **Fase 2 — Segurança e Controle (Backup completo + Lock + Histórico)**.

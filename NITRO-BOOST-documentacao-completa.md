@@ -116,36 +116,36 @@ nitroboost/
 ### ✅ FASE 1 — MVP Core (Processos, Serviços, Startup)
 
 #### 1.1 ProcessScanner
-- [ ] Implementar leitura de processos em execução via OSHI (`OperatingSystem.getProcesses()`)
-- [ ] Para cada processo, capturar: nome, PID, uso de RAM, uso de CPU (%)
-- [ ] Criar método `ActionExecutor.killProcess(pid)` com tratamento de erro
-- [ ] Testar via console: listar top 10 processos por uso de RAM
+- [x] Implementar leitura de processos em execução via OSHI (`OperatingSystem.getProcesses()`)
+- [x] Para cada processo, capturar: nome, PID, uso de RAM, uso de CPU (%)
+- [x] Criar método `ActionExecutor.killProcess(pid)` com tratamento de erro
+- [x] Testar via console: listar top 10 processos por uso de RAM
 
 #### 1.2 ServiceScanner
-- [ ] Implementar leitura de serviços do Windows via comando `sc query` ou PowerShell (`Get-Service`)
-- [ ] Parsear saída para extrair: nome do serviço, status (Running/Stopped), tipo de inicialização
-- [ ] Criar métodos `ActionExecutor.stopService(nome)` e `disableService(nome)`
-- [ ] Testar via console: listar serviços em execução
+- [x] Implementar leitura de serviços do Windows via comando `sc query` ou PowerShell (`Get-Service`)
+- [x] Parsear saída para extrair: nome do serviço, status (Running/Stopped), tipo de inicialização
+- [x] Criar métodos `ActionExecutor.stopService(nome)` e `disableService(nome)`
+- [x] Testar via console: listar serviços em execução
 
 #### 1.3 StartupScanner
-- [ ] Ler entradas de inicialização do registro (`HKCU\...\Run` e `HKLM\...\Run`) via `reg query`
-- [ ] Ler também a pasta de Startup (`shell:startup`)
-- [ ] Criar método para desativar item de inicialização (remover ou desabilitar entrada)
-- [ ] Testar via console: listar programas de inicialização
+- [x] Ler entradas de inicialização do registro (`HKCU\...\Run` e `HKLM\...\Run`) via `reg query`
+- [x] Ler também a pasta de Startup (`shell:startup`)
+- [x] Criar método para desativar item de inicialização (remover ou desabilitar entrada)
+- [x] Testar via console: listar programas de inicialização
 
 #### 1.4 Base de Conhecimento Inicial
-- [ ] Criar `knowledge-base.json` com estrutura: `{ nome, tipo, classificacao (seguro/essencial/depende), descricao, impacto_desativar, impacto_manter }`
-- [ ] Popular com pelo menos 20-30 itens conhecidos (baseado na sua experiência de "desbostificação")
-- [ ] Implementar `KnowledgeBase.java` para carregar o JSON e permitir consulta por nome de item
+- [x] Criar `knowledge-base.json` com estrutura: `{ nome, tipo, classificacao (seguro/essencial/depende), descricao, impacto_desativar, impacto_manter }`
+- [x] Popular com pelo menos 20-30 itens conhecidos (baseado na sua experiência de "desbostificação")
+- [x] Implementar `KnowledgeBase.java` para carregar o JSON e permitir consulta por nome de item
 
 #### 1.5 BackupManager (versão básica)
-- [ ] Implementar `BackupManager.snapshotBeforeAction(item)` — salva estado atual no SQLite antes de qualquer ação
-- [ ] Implementar `BackupManager.restore(itemId)` — reverte para o estado salvo
+- [x] Implementar `BackupManager.snapshotBeforeAction(item)` — salva estado atual no SQLite antes de qualquer ação
+- [x] Implementar `BackupManager.restore(itemId)` — reverte para o estado salvo
 
 #### 1.6 Integração e Testes
-- [ ] Conectar Scanner → Knowledge Base → exibir classificação no console
-- [ ] Testar fluxo completo via console: escanear → classificar → desativar → verificar backup salvo → reverter
-- [ ] Commit: `[Fase1] MVP Core funcional via console (processos, serviços, startup)`
+- [x] Conectar Scanner → Knowledge Base → exibir classificação no console
+- [x] Testar fluxo completo via console: escanear → classificar → desativar → verificar backup salvo → reverter
+- [x] Commit: `[Fase1] MVP Core funcional via console (processos, serviços, startup)`
 
 **Critério de conclusão da fase:** via console (sem UI ainda), é possível escanear processos/serviços/startup, ver a classificação de cada item, desativar algo, e reverter usando o backup.
 
