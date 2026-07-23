@@ -13,6 +13,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
@@ -55,6 +56,7 @@ public class ScanResultsView extends BorderPane {
     private final ProgressIndicator progressIndicator = new ProgressIndicator();
     private final ComboBox<String> categoryFilter = new ComboBox<>();
     private final ComboBox<String> classificationFilter = new ComboBox<>();
+    private final CheckBox knownOnlyFilter = new CheckBox("Mostrar apenas itens conhecidos");
     private final Button closeAllGreenButton = new Button("FECHAR TODOS OS ITENS VERDES");
 
     public ScanResultsView(AppContext context, Runnable openTutorialCallback) {
@@ -88,8 +90,15 @@ public class ScanResultsView extends BorderPane {
         closeAllGreenButton.getStyleClass().add("btn-turbo");
         closeAllGreenButton.setOnAction(e -> closeAllGreen());
 
+        // Ligado por padrao: reduz ruido visual (ex: bloatware agora lista TODOS os
+        // apps UWP, nao so os ~15 reconhecidos - ver Fase 8/PROGRESS.md). O usuario
+        // pode desligar para ver a lista completa, incluindo itens nao catalogados.
+        knownOnlyFilter.setSelected(true);
+        knownOnlyFilter.getStyleClass().add("text-secondary");
+        knownOnlyFilter.setOnAction(e -> applyFilter());
+
         HBox toolbar = new HBox(14, new Label("Filtrar por categoria:"), categoryFilter,
-                new Label("Status:"), classificationFilter, rescanButton, closeAllGreenButton, progressIndicator);
+                new Label("Status:"), classificationFilter, knownOnlyFilter, rescanButton, closeAllGreenButton, progressIndicator);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         for (var node : toolbar.getChildren()) {
             if (node instanceof Label l) {
@@ -158,11 +167,13 @@ public class ScanResultsView extends BorderPane {
     private void applyFilter() {
         String selectedCategory = categoryFilter.getValue();
         ItemClassification selectedClassification = classificationFromFilterLabel(classificationFilter.getValue());
+        boolean knownOnly = knownOnlyFilter.isSelected();
         filteredItems.setPredicate(item -> {
             boolean categoryOk = selectedCategory == null || selectedCategory.equals("Todos")
                     || item.category().equals(selectedCategory);
             boolean classificationOk = selectedClassification == null || item.classification() == selectedClassification;
-            return categoryOk && classificationOk;
+            boolean knownOk = !knownOnly || item.catalogued();
+            return categoryOk && classificationOk && knownOk;
         });
     }
 

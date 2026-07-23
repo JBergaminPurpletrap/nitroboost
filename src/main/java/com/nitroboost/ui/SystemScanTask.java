@@ -125,7 +125,11 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
 
     private List<ScannedItem> scanBloatware() {
         List<ScannedItem> result = new ArrayList<>();
-        for (BloatwareScanner.AppxInfo app : new BloatwareScanner().knownBloatware()) {
+        // scan() traz TODOS os apps UWP instalados (nao so os ~15 reconhecidos por
+        // categoria) - itens sem categoria conhecida ainda aparecem, classificados
+        // via KnowledgeBase (ou como "nao catalogado", que ja e o comportamento
+        // padrao de build() abaixo). Ver PROGRESS.md "Fase 8 - Correcao".
+        for (BloatwareScanner.AppxInfo app : new BloatwareScanner().scan()) {
             result.add(build(CATEGORY_BLOATWARE, "bloatware", app.name(), "Instalado (" + app.category() + ")", app));
         }
         return result;
@@ -143,6 +147,6 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
         String keepImpact = entry.map(KnowledgeBase.KnowledgeEntry::keepImpact)
                 .filter(s -> !s.isBlank())
                 .orElse("Continua funcionando normalmente se voce mantiver como esta.");
-        return new ScannedItem(category, type, name, state, classification, description, disableImpact, keepImpact, source);
+        return new ScannedItem(category, type, name, state, classification, description, disableImpact, keepImpact, source, entry.isPresent());
     }
 }

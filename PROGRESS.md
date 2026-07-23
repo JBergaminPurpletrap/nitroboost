@@ -830,3 +830,33 @@ implementação (formato + verificação de atualização) `[x]`; o item de tele
 
 **Esta é a conclusão de todo o roadmap original do projeto (Fases 0 a 7).** Todo o escopo
 planejado em `NITRO-BOOST-documentacao-completa.md` está implementado.
+
+---
+
+## 2026-07-23 — Fase 8 - Correção (bug do Bloatware mostrando poucos itens)
+
+Corrigido bug diagnosticado em `NITRO-BOOST-fase8-debloat-completo.md`: a categoria "Bloatware"
+na tela de resultados mostrava só ~15 apps de ~134 instalados de verdade.
+
+- **Causa raiz:** `SystemScanTask.scanBloatware()` chamava `BloatwareScanner.knownBloatware()`,
+  que descarta silenciosamente qualquer app com `Category.UNKNOWN`.
+- **Correção:** trocado para `BloatwareScanner.scan()` (retorna todos os apps). A classificação
+  de itens não catalogados já caía graciosamente em `ItemClassification.DEPENDE` com a descrição
+  padrão "Item ainda não catalogado" (não precisou de mudança nessa parte).
+- **Novo campo `ScannedItem.catalogued`**: `true` quando o item tem uma entrada real na
+  `KnowledgeBase` (não a classificação/descrição de fallback). Setado em `SystemScanTask.build()`.
+- **Novo `CheckBox` "Mostrar apenas itens conhecidos"** na `ScanResultsView`, ligado por padrão
+  (reduz ruído visual mostrando só os catalogados), combinado com os filtros de categoria e status
+  já existentes. O usuário pode desligar para ver a lista completa de todos os apps instalados,
+  em qualquer categoria (não só Bloatware).
+
+**Validado via console** (`./mvnw exec:java -Dexec.mainClass=com.nitroboost.Phase3ConsoleDemo`,
+seção 3.4, que já chamava `BloatwareScanner.scan()` diretamente): confirmado **134 apps UWP
+instalados** nesta máquina, dos quais **16 reconhecidos** como bloatware conhecido — bate
+exatamente com o diagnóstico do documento (~15 de ~134).
+
+`./mvnw -q compile` — OK, sem erros.
+
+Parte 1 concluída. Aguardando validação do usuário antes de seguir para a Parte 2 (novas
+categorias IA e Recursos de Consumidor), conforme instruído em
+`prompt-fase8-debloat-completo.md`.

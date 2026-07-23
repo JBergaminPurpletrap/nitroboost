@@ -20,8 +20,11 @@ import com.nitroboost.knowledge.ItemClassification;
  * @param keepImpact       o que acontece se o item for mantido como esta
  * @param source           o registro original do scanner (ex: {@code ProcessScanner.ProcessInfo}) - necessario
  *                         para chamar o metodo certo do {@code ActionExecutor} (ver {@link ItemActionDispatcher})
+ * @param catalogued       {@code true} se o item tem uma entrada real na {@link com.nitroboost.knowledge.KnowledgeBase}
+ *                         (nao apenas a classificacao/descricao generica de fallback) - usado pelo filtro
+ *                         "Mostrar apenas itens conhecidos" da {@link ScanResultsView}
  */
 public record ScannedItem(String category, String type, String name, String currentState,
                            ItemClassification classification, String description,
-                           String disableImpact, String keepImpact, Object source) {
+                           String disableImpact, String keepImpact, Object source, boolean catalogued) {
 }
