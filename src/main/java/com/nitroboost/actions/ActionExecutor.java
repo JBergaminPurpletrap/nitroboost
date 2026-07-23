@@ -1,6 +1,8 @@
 package com.nitroboost.actions;
 
 import com.nitroboost.core.BloatwareScanner;
+import com.nitroboost.core.GamingScanner;
+import com.nitroboost.core.PerformanceScanner;
 import com.nitroboost.core.PowerPlanScanner;
 import com.nitroboost.core.ProcessScanner;
 import com.nitroboost.core.ServiceScanner;
@@ -57,9 +59,14 @@ public class ActionExecutor {
     private final ServiceScanner serviceScanner = new ServiceScanner();
     private final PowerPlanScanner powerPlanScanner = new PowerPlanScanner();
     private final TelemetryScanner telemetryScanner = new TelemetryScanner();
+    private final PerformanceScanner performanceScanner = new PerformanceScanner();
+    private final GamingScanner gamingScanner = new GamingScanner();
 
     /** Nome fixo de catalogo para o "conceito" de plano de energia ativo (so existe um por vez). */
     private static final String POWER_PLAN_ITEM_NAME = "ActivePowerPlan";
+
+    /** Nome fixo de catalogo para o "conceito" de arquivo de hibernacao (so existe um por vez). */
+    private static final String HIBERNATION_ITEM_NAME = "Arquivo de Hibernacao";
 
     public ActionExecutor(DatabaseManager databaseManager) {
         this.backupManager = new BackupManager(databaseManager);
@@ -747,6 +754,204 @@ public class ActionExecutor {
     }
 
     // ------------------------------------------------------------------
+    // Performance/Energia (chaves de registro - Fase 9)
+    // ------------------------------------------------------------------
+
+    /** Altera um valor de performance/energia conhecido, com backup previo do valor atual (ou de sua ausencia). */
+    public ActionResult setPerformanceValue(PerformanceScanner.PerformanceKeyDefinition definition, String newValue) {
+        PerformanceScanner.PerformanceKeyInfo before = performanceScanner.readValue(definition);
+        String previousState = before.exists() ? before.currentValue() : "nao definido";
+        return applyRegistryDwordChange("performance", definition.friendlyName(), definition.friendlyName(),
+                definition.registryPath(), definition.valueName(), previousState, before.exists(), newValue);
+    }
+
+    public ActionResult restorePerformanceValue(long backupId) {
+        return restoreRegistryDwordChange("performance", backupId);
+    }
+
+    // ------------------------------------------------------------------
+    // Jogos (chaves de registro - Fase 9)
+    // ------------------------------------------------------------------
+
+    /** Altera um valor de otimizacao para jogos conhecido, com backup previo do valor atual (ou de sua ausencia). */
+    public ActionResult setGamingValue(GamingScanner.GamingKeyDefinition definition, String newValue) {
+        GamingScanner.GamingKeyInfo before = gamingScanner.readValue(definition);
+        String previousState = before.exists() ? before.currentValue() : "nao definido";
+        return applyRegistryDwordChange("gaming", definition.friendlyName(), definition.friendlyName(),
+                definition.registryPath(), definition.valueName(), previousState, before.exists(), newValue);
+    }
+
+    public ActionResult restoreGamingValue(long backupId) {
+        return restoreRegistryDwordChange("gaming", backupId);
+    }
+
+    /**
+     * Mecanica compartilhada por {@link #setPerformanceValue} e {@link #setGamingValue}: ambas as
+     * categorias sao, por baixo, o mesmo mecanismo generico ja validado em {@code setTelemetryValue}
+     * desde a Fase 3 (uma chave/valor DWORD alterada via {@code reg add}, com backup previo e
+     * historico) - extraido aqui para nao duplicar essa logica duas vezes nesta fase, sem alterar
+     * o metodo original de telemetria (ja testado, sem motivo para arriscar uma regressao nele).
+     *
+     * @param itemName usado tanto como identificador no catalogo/lock/historico quanto como nome de
+     *                 exibicao - as chamadas usam o nome amigavel da definicao, o mesmo valor exposto
+     *                 pelo {@code ScannedItem} na UI, para que bloquear um item pela tela funcione
+     *                 corretamente contra a mesma chave usada aqui.
+     */
+    private ActionResult applyRegistryDwordChange(String itemType, String itemName, String friendlyName,
+                                                    String registryPath, String valueName,
+                                                    String previousState, boolean existed, String newValue) {
+        Long itemId = upsertItemQuiet(itemName, itemType, null, previousState);
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, itemName, itemType, "set", previousState);
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
+
+        Long backupId = null;
+        try {
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            snapshot.put("registryPath", registryPath);
+            snapshot.put("valueName", valueName);
+            snapshot.put("existed", existed);
+            if (existed) {
+                snapshot.put("previousValue", previousState);
+            }
+            backupId = backupManager.snapshotBeforeAction(itemId, itemName, itemType, snapshot);
+        } catch (SQLException e) {
+            System.err.println("[NITRO BOOST] Falha ao criar backup antes de alterar '" + friendlyName + "': " + e.getMessage());
+        }
+
+        try {
+            CommandResult result = runCommand("reg", "add", registryPath,
+                    "/v", valueName, "/t", "REG_DWORD", "/d", newValue, "/f");
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Valor de '" + friendlyName + "' alterado para " + newValue + "."
+                    : "Falha ao alterar '" + friendlyName + "' "
+                        + "(comum se o app nao estiver rodando como Administrador, para chaves em HKLM): " + result.output().trim();
+
+            recordHistory(itemId, itemName, itemType, "set", previousState, success ? newValue : null, success, success ? null : message, backupId);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao alterar valor de '" + friendlyName + "': " + e.getMessage();
+            recordHistory(itemId, itemName, itemType, "set", previousState, null, false, errorMessage, backupId);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    /** Reversao generica compartilhada por {@link #restorePerformanceValue} e {@link #restoreGamingValue}. */
+    private ActionResult restoreRegistryDwordChange(String itemType, long backupId) {
+        try {
+            Optional<BackupManager.BackupRecord> backupOpt = backupManager.findById(backupId);
+            if (backupOpt.isEmpty()) {
+                return new ActionResult(false, "Backup #" + backupId + " nao encontrado.", backupId);
+            }
+            BackupManager.BackupRecord backup = backupOpt.get();
+            Map<String, Object> snapshot = backup.stateSnapshot();
+            String registryPath = String.valueOf(snapshot.get("registryPath"));
+            String valueName = String.valueOf(snapshot.get("valueName"));
+            boolean existed = Boolean.TRUE.equals(snapshot.get("existed"));
+
+            CommandResult result;
+            if (existed) {
+                String previousValue = String.valueOf(snapshot.get("previousValue"));
+                // O valor lido de "reg query" vem em formato hexadecimal (ex: "0x2") - "reg add" com
+                // REG_DWORD aceita tanto decimal quanto hexadecimal (0x...) como dado, entao podemos
+                // recriar exatamente o valor original sem precisar converter.
+                result = runCommand("reg", "add", registryPath, "/v", valueName, "/t", "REG_DWORD", "/d", previousValue, "/f");
+            } else {
+                result = runCommand("reg", "delete", registryPath, "/v", valueName, "/f");
+            }
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Valor de '" + backup.itemName() + "' restaurado ao estado anterior."
+                    : "Falha ao restaurar valor de '" + backup.itemName() + "': " + result.output().trim();
+
+            if (success) {
+                backupManager.markRestored(backupId);
+            }
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "set", success ? "restored" : null, success, success ? null : message, null);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao restaurar valor a partir do backup #" + backupId + ": " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Arquivo de Hibernacao (Fase 9)
+    // ------------------------------------------------------------------
+
+    /** Habilita/desabilita o arquivo de hibernacao via {@code powercfg /hibernate on|off}, com backup do estado anterior. */
+    public ActionResult setHibernationEnabled(boolean enable) {
+        String itemType = "hibernation";
+        PerformanceScanner.HibernationStatus before = performanceScanner.checkHibernationFile();
+        String previousState = before.fileExists() ? "ativado" : "desativado";
+        Long itemId = upsertItemQuiet(HIBERNATION_ITEM_NAME, itemType, null, previousState);
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, HIBERNATION_ITEM_NAME, itemType, "set", previousState);
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
+
+        Long backupId = null;
+        try {
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            snapshot.put("wasEnabled", before.fileExists());
+            backupId = backupManager.snapshotBeforeAction(itemId, HIBERNATION_ITEM_NAME, itemType, snapshot);
+        } catch (SQLException e) {
+            System.err.println("[NITRO BOOST] Falha ao criar backup antes de alterar o arquivo de hibernacao: " + e.getMessage());
+        }
+
+        try {
+            CommandResult result = runCommand("powercfg", "/hibernate", enable ? "on" : "off");
+            boolean success = result.exitCode() == 0;
+            String newState = enable ? "ativado" : "desativado";
+            String message = success
+                    ? "Arquivo de hibernacao " + newState + " com sucesso."
+                    : "Falha ao " + (enable ? "ativar" : "desativar") + " o arquivo de hibernacao "
+                        + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
+
+            recordHistory(itemId, HIBERNATION_ITEM_NAME, itemType, "set", previousState, success ? newState : null, success, success ? null : message, backupId);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao alterar o arquivo de hibernacao: " + e.getMessage();
+            recordHistory(itemId, HIBERNATION_ITEM_NAME, itemType, "set", previousState, null, false, errorMessage, backupId);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    public ActionResult restoreHibernationState(long backupId) {
+        String itemType = "hibernation";
+        try {
+            Optional<BackupManager.BackupRecord> backupOpt = backupManager.findById(backupId);
+            if (backupOpt.isEmpty()) {
+                return new ActionResult(false, "Backup #" + backupId + " nao encontrado.", backupId);
+            }
+            BackupManager.BackupRecord backup = backupOpt.get();
+            boolean wasEnabled = Boolean.TRUE.equals(backup.stateSnapshot().get("wasEnabled"));
+
+            CommandResult result = runCommand("powercfg", "/hibernate", wasEnabled ? "on" : "off");
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Arquivo de hibernacao restaurado ao estado anterior (" + (wasEnabled ? "ativado" : "desativado") + ")."
+                    : "Falha ao restaurar o arquivo de hibernacao: " + result.output().trim();
+
+            if (success) {
+                backupManager.markRestored(backupId);
+            }
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "set",
+                    success ? (wasEnabled ? "ativado" : "desativado") : null, success, success ? null : message, null);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao restaurar o arquivo de hibernacao a partir do backup #" + backupId + ": " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Utilitarios internos
     // ------------------------------------------------------------------
 
@@ -829,6 +1034,9 @@ public class ActionExecutor {
                 case "powerplan" -> restorePowerPlan(backupId);
                 case "telemetry" -> restoreTelemetryValue(backupId);
                 case "bloatware" -> restoreBloatwareApp(backupId);
+                case "performance" -> restorePerformanceValue(backupId);
+                case "gaming" -> restoreGamingValue(backupId);
+                case "hibernation" -> restoreHibernationState(backupId);
                 default -> new ActionResult(false,
                         "Tipo de item '" + entry.itemType() + "' nao possui reversao automatica implementada.", backupId);
             };
