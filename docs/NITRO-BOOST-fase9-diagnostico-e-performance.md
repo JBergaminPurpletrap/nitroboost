@@ -72,13 +72,13 @@ Este é o recurso mais importante desta fase — em vez do usuário precisar ent
 - [x] Criar `GamingScanner.java` (`core/`) cobrindo os itens da seção 2 (fullscreen optimizations, game DVR, game mode, prioridade de processador)
 - [x] Adicionar `SysMain`, `WSearch`, `Spooler`, `bthserv` à base de conhecimento (esses serviços já são lidos pelo `ServiceScanner` existente — já estavam catalogados desde a Fase 1/3 com descrições adequadas; só a nuance HDD-vs-SSD do `WSearch` foi complementada nesta fase)
 - [x] Expandir `ActionExecutor` com os métodos de ação para os itens novos (mesmo contrato de sempre) — `setPerformanceValue`/`restorePerformanceValue`, `setGamingValue`/`restoreGamingValue`, `setHibernationEnabled`/`restoreHibernationState`
-- [ ] Criar `SystemAuditEngine.java` (`audit/`, novo pacote) orquestrando todos os scanners + comparação com `valor_recomendado` — **Parte 2, não iniciada**
-- [ ] Criar `AuditReport.java` e `AuditFinding` (record) — **Parte 2, não iniciada**
-- [ ] Criar `ui/AuditView.java` com placar geral + lista agrupada por categoria + ações individual/lote — **Parte 2, não iniciada**
-- [ ] Implementar modal de confirmação para ação em lote, listando cada item antes de aplicar — **Parte 2, não iniciada**
-- [ ] Adicionar `AuditView` ao menu lateral principal (`Main.java`) — **Parte 2, não iniciada**
-- [ ] Testar `SystemAuditEngine` isoladamente via console antes de conectar à UI — **Parte 2, não iniciada**
-- [x] Atualizar `PROGRESS.md` com o resumo da Fase 9 (Parte 1) e marcar os itens correspondentes no checklist acima
+- [x] Criar `SystemAuditEngine.java` (`audit/`, novo pacote) orquestrando os scanners com valor comparável (Telemetria/Performance/Jogos/IA/Consumidor) + comparação com `valor_recomendado`
+- [x] Criar `AuditReport.java` e `AuditFinding` (record)
+- [x] Criar `ui/AuditView.java` com placar geral + lista agrupada por categoria + ações individual/lote
+- [x] Implementar modal de confirmação para ação em lote, listando cada item antes de aplicar
+- [x] Adicionar `AuditView` ao menu lateral principal (`Main.java`)
+- [x] Testar `SystemAuditEngine` isoladamente via console antes de conectar à UI (`Phase9Part2ConsoleDemo`)
+- [x] Atualizar `PROGRESS.md` com o resumo da Fase 9 (Parte 1 + Parte 2) e marcar os itens correspondentes no checklist acima
 
 **Critério de conclusão:** o usuário consegue clicar em uma tela nova ("Diagnóstico") e ver, de forma agrupada, quais das dezenas de configurações reais da máquina já estão otimizadas e quais têm sugestão de melhoria — podendo aplicar uma por uma ou em lote, sempre com backup e confirmação.
 

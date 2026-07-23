@@ -1090,3 +1090,123 @@ Segundo Plano), cobrindo os itens reais das seções 1, 2 e 3 de
 
 Todos os itens do checklist da Fase 8 (Parte 1 e Parte 2) estão marcados `[x]` em
 `NITRO-BOOST-fase8-debloat-completo.md`. Isso conclui toda a Fase 8.
+
+---
+
+## 2026-07-23 — Fase 9 - Parte 2 concluída (Módulo de Diagnóstico do Sistema)
+
+Novo módulo "Diagnóstico do Sistema": em vez de o usuário precisar revisar dezenas de itens
+soltos, o app agora compara o valor atual de cada chave conhecida com um valor recomendado
+catalogado, e devolve um relatório priorizado com placar geral, agrupado por categoria, com ação
+individual ou em lote (sempre com confirmação listando cada item e backup individual). Isso
+conclui toda a Fase 9 (Parte 1 + Parte 2).
+
+- **Campo novo `valor_recomendado` em `knowledge-base.json`** (opcional, string): adicionado às
+  **36 entradas** que têm uma verificação objetiva possível — Telemetria (7), Performance e
+  Energia (6, sem contar o item de Hibernação), Otimizações para Jogos (4), IA (7) e Recursos de
+  Consumidor (12). O valor de cada item foi extraído da própria definição já existente no código
+  (`recommendedValue` de `PerformanceKeyDefinition`/`GamingKeyDefinition`/`AiFeatureKeyDefinition`/
+  `ConsumerFeatureKeyDefinition`, já fonte-da-verdade desde as Fases 8/9 Parte 1) ou, para
+  Telemetria (que não tinha esse campo em código), extraído diretamente da descrição já documentada
+  em `TelemetryScanner` (ex: "0 = mínimo/segurança" para os níveis de telemetria, "valor 1 aqui
+  desativa" para o Relatório de Erros) — nenhum valor foi inventado. O item "Arquivo de Hibernação"
+  (tipo `hibernation`) ficou **de fora**, por decisão deliberada: não tem um valor "certo" universal
+  (o próprio documento da Fase 9 trata como "depende se o usuário usa a função ou não"), então
+  catalogar um `valor_recomendado` ali seria uma comparação artificial.
+- **`KnowledgeBase.KnowledgeEntry`** (record, expandido): novo campo `recommendedValue` (string,
+  vazio quando ausente — mesmo padrão de default dos demais campos de texto da classe via
+  `textOrEmpty`, sem introduzir `Optional` onde o resto da classe não usa).
+- **`SystemScanTask.buildItem(...)`** (extraído como método `static` reutilizável, mesma lógica que
+  já existia em `build()` privado): permite que `SystemAuditEngine`/`AuditView` reconstruam um
+  `ScannedItem` clasificado pela `KnowledgeBase` a partir de um achado do diagnóstico, sem duplicar
+  a lógica de classificação/fallback em um segundo lugar.
+- **`audit/SystemAuditEngine.java`** (novo pacote): orquestra os **5 scanners** com valor
+  comparável (`TelemetryScanner`, `PerformanceScanner`, `GamingScanner`, `AiFeatureScanner`,
+  `ConsumerFeatureScanner` — reaproveitados 100%, nenhuma lógica de leitura de registro duplicada),
+  compara cada valor atual lido com o `valor_recomendado` da `KnowledgeBase` e devolve um
+  `AuditFinding` por item (`JA_OTIMIZADO`/`SUGESTAO`/`NAO_APLICAVEL`). As demais categorias
+  (processos, serviços, startup, tarefas agendadas, planos de energia, bloatware) ficam **fora**
+  do diagnóstico por decisão deliberada — nenhuma tem um "valor certo" único e objetivo comparável
+  sem contexto de uso, e o próprio documento da Fase 9 permite tratá-las como "não aplicável" sem
+  exigir isso; encher o relatório com centenas de entradas `NAO_APLICAVEL` só para preencher seria
+  ruído, não sinal (qualidade > cobertura total).
+  - **Bug de comparação encontrado e corrigido durante o próprio desenvolvimento (antes de gerar
+    qualquer relatório errado):** `reg query` sempre devolve o valor em hexadecimal (ex: `0x26`),
+    mas o `valor_recomendado` de alguns itens está documentado em decimal na Fase 9 (ex: `"38"` para
+    a Prioridade de Processador de Jogos — `Win32PrioritySeparation`). Uma comparação de texto puro
+    (`"38" != "0x26"`) marcaria erroneamente um item já otimizado como sugestão. Corrigido com
+    `dwordValuesEqual`/`parseDword`: normaliza os dois valores para `long` (detectando o prefixo
+    `0x`) antes de comparar numericamente — `"38"` e `"0x26"` corretamente batem (38 = 0x26). Prova
+    real disso no teste em console: `ID de Publicidade` (atual `0x0`, recomendado `"0"`) e outros
+    itens com "0" decimal batendo com "0x0" hexadecimal foram corretamente marcados `JA_OTIMIZADO`
+    — uma comparação de string ingênua teria marcado todos eles, erradamente, como sugestão.
+- **`audit/AuditFinding.java`** (record novo): `itemName`, `itemType`, `category`, `status`
+  (`JA_OTIMIZADO`/`SUGESTAO`/`NAO_APLICAVEL`), `currentValue`/`recommendedValue` (brutos, `null`
+  quando não aplicável) e `source` (a mesma definição do scanner que `ScannedItem.source()`
+  guardaria — necessário para `AuditView` reconstruir um `ScannedItem` via `SystemScanTask.buildItem`
+  e despachar a ação certa pelo `ItemActionDispatcher` já existente, sem reimplementar despacho).
+- **`audit/AuditReport.java`** (record novo): lista de `AuditFinding` + `totalOptimized()`,
+  `totalApplicable()` (exclui `NAO_APLICAVEL` — denominador do placar), `totalFindings()` e
+  `findingsByCategory()` (agrupamento preservando a ordem de inserção via `LinkedHashMap`).
+- **`ui/AuditView.java`** (tela nova): placar geral no topo ("X de Y itens já otimizados"), seções
+  por categoria com ícone de status (✅ já otimizado / 🟡 sugestão / ⚪ não aplicável — este último
+  não ocorre hoje, já que as 5 categorias auditadas têm 100% dos itens com `valor_recomendado`),
+  botão "Aplicar" individual por sugestão e botão "Aplicar todas as sugestões seguras desta
+  categoria" por seção. Reaproveita o mesmo tema `nitroboost-carbon.css` já existente (classes
+  `.card`, `.title-hud`, `.subtitle-hud`, `.text-success`, `.btn-turbo`, `.btn-secondary`,
+  `.scroll-pane` — nenhum estilo novo foi inventado) e o mesmo padrão de thread de fundo +
+  `Platform.runLater` já usado em todas as outras telas (leitura de registro nunca trava a UI).
+  - **Modal de confirmação em lote** (seção 3.3 do documento — regra de segurança explícita): segue
+    o mesmo padrão de `ScanResultsView.closeAllGreen()` (thread de fundo, ações sequenciais nunca em
+    paralelo, resumo de sucesso/falha ao final), mas em vez de mostrar só a contagem, o `Alert` tem
+    um `TextArea` somente leitura listando **cada item** no formato
+    `nome:  valor_atual  →  valor_recomendado`, uma linha por item — o usuário vê exatamente o que
+    vai mudar antes de clicar OK. Cada item, um por vez, ainda passa pelo fluxo normal e completo do
+    `ActionExecutor` (checagem de lock → backup individual próprio → ação → histórico) via
+    `ItemActionDispatcher.performPrimaryAction` — a ação em lote não introduz nenhum caminho novo de
+    "aplicar direto"; só dispara a mesma chamada de ação individual várias vezes em sequência.
+- **`Main.java`** (atualizado): novo item de menu lateral "🩺 DIAGNOSTICO" (entre "Resultados do
+  Scan" e "Histórico"), que já dispara `AuditView.runAudit()` automaticamente ao navegar até a tela
+  (mesmo padrão de `historyView.refresh()` ao clicar em "Histórico").
+- **`Phase9Part2ConsoleDemo`:** testado isoladamente via console antes de conectar a UI (regra de
+  ouro do projeto), cobrindo: relatório completo do diagnóstico rodado contra os dados reais desta
+  máquina (impressão de todos os 36 achados, agrupados por categoria, com status/atual/recomendado);
+  e um teste de ponta a ponta do caminho **novo** desta fase
+  (`AuditFinding -> ScannedItem -> ItemActionDispatcher -> ActionExecutor`) contra um item real e
+  seguro (chave HKCU "Botão do Copilot na Barra de Tarefas", já confirmada gravável sem elevação
+  desde a Fase 8 Parte 2) — aplicar, confirmar que o diagnóstico já reflete `JA_OTIMIZADO` numa nova
+  rodada, reverter via `restoreFromHistory`, e confirmar que uma nova rodada do diagnóstico volta a
+  mostrar `SUGESTAO` com o valor original (`não definido`). Este teste não repete os 36 round-trips
+  individuais de registro (já validados por scanner nas Fases 8 Parte 2/9 Parte 1) — o alvo aqui é
+  validar só a camada nova (comparação + despacho de ação a partir de um achado do diagnóstico).
+
+### Placar real desta máquina de desenvolvimento (sessão sem privilégio de Administrador)
+
+**4 de 36 itens já otimizados** na primeira rodada do diagnóstico:
+
+- **Telemetria:** 3 de 7 já otimizados (ID de Publicidade, Experiências Personalizadas, Frequência
+  de Pedidos de Feedback — todas já configuradas em `0x0` nesta máquina).
+- **Performance e Energia:** 1 de 6 já otimizado (Inicialização Rápida, já `0x0`).
+- **Otimizações para Jogos:** 0 de 4 já otimizados.
+- **IA:** 0 de 7 já otimizados (nenhuma política de IA configurada nesta máquina ainda — mesmo
+  achado da Fase 8 Parte 2).
+- **Recursos de Consumidor:** 0 de 12 já otimizados.
+
+Os demais 32 itens apareceram como `SUGESTAO` (nenhum `NAO_APLICAVEL`, já que todas as 5 categorias
+auditadas têm 100% de cobertura de `valor_recomendado`). Nenhuma chave foi alterada de forma
+permanente pelo teste — a única chave escrita de verdade (Botão do Copilot na Barra de Tarefas) foi
+aplicada e revertida dentro do próprio teste, confirmado por uma nova rodada do diagnóstico
+mostrando o item de volta a `SUGESTAO`/`não definido` (o mesmo estado original).
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros, após todas as mudanças (`KnowledgeBase` expandido,
+  `SystemScanTask.buildItem` extraído, pacote `audit/` novo, `AuditView` novo, `Main.java`
+  atualizado, `Phase9Part2ConsoleDemo` novo, `knowledge-base.json` com 36 campos novos).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase9Part2ConsoleDemo` — roda até o fim,
+  imprime o relatório completo (36 achados reais desta máquina, 4 já otimizados) e confirma o
+  round-trip de ponta a ponta (aplicar → `JA_OTIMIZADO` → reverter → `SUGESTAO`/estado original).
+
+Todos os itens do checklist da Fase 9 (Parte 1 e Parte 2) estão marcados `[x]` em
+`NITRO-BOOST-fase9-diagnostico-e-performance.md`. **Isso conclui toda a Fase 9 e todo o escopo
+planejado até aqui, exceto a Fase 10, ainda não iniciada.**
