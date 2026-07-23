@@ -59,14 +59,14 @@ Antes de adicionar as categorias novas, corrigir o bug já diagnosticado:
 
 - [x] Corrigir `scanBloatware()` para usar `.scan()` em vez de `.knownBloatware()`
 - [x] Adicionar toggle "Mostrar apenas conhecidos / Mostrar todos" na `ScanResultsView`
-- [ ] Expandir `BloatwareScanner.classify()` com novas categorias: `AI_COPILOT`, `AI_RECALL`, `AI_CLICK_TO_DO`, `AI_COCREATOR` (quando o pacote Appx corresponder), mantendo `OTHER_KNOWN_BLOAT`/`UNKNOWN` para o restante
-- [ ] Criar `AiFeatureScanner.java` (novo, em `core/`) — lê o estado atual das políticas de IA (`WindowsAI`, `WindowsCopilot`, Edge `HubsSidebarEnabled`) via `reg query`, seguindo exatamente o mesmo padrão defensivo dos scanners existentes (nunca lançar exceção, chave ausente = estado "não definido", não erro)
-- [ ] Criar `ConsumerFeatureScanner.java` (novo, em `core/`) — lê as chaves de `ContentDeliveryManager`, `Explorer\Advanced` e `Windows Search` listadas nas seções 2 e 3
-- [ ] Expandir `ActionExecutor` com os pares de métodos correspondentes (`disableAiFeature`/`restoreAiFeature`, `disableConsumerFeature`/`restoreConsumerFeature`), seguindo o contrato já estabelecido (lock check → backup → ação → histórico)
-- [ ] Expandir `knowledge-base.json` com uma entrada por item das 3 tabelas acima (nome, tipo, classificação, descrição, impacto de desativar, impacto de manter — em português claro, sem jargão)
-- [ ] Adicionar as 2 novas categorias (`CATEGORY_AI`, `CATEGORY_CONSUMER`) no `SystemScanTask` e no filtro da `ScanResultsView`
-- [ ] Testar cada novo scanner isoladamente via console antes de conectar à UI (regra de ouro #9 já estabelecida)
-- [ ] Atualizar `PROGRESS.md` com o resumo da Fase 8 e marcar os itens no checklist principal
+- [x] Expandir `BloatwareScanner.classify()` com novas categorias: `AI_COPILOT`, `AI_RECALL`, `AI_CLICK_TO_DO`, `AI_COCREATOR` (quando o pacote Appx corresponder), mantendo `OTHER_KNOWN_BLOAT`/`UNKNOWN` para o restante
+- [x] Criar `AiFeatureScanner.java` (novo, em `core/`) — lê o estado atual das políticas de IA (`WindowsAI`, `WindowsCopilot`, Edge `HubsSidebarEnabled`) via `reg query`, seguindo exatamente o mesmo padrão defensivo dos scanners existentes (nunca lançar exceção, chave ausente = estado "não definido", não erro)
+- [x] Criar `ConsumerFeatureScanner.java` (novo, em `core/`) — lê as chaves de `ContentDeliveryManager`, `Explorer\Advanced` e `Windows Search` listadas nas seções 2 e 3
+- [x] Expandir `ActionExecutor` com os pares de métodos correspondentes (`setAiFeatureValue`/`restoreAiFeatureValue`, `setConsumerFeatureValue`/`restoreConsumerFeatureValue`), seguindo o contrato já estabelecido (lock check → backup → ação → histórico)
+- [x] Expandir `knowledge-base.json` com uma entrada por item das 3 tabelas acima (nome, tipo, classificação, descrição, impacto de desativar, impacto de manter — em português claro, sem jargão)
+- [x] Adicionar as 2 novas categorias (`CATEGORY_AI`, `CATEGORY_CONSUMER`) no `SystemScanTask` e no filtro da `ScanResultsView`
+- [x] Testar cada novo scanner isoladamente via console antes de conectar à UI (regra de ouro #9 já estabelecida)
+- [x] Atualizar `PROGRESS.md` com o resumo da Fase 8 e marcar os itens no checklist principal
 
 **Critério de conclusão:** a categoria Bloatware mostra todos os apps instalados (não só os conhecidos), e existem duas novas categorias na tela (IA e Recursos de Consumidor) cobrindo os itens reais listados neste documento, todas seguindo o mesmo padrão de segurança (lock/backup/histórico) já validado nas fases anteriores.
 

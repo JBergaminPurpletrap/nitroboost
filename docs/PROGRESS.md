@@ -978,3 +978,115 @@ Todos os itens do checklist da Fase 9 correspondentes à Parte 1 estão marcados
 
 Próximo passo (não iniciado, aguardando validação do usuário antes de prosseguir): **Fase 9 - Parte
 2 — Módulo de Diagnóstico do Sistema (`SystemAuditEngine`, `AuditReport`, `ui/AuditView`)**.
+
+---
+
+## 2026-07-23 — Fase 8 - Parte 2 concluída (Debloat Real Completo, incluindo IAs do Windows 11)
+
+Duas categorias novas de varredura/ação (IA / Inteligência Artificial, Recursos de Consumidor e
+Segundo Plano), cobrindo os itens reais das seções 1, 2 e 3 de
+`NITRO-BOOST-fase8-debloat-completo.md`, seguindo exatamente o mesmo contrato (lock → backup → ação
+→ histórico) validado desde a Fase 1. Isso conclui toda a Fase 8 (Parte 1 + Parte 2).
+
+- **`BloatwareScanner`** (expandido): `Category.COPILOT` renomeado para `AI_COPILOT` (nenhum outro
+  código dependia do nome antigo, só o próprio `classify()`), mais três categorias novas
+  (`AI_RECALL`, `AI_CLICK_TO_DO`, `AI_COCREATOR`), detectadas por substring no nome do pacote Appx
+  (`recall`, `clicktodo`/`click2do`, `cocreator`/`imagecreator`) — checadas antes do padrão genérico
+  `copilot` para não conflitar caso a Microsoft nomeie pacotes futuros como `...Copilot.Recall...`.
+  Nenhum pacote desta máquina caiu nas 3 categorias novas (ver resultado do teste abaixo) — esperado,
+  já que Recall/Click to Do/Cocreator não são normalmente pacotes Appx separados, são políticas/
+  recursos inbox do Windows (por isso o mecanismo principal de controle deles é o
+  `AiFeatureScanner`, não o `BloatwareScanner`).
+- **`AiFeatureScanner`** (`core/`, novo): mesmo padrão defensivo do `TelemetryScanner`/
+  `PerformanceScanner` (leitura via `reg query`, chave/valor ausente = "não definido", nunca lança
+  exceção). Cobre **7 chaves**: Windows Copilot (`TurnOffWindowsCopilot`, em HKCU e HKLM
+  separadamente), Botão do Copilot na barra de tarefas (`ShowCopilotButton`), Windows Recall
+  (`DisableAIDataAnalysis`), Click to Do (`DisableClickToDo`), Copilot no Edge
+  (`HubsSidebarEnabled`) e **Cocreator** — este último reaproveita deliberadamente a MESMA chave do
+  Recall (`DisableAIDataAnalysis`), porque a Microsoft não expõe uma política isolada só para o
+  Cocreator (documentado na seção 1 do documento da Fase 8); os dois itens aparecem separados na UI
+  por transparência (o usuário vê os dois recursos e a nota explicando que agem juntos), mas
+  fisicamente são a mesma chave — alterar um altera o outro de verdade no Windows. O caso especial do
+  Recall sem política disponível (edições/versões sem o recurso) ganhou um tutorial dedicado, não uma
+  ação automatizada: `tutorials/recall-configuracoes.md` (Configurações → Privacidade e segurança →
+  Recall e instantâneos), registrado em `TutorialProvider.TUTORIALS_BY_KEY` (aparece automaticamente
+  na aba Tutoriais, mesmo padrão já usado pelo `xmp-bios`).
+- **`ConsumerFeatureScanner`** (`core/`, novo): mesmo padrão, cobrindo **12 chaves** das seções 2
+  (anúncios/sugestões: `ContentDeliveryManager` × 5 chaves, Pesquisa do Bing × 2 variantes
+  política/usuário — mesmo padrão de duas localizações já usado por `allow_telemetry_policy`/
+  `allow_telemetry` desde a Fase 3 —, notificação de sincronização do OneDrive, ícone de Chat/Teams)
+  e 3 (apps em segundo plano `LetAppsRunInBackground`, Storage Sense `StoragePolicy\01` — com um
+  alerta reforçado na descrição sobre risco de exclusão de arquivos mal compreendida, conforme pedido
+  na seção 6 do documento —, e coleta de dados de digitação `TIPC\Enabled`). O item "Diagnóstico e
+  feedback" da seção 3 **não** ganhou uma entrada nova, por já ser coberto pelo `TelemetryScanner`
+  desde a Fase 3, conforme o próprio documento instruía.
+- **`ActionExecutor`** (expandido): `setAiFeatureValue`/`restoreAiFeatureValue` e
+  `setConsumerFeatureValue`/`restoreConsumerFeatureValue` reaproveitam a mesma mecânica privada
+  genérica (`applyRegistryDwordChange`/`restoreRegistryDwordChange`) já extraída na Fase 9 Parte 1
+  para `performance`/`gaming` — as quatro categorias são, por baixo, o mesmo mecanismo de chave DWORD
+  via `reg add`/`reg delete` com backup prévio e histórico, então a Fase 8 Parte 2 não duplicou essa
+  lógica de novo, só adicionou dois pares de métodos finos por cima dela (mesma decisão de usar o
+  `friendlyName()` como nome do item no catálogo/lock/histórico, consistente com `performance`/
+  `gaming`, evitando repetir a inconsistência conhecida de `setTelemetryValue`, ver `BLOCKERS.md`).
+  `restoreFromHistory` estendido para despachar também os tipos `ai` e `consumer`.
+- **Base de conhecimento:** `knowledge-base.json` expandido de **77 para 96 itens** (+19: 7 de IA + 12
+  de Recursos de Consumidor/Segundo Plano), todos com descrição/impacto em português claro. Nenhum
+  item classificado como `essencial` (a seção 6 do documento confirma que nada nesta lista é
+  essencial ao Windows). Classificação seguida à risca: 🟢 `seguro` para anúncios/sugestões e Copilot;
+  🟡 `depende` para Recall (com o aviso de privacidade pedido, sem alarmismo), Click to Do, Cocreator,
+  Apps em Segundo Plano e Storage Sense (com o alerta reforçado sobre exclusão de arquivos).
+- **`ui/SystemScanTask.java`:** duas categorias novas (`CATEGORY_AI`, `CATEGORY_CONSUMER`),
+  `scanAiFeatures()`/`scanConsumerFeatures()` seguindo exatamente o padrão de `scanTelemetry()`/
+  `scanPerformance()` (chamados via `scanSafely`, cada scanner isolado em try/catch).
+  `ui/ScanResultsView.java`: as duas categorias novas adicionadas ao filtro `ComboBox`.
+  `ui/ItemActionDispatcher.java`: casos novos para `ai` e `consumer` (ambos chamam o `set*Value` do
+  `ActionExecutor` com o `recommendedValue` da definição, mesmo padrão de `performance`/`gaming`).
+- **`Phase8Part2ConsoleDemo`:** testado isoladamente via console antes de qualquer alteração na UI
+  (regra de ouro do projeto), cobrindo: listagem real das 7 chaves de IA e das 12 de Recursos de
+  Consumidor; um teste de bloqueio/desbloqueio contra um item **real** de cada categoria (Botão do
+  Copilot na Barra de Tarefas; Sugestões e Anúncios no Menu Iniciar); e um round-trip real (ler
+  original → aplicar → confirmar → reverter → **confirmar com leitura direta pós-restore**) para cada
+  uma das 7 chaves de IA e das 12 chaves de Consumidor.
+
+### Resultado real dos testes, nesta máquina de desenvolvimento (sessão sem privilégio de Administrador)
+
+- **IA (7 chaves):** nenhuma das 7 chaves já existia previamente nesta máquina (todas "não definido"
+  na leitura inicial) — esperado, já que Copilot/Recall/Click to Do/Cocreator são recursos recentes
+  (Windows 11 24H2+) e esta máquina de desenvolvimento não teve nenhuma política de IA configurada
+  antes. Das 7, **1 chave HKCU** (Botão do Copilot na Barra de Tarefas) foi alterada e revertida com
+  sucesso, confirmado restaurado ao estado original (`nao definido` antes e depois) tanto pelo teste
+  quanto pela leitura direta pós-restore. As **6 chaves restantes são HKLM** (Copilot para todos os
+  usuários, Recall, Click to Do, Cocreator, Copilot no Edge) e falharam ao escrever com
+  `ERRO: Acesso negado` — **falha esperada e documentada** (mesma categoria de bloqueio já registrada
+  na Fase 9 Parte 1 em `BLOCKERS.md`), pois esta sessão de console não roda como Administrador.
+  Confirmado, em cada caso, que **nada foi alterado no registro** (leitura direta pós-tentativa
+  idêntica ao valor original, ou seja, ainda "não definido").
+- **Consumidor (12 chaves):** 3 chaves já existiam com valor `0x1` nesta máquina (Instalação
+  Silenciosa de Apps Sugeridos, Sugestões no Painel de Configurações, Tela de Bloqueio Dinâmica) e uma
+  quarta (Storage Sense) também `0x1` — as demais 8 "não definido". Das 12, **10 chaves HKCU** foram
+  alteradas e revertidas com sucesso, confirmado restaurado ao valor original exato em cada caso
+  (`0x1` voltou a `0x1`, "não definido" voltou a "não definido"). As **2 chaves HKLM** (Pesquisa do
+  Bing via Política, Apps em Segundo Plano) falharam com `ERRO: Acesso negado` — mesma falha
+  esperada/documentada; confirmado que nada foi alterado no registro real nesses dois casos.
+- **Nenhuma chave de teste fabricada foi necessária** e nenhum resíduo ficou na máquina — todas as
+  chaves realmente escritas durante o teste (11 no total: 1 de IA + 10 de Consumidor) foram revertidas
+  e confirmadas com leitura direta pós-restore, não só o `success=true` da chamada.
+- **Bloatware (categorias de IA):** `BloatwareScanner.scan()` rodado nesta máquina não encontrou
+  nenhum pacote Appx classificado como `AI_RECALL`/`AI_CLICK_TO_DO`/`AI_COCREATOR` — divergência
+  esperada (ver nota técnica acima: esses recursos não são tipicamente pacotes Appx separados nesta
+  versão do Windows desta máquina de desenvolvimento).
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros, após todas as mudanças (`AiFeatureScanner`,
+  `ConsumerFeatureScanner`, `BloatwareScanner` expandido, `ActionExecutor` expandido,
+  `Phase8Part2ConsoleDemo` novo, `knowledge-base.json` com 19 itens novos, `TutorialProvider` com o
+  tutorial do Recall).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase8Part2ConsoleDemo` — roda até o fim,
+  cobrindo listagem, bloqueio/desbloqueio contra um item real de cada categoria, e os 19 round-trips
+  reais (7 IA + 12 Consumidor) com sucesso, incluindo as 8 falhas esperadas por falta de elevação (6
+  IA + 2 Consumidor). Histórico completo impresso ao final, mostrando todas as ações (inclusive as
+  falhas e as recusas por bloqueio) com seus ids de backup vinculados.
+
+Todos os itens do checklist da Fase 8 (Parte 1 e Parte 2) estão marcados `[x]` em
+`NITRO-BOOST-fase8-debloat-completo.md`. Isso conclui toda a Fase 8.

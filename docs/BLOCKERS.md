@@ -132,6 +132,43 @@ projeto (nunca pular uma tarefa silenciosamente por causa de um bloqueio).
   mensagens de erro exibidas ao usuário final na UI (via `ItemDetailView`/`ScanResultsView`, que já
   exibem a mensagem de falha completa retornada pelo `ActionExecutor`).
 
+---
+
+## Fase 8 - Parte 2 (Debloat Real Completo, incluindo IAs do Windows 11)
+
+### 7. Escrita em chaves HKLM (IA/Consumidor) exige Administrador - mesma limitação do item 6
+- **Status:** Não é um bug - mesmo comportamento esperado do Windows já documentado no item 6 acima
+  (Fase 9 Parte 1), agora confirmado também para as categorias novas desta fase.
+- **Descrição:** das 7 chaves de `AiFeatureScanner` e 12 chaves de `ConsumerFeatureScanner`, as que
+  ficam em `HKLM` (Windows Copilot para Todos os Usuários, Windows Recall, Click to Do, Cocreator,
+  Copilot no Edge, Pesquisa do Bing via Política, Apps em Segundo Plano - 8 chaves no total) exigem
+  privilégio de Administrador para **escrever** (a leitura funciona normalmente sem elevação, todas
+  as 19 chaves foram lidas com sucesso). Testado nesta máquina de desenvolvimento (sessão de console
+  **sem** privilégio de Administrador, via `Phase8Part2ConsoleDemo`): todas as 8 tentativas de
+  escrita nessas chaves HKLM falharam com `ERRO: Acesso negado`, exatamente o comportamento esperado.
+- **Mitigação aplicada:** idêntica ao item 6 - a lógica de cada chamada foi validada mesmo com a
+  escrita falhando (comando montado corretamente, backup intacto, histórico com mensagem clara).
+  Confirmado, para cada chave HKLM testada, que **nada foi alterado no registro** (leitura direta
+  pós-tentativa idêntica ao valor original). As **11 chaves HKCU restantes** (1 de IA + 10 de
+  Consumidor) foram alteradas e revertidas com sucesso, confirmadas restauradas ao valor original via
+  leitura direta pós-restore.
+- **Ação pendente:** nenhuma - mesmo caminho de mitigação do item 6 (rodar como Administrador via
+  `run-as-admin.bat` resolve as 8 ações que exigem HKLM).
+
+### 8. Nenhum pacote Appx local corresponde às categorias `AI_RECALL`/`AI_CLICK_TO_DO`/`AI_COCREATOR`
+- **Status:** Divergência esperada, não é um bug.
+- **Descrição:** `BloatwareScanner.classify()` foi expandido com detecção por substring para esses
+  três recursos, mas `scan()` nesta máquina não encontrou nenhum pacote Appx correspondente. Isso é
+  esperado: diferente do Copilot (que tem apps Appx dedicados em algumas instalações), Recall/Click
+  to Do/Cocreator são majoritariamente recursos inbox/políticas do Windows, não pacotes UWP
+  instaláveis separadamente - por isso o mecanismo principal de controle deles é o
+  `AiFeatureScanner` (políticas de registro), não o `BloatwareScanner` (desinstalação de pacote). A
+  detecção por nome de pacote foi mantida no `BloatwareScanner` como cobertura defensiva/futura,
+  conforme pedido explícito no documento da Fase 8, mesmo sem nenhuma correspondência nesta máquina.
+- **Ação pendente:** nenhuma - comportamento correto, documentado para não ser confundido com um
+  scanner quebrado caso alguém rode `Phase3ConsoleDemo`/`BloatwareScanner` e note 0 resultados nessas
+  3 categorias.
+
 ### 7. Inconsistência pré-existente no nome usado para lock em `setTelemetryValue` (Fase 3) - não corrigida nesta fase
 - **Status:** Registrado, não corrigido (fora do escopo desta tarefa).
 - **Descrição:** `ActionExecutor.setTelemetryValue` (Fase 3) usa `definition.id()` (ex:
