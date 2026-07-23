@@ -62,7 +62,7 @@ public class Main extends Application {
         Runnable[] navigateToTutorial = new Runnable[1];
         ScanResultsView scanResultsView = new ScanResultsView(context, () -> navigateToTutorial[0].run());
         AuditView auditView = new AuditView(context);
-        dashboardView = new DashboardView(() -> {
+        dashboardView = new DashboardView(context, () -> {
             switchTo(root, views, "Resultados do Scan");
             scanResultsView.startScan();
         });

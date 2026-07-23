@@ -1,12 +1,15 @@
 package com.nitroboost.ui;
 
+import com.nitroboost.core.MemoryCleaner;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.Group;
@@ -63,9 +66,14 @@ public class DashboardView extends BorderPane {
     private final Arc gaugeArc;
     private final Label gaugeValueLabel;
 
+    private final MemoryCleaner memoryCleaner;
+    private final Button cleanRamButton = new Button("🧹 LIMPAR CACHE DE RAM AGORA");
+    private final Label cleanRamResultLabel = new Label("");
+
     private ScheduledExecutorService poller;
 
-    public DashboardView(Runnable onScanRequested) {
+    public DashboardView(AppContext context, Runnable onScanRequested) {
+        this.memoryCleaner = context.memoryCleaner();
         cpuSeries.setName("CPU (%)");
         ramSeries.setName("RAM (%)");
 
@@ -101,11 +109,86 @@ public class DashboardView extends BorderPane {
 
         LineChart<Number, Number> chart = buildChart();
 
-        VBox center = new VBox(12, headerBar, topContent, chart);
+        VBox memoryCleanupSection = buildMemoryCleanupSection();
+
+        VBox center = new VBox(12, headerBar, topContent, memoryCleanupSection, chart);
         VBox.setVgrow(chart, Priority.ALWAYS);
         setCenter(center);
 
         startPolling();
+    }
+
+    /**
+     * Secao de limpeza pontual de RAM (Fase 10 Parte 1, estilo RAMMap). Diferente de toda outra
+     * acao do NITRO BOOST, esta e uma acao "limpar agora" sem estado a reverter - por isso NAO
+     * abre o modal de detalhes nem passa por bloqueio/backup, apenas um aviso de confirmacao e um
+     * resultado antes/depois. Deliberadamente ausente do modulo de Diagnostico (Fase 9): nao e uma
+     * configuracao a corrigir, e uma ferramenta manual que o usuario aciona quando quiser.
+     */
+    private VBox buildMemoryCleanupSection() {
+        Label title = new Label("LIMPEZA DE RAM (ESTILO RAMMAP)");
+        title.getStyleClass().add("subtitle-hud");
+
+        Label description = new Label("Libera memoria em cache (\"standby list\") que o Windows guarda por "
+                + "precaucao, sem apagar nenhum arquivo ou configuracao - uma acao pontual, sem historico para reverter.");
+        description.getStyleClass().add("text-secondary");
+        description.setWrapText(true);
+
+        cleanRamButton.getStyleClass().add("btn-turbo");
+        cleanRamButton.setOnAction(e -> onCleanRamClicked());
+
+        cleanRamResultLabel.getStyleClass().add("text-secondary");
+
+        HBox actionRow = new HBox(16, cleanRamButton, cleanRamResultLabel);
+        actionRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox box = new VBox(6, title, description, actionRow);
+        box.getStyleClass().add("card");
+        box.setPadding(new Insets(16));
+        return box;
+    }
+
+    private void onCleanRamClicked() {
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Limpar cache de RAM");
+        confirm.setHeaderText("Limpar cache de RAM agora?");
+        confirm.setContentText("Isso libera memoria em cache que o Windows guarda por precaucao. E seguro, mas "
+                + "o ganho e temporario e pode causar uma pequena lentidao momentanea logo depois, enquanto o "
+                + "Windows rele do disco o que foi descartado.");
+        if (confirm.showAndWait().filter(b -> b == ButtonType.OK).isEmpty()) {
+            return;
+        }
+
+        cleanRamButton.setDisable(true);
+        cleanRamResultLabel.getStyleClass().removeAll("text-danger", "text-success");
+        cleanRamResultLabel.setText("Limpando...");
+
+        long freeBefore = memory.getAvailable();
+
+        // Chamada nativa (JNA -> NtSetSystemInformation) pode levar um instante e nunca deve
+        // rodar na JavaFX Application Thread - mesmo padrao ja usado em ScanResultsView/ItemDetailView.
+        Thread thread = new Thread(() -> {
+            MemoryCleaner.MemoryCleanupResult result = memoryCleaner.purgeStandbyList();
+            long freeAfter = memory.getAvailable();
+            Platform.runLater(() -> showCleanRamResult(result, freeBefore, freeAfter));
+        }, "nitroboost-memory-cleanup");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void showCleanRamResult(MemoryCleaner.MemoryCleanupResult result, long freeBefore, long freeAfter) {
+        cleanRamButton.setDisable(false);
+        cleanRamResultLabel.getStyleClass().removeAll("text-danger", "text-success");
+        cleanRamResultLabel.getStyleClass().add(result.success() ? "text-success" : "text-danger");
+
+        double beforeMb = freeBefore / 1024.0 / 1024.0;
+        double afterMb = freeAfter / 1024.0 / 1024.0;
+        if (result.success()) {
+            cleanRamResultLabel.setText(String.format("RAM livre: %.0f MB -> %.0f MB (%+.0f MB). %s",
+                    beforeMb, afterMb, afterMb - beforeMb, result.message()));
+        } else {
+            cleanRamResultLabel.setText("Falha: " + result.message());
+        }
     }
 
     private HBox spacer() {

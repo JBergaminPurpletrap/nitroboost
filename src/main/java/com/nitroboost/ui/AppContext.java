@@ -2,6 +2,7 @@ package com.nitroboost.ui;
 
 import com.nitroboost.actions.ActionExecutor;
 import com.nitroboost.actions.LockManager;
+import com.nitroboost.core.MemoryCleaner;
 import com.nitroboost.db.ActionHistoryRepository;
 import com.nitroboost.db.DatabaseManager;
 import com.nitroboost.knowledge.KnowledgeBase;
@@ -14,7 +15,7 @@ import com.nitroboost.knowledge.KnowledgeBase;
  */
 public record AppContext(DatabaseManager databaseManager, ActionExecutor actionExecutor,
                           LockManager lockManager, KnowledgeBase knowledgeBase,
-                          ActionHistoryRepository historyRepository) {
+                          ActionHistoryRepository historyRepository, MemoryCleaner memoryCleaner) {
 
     public static AppContext create() {
         DatabaseManager databaseManager = new DatabaseManager();
@@ -23,7 +24,8 @@ public record AppContext(DatabaseManager databaseManager, ActionExecutor actionE
                 new ActionExecutor(databaseManager),
                 new LockManager(databaseManager),
                 new KnowledgeBase(),
-                new ActionHistoryRepository(databaseManager)
+                new ActionHistoryRepository(databaseManager),
+                new MemoryCleaner(databaseManager)
         );
     }
 }
