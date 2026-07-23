@@ -196,6 +196,16 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
     }
 
     private ScannedItem build(String category, String type, String name, String state, Object source) {
+        return buildItem(knowledgeBase, category, type, name, state, source);
+    }
+
+    /**
+     * Constroi um {@link ScannedItem} classificado pela {@link KnowledgeBase} - extraido como
+     * metodo estatico (em vez de ficar preso a instancia desta classe) para que
+     * {@link com.nitroboost.audit.SystemAuditEngine} reaproveite exatamente a mesma logica de
+     * classificacao/fallback ao montar seus achados de diagnostico, sem duplicar nada aqui.
+     */
+    public static ScannedItem buildItem(KnowledgeBase knowledgeBase, String category, String type, String name, String state, Object source) {
         var entry = knowledgeBase.find(name, type);
         ItemClassification classification = entry.map(KnowledgeBase.KnowledgeEntry::classification).orElse(ItemClassification.DEPENDE);
         String description = entry.map(KnowledgeBase.KnowledgeEntry::description)
