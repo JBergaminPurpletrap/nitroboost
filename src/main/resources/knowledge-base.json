@@ -1,5 +1,7 @@
 {
-  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware), classificacao (seguro/essencial/depende), descricao, impacto_desativar e impacto_manter - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura).",
+  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware), classificacao (seguro/essencial/depende), descricao, impacto_desativar e impacto_manter - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura). Os campos 'version'/'updatedAt' foram adicionados na Fase 7 (Expansao Online) para permitir comparar esta base local com uma base remota - ver com.nitroboost.knowledge.RemoteKnowledgeUpdater.",
+  "version": "1.0",
+  "updatedAt": "2026-07-23",
   "items": [
     {
       "nome": "OneDrive",
