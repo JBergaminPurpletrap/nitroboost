@@ -49,6 +49,7 @@ public class ActionExecutor {
     private final BackupManager backupManager;
     private final ActionHistoryRepository historyRepository;
     private final ItemRepository itemRepository;
+    private final LockManager lockManager;
     private final ProcessScanner processScanner = new ProcessScanner();
     private final ServiceScanner serviceScanner = new ServiceScanner();
 
@@ -56,6 +57,7 @@ public class ActionExecutor {
         this.backupManager = new BackupManager(databaseManager);
         this.historyRepository = new ActionHistoryRepository(databaseManager);
         this.itemRepository = new ItemRepository(databaseManager);
+        this.lockManager = new LockManager(databaseManager);
     }
 
     // ------------------------------------------------------------------
@@ -69,6 +71,12 @@ public class ActionExecutor {
         String itemName = processInfo.map(ProcessScanner.ProcessInfo::name).orElse("pid-" + pid);
 
         Long itemId = upsertItemQuiet(itemName, itemType, null, "running");
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, itemName, itemType, "kill", "running");
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
+
         Long backupId = null;
         try {
             Map<String, Object> snapshot = new LinkedHashMap<>();
@@ -95,11 +103,11 @@ public class ActionExecutor {
             String message = destroyed
                     ? "Processo '" + itemName + "' (PID " + pid + ") finalizado com sucesso."
                     : "Processo PID " + pid + " nao encontrado ou ja havia finalizado.";
-            recordHistory(itemId, itemName, itemType, "kill", "running", destroyed ? "killed" : "unknown", destroyed, destroyed ? null : message);
+            recordHistory(itemId, itemName, itemType, "kill", "running", destroyed ? "killed" : "unknown", destroyed, destroyed ? null : message, backupId);
             return new ActionResult(destroyed, message, backupId);
         } catch (Exception e) {
             String errorMessage = "Erro ao tentar finalizar processo PID " + pid + ": " + e.getMessage();
-            recordHistory(itemId, itemName, itemType, "kill", "running", null, false, errorMessage);
+            recordHistory(itemId, itemName, itemType, "kill", "running", null, false, errorMessage, backupId);
             return new ActionResult(false, errorMessage, backupId);
         }
     }
@@ -124,7 +132,7 @@ public class ActionExecutor {
 
             if (arguments == null || arguments.isEmpty()) {
                 String message = "Nao foi possivel reverter: backup nao possui a linha de comando do processo.";
-                recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "killed", null, false, message);
+                recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "killed", null, false, message, null);
                 return new ActionResult(false, message, backupId);
             }
 
@@ -133,7 +141,7 @@ public class ActionExecutor {
 
             backupManager.markRestored(backupId);
             recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "killed",
-                    "running (novo PID " + newPid + ")", true, null);
+                    "running (novo PID " + newPid + ")", true, null, null);
 
             return new ActionResult(true,
                     "Processo '" + backup.itemName() + "' relancado com sucesso (novo PID " + newPid + ").", backupId);
@@ -168,6 +176,15 @@ public class ActionExecutor {
         String previousState = before.map(s -> s.state() + "/" + s.startMode()).orElse("desconhecido");
         Long itemId = upsertItemQuiet(serviceName, itemType, null, previousState);
 
+        // Bloqueio so se aplica a acoes que desativam/param o servico - "enable" (reativacao,
+        // usada em restores) deve sempre ser permitido, mesmo que o item esteja bloqueado.
+        if (!"enable".equals(actionType)) {
+            Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, serviceName, itemType, actionType, previousState);
+            if (lockRefusal.isPresent()) {
+                return lockRefusal.get();
+            }
+        }
+
         // "enable" so acontece durante um restore (que ja aponta para um backup de origem),
         // entao nao criamos um novo backup nesse caso especifico.
         Long backupId = null;
@@ -194,11 +211,11 @@ public class ActionExecutor {
                     : "Falha ao aplicar acao '" + actionType + "' ao servico '" + serviceName + "' "
                         + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
 
-            recordHistory(itemId, serviceName, itemType, actionType, previousState, success ? actionType : null, success, success ? null : message);
+            recordHistory(itemId, serviceName, itemType, actionType, previousState, success ? actionType : null, success, success ? null : message, backupId);
             return new ActionResult(success, message, backupId);
         } catch (Exception e) {
             String errorMessage = "Erro ao executar acao '" + actionType + "' no servico '" + serviceName + "': " + e.getMessage();
-            recordHistory(itemId, serviceName, itemType, actionType, previousState, null, false, errorMessage);
+            recordHistory(itemId, serviceName, itemType, actionType, previousState, null, false, errorMessage, backupId);
             return new ActionResult(false, errorMessage, backupId);
         }
     }
@@ -225,7 +242,7 @@ public class ActionExecutor {
             }
 
             backupManager.markRestored(backupId);
-            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "disabled", startMode, true, null);
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "disabled", startMode, true, null, null);
             return new ActionResult(true, "Servico '" + backup.itemName() + "' restaurado para o estado anterior (" + startMode + ").", backupId);
         } catch (Exception e) {
             String errorMessage = "Erro ao restaurar servico a partir do backup #" + backupId + ": " + e.getMessage();
@@ -249,6 +266,11 @@ public class ActionExecutor {
     public ActionResult disableStartupItem(StartupScanner.StartupItemInfo item) {
         String itemType = "startup";
         Long itemId = upsertItemQuiet(item.name(), itemType, null, "enabled");
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, item.name(), itemType, "disable", "enabled");
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
 
         Long backupId;
         try {
@@ -290,11 +312,11 @@ public class ActionExecutor {
                 message = "Item de startup sem origem reconhecida (nem registro nem arquivo).";
             }
 
-            recordHistory(itemId, item.name(), itemType, "disable", "enabled", success ? "disabled" : null, success, success ? null : message);
+            recordHistory(itemId, item.name(), itemType, "disable", "enabled", success ? "disabled" : null, success, success ? null : message, backupId);
             return new ActionResult(success, message, backupId);
         } catch (Exception e) {
             String errorMessage = "Erro ao desativar item de startup '" + item.name() + "': " + e.getMessage();
-            recordHistory(itemId, item.name(), itemType, "disable", "enabled", null, false, errorMessage);
+            recordHistory(itemId, item.name(), itemType, "disable", "enabled", null, false, errorMessage, backupId);
             return new ActionResult(false, errorMessage, backupId);
         }
     }
@@ -340,7 +362,7 @@ public class ActionExecutor {
             if (success) {
                 backupManager.markRestored(backupId);
             }
-            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "disabled", success ? "enabled" : null, success, success ? null : message);
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "disabled", success ? "enabled" : null, success, success ? null : message, null);
             return new ActionResult(success, message, backupId);
         } catch (Exception e) {
             String errorMessage = "Erro ao restaurar item de startup a partir do backup #" + backupId + ": " + e.getMessage();
@@ -362,12 +384,79 @@ public class ActionExecutor {
         }
     }
 
+    /**
+     * Grava a acao no historico e, se um backup foi criado para ela, vincula
+     * o backup a entrada de historico gerada (necessario para a reversao por
+     * {@code historyId} em {@link #restoreFromHistory}, ja que o backup e
+     * criado ANTES de existir uma entrada de historico para referenciar).
+     */
     private void recordHistory(Long itemId, String itemName, String itemType, String actionType,
-                                String previousState, String newState, boolean success, String errorMessage) {
+                                String previousState, String newState, boolean success, String errorMessage,
+                                Long backupId) {
         try {
-            historyRepository.record(itemId, itemName, itemType, actionType, previousState, newState, success, errorMessage);
+            long historyId = historyRepository.record(itemId, itemName, itemType, actionType, previousState, newState, success, errorMessage);
+            if (backupId != null) {
+                backupManager.linkToHistory(backupId, historyId);
+            }
         } catch (SQLException e) {
             System.err.println("[NITRO BOOST] Falha ao gravar historico da acao '" + actionType + "' sobre '" + itemName + "': " + e.getMessage());
+        }
+    }
+
+    /**
+     * Verifica se um item esta bloqueado antes de uma acao destrutiva
+     * (kill/stop/disable). Se estiver, recusa a acao SEM excecao: grava a
+     * recusa no historico (regra de ouro: toda acao, inclusive recusada, e
+     * registrada) e devolve um {@link ActionResult} de falha com mensagem
+     * clara, sem criar backup nem tocar no sistema operacional.
+     */
+    private Optional<ActionResult> refuseIfLocked(Long itemId, String itemName, String itemType,
+                                                    String actionType, String currentState) {
+        if (!lockManager.isLocked(itemName, itemType)) {
+            return Optional.empty();
+        }
+        String message = "Acao '" + actionType + "' recusada: o item '" + itemName + "' esta bloqueado (protegido). "
+                + "Desbloqueie o item manualmente antes de tentar novamente.";
+        recordHistory(itemId, itemName, itemType, actionType, currentState, null, false, message, null);
+        return Optional.of(new ActionResult(false, message, null));
+    }
+
+    /**
+     * Reverte a acao registrada em uma entrada especifica do historico
+     * ({@code historyId}), buscando o backup associado a ela (ou, na
+     * ausencia de vinculo direto, o backup mais recente ainda nao restaurado
+     * do mesmo item) e chamando o metodo de restore apropriado para o tipo
+     * do item.
+     */
+    public ActionResult restoreFromHistory(long historyId) {
+        try {
+            Optional<ActionHistoryRepository.HistoryEntry> entryOpt = historyRepository.findById(historyId);
+            if (entryOpt.isEmpty()) {
+                return new ActionResult(false, "Entrada de historico #" + historyId + " nao encontrada.", null);
+            }
+            ActionHistoryRepository.HistoryEntry entry = entryOpt.get();
+
+            Optional<BackupManager.BackupRecord> backupOpt = backupManager.findByActionHistoryId(historyId);
+            if (backupOpt.isEmpty()) {
+                backupOpt = backupManager.findLatestNotRestored(entry.itemName(), entry.itemType());
+            }
+            if (backupOpt.isEmpty()) {
+                return new ActionResult(false, "Nenhum backup associado a entrada de historico #" + historyId
+                        + " foi encontrado (ou ja foi restaurado).", null);
+            }
+            long backupId = backupOpt.get().id();
+
+            return switch (entry.itemType()) {
+                case "process" -> restoreProcess(backupId);
+                case "service" -> restoreService(backupId);
+                case "startup" -> restoreStartupItem(backupId);
+                default -> new ActionResult(false,
+                        "Tipo de item '" + entry.itemType() + "' nao possui reversao automatica implementada.", backupId);
+            };
+        } catch (SQLException e) {
+            String errorMessage = "Erro ao reverter a partir da entrada de historico #" + historyId + ": " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, null);
         }
     }
 
