@@ -1,5 +1,5 @@
 {
-  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup), classificacao (seguro/essencial/depende), descricao, impacto_desativar e impacto_manter - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase.",
+  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware), classificacao (seguro/essencial/depende), descricao, impacto_desativar e impacto_manter - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura).",
   "items": [
     {
       "nome": "OneDrive",
@@ -240,6 +240,298 @@
       "descricao": "'Speed Launcher' do Adobe Acrobat Reader - deixa o programa pre-carregado na memoria para abrir PDFs mais rapido.",
       "impacto_desativar": "O Adobe Reader pode demorar um pouco mais para abrir na primeira vez que voce clicar em um PDF, mas continua funcionando normalmente.",
       "impacto_manter": "Ocupa uma pequena parte da RAM desde a inicializacao do Windows, mesmo que voce abra PDFs raramente."
+    },
+
+    {
+      "nome": "Microsoft Compatibility Appraiser",
+      "tipo": "task",
+      "classificacao": "seguro",
+      "descricao": "Tarefa do Windows que verifica se os programas instalados no seu PC tem problemas de compatibilidade conhecidos com versoes mais novas do Windows, e envia esses dados para a Microsoft (parte do programa de telemetria/CEIP).",
+      "impacto_desativar": "Nenhum impacto perceptivel no uso do PC. Voce so deixa de contribuir com dados de compatibilidade para a Microsoft.",
+      "impacto_manter": "Roda periodicamente em segundo plano, consumindo um pouco de CPU e disco, principalmente logo apos ligar o PC."
+    },
+    {
+      "nome": "Consolidator",
+      "tipo": "task",
+      "classificacao": "seguro",
+      "descricao": "Tarefa do Programa de Melhoria da Experiencia do Usuario (CEIP) que junta e envia dados de uso do Windows para a Microsoft.",
+      "impacto_desativar": "Nenhum impacto no funcionamento do Windows. Apenas menos dados de uso sao enviados para a Microsoft.",
+      "impacto_manter": "Roda periodicamente em segundo plano coletando estatisticas de uso do sistema."
+    },
+    {
+      "nome": "UsbCeip",
+      "tipo": "task",
+      "classificacao": "seguro",
+      "descricao": "Tarefa do Programa de Melhoria da Experiencia do Usuario (CEIP) especifica para dispositivos USB conectados ao PC.",
+      "impacto_desativar": "Nenhum impacto no funcionamento de pen drives, mouses ou outros dispositivos USB - apenas para de enviar estatisticas de uso deles para a Microsoft.",
+      "impacto_manter": "Roda ocasionalmente em segundo plano, com impacto minimo."
+    },
+    {
+      "nome": "Microsoft-Windows-DiskDiagnosticDataCollector",
+      "tipo": "task",
+      "classificacao": "seguro",
+      "descricao": "Coleta dados de diagnostico sobre a saude do disco rigido/SSD (erros, S.M.A.R.T.) e os envia para a Microsoft para ajudar a melhorar a deteccao de falhas de disco.",
+      "impacto_desativar": "Nenhum impacto na deteccao de problemas reais de disco pelo Windows (isso e feito por outros componentes) - so deixa de enviar esses dados para a Microsoft.",
+      "impacto_manter": "Roda raramente, com impacto praticamente imperceptivel."
+    },
+    {
+      "nome": "DmClient",
+      "tipo": "task",
+      "classificacao": "depende",
+      "descricao": "Tarefa de 'Cliente de Gerenciamento de Dispositivo' - usada tanto para o programa de feedback do Windows quanto, em PCs corporativos gerenciados (MDM), para sincronizar politicas administrativas.",
+      "impacto_desativar": "Em um PC domestico, geralmente nenhum impacto. Em um PC de empresa gerenciado por TI, pode atrasar a aplicacao de politicas administrativas - vale confirmar com o suporte de TI antes de desativar nesse caso.",
+      "impacto_manter": "Roda periodicamente em segundo plano com impacto leve."
+    },
+    {
+      "nome": "QueueReporting",
+      "tipo": "task",
+      "classificacao": "seguro",
+      "descricao": "Tarefa do Relatorio de Erros do Windows que envia, em lote, os relatorios de travamentos de programas acumulados para a Microsoft.",
+      "impacto_desativar": "Nenhum impacto na estabilidade do PC - os relatorios de erro so deixam de ser enviados automaticamente para a Microsoft.",
+      "impacto_manter": "Roda ocasionalmente apos travamentos de programas, com impacto leve."
+    },
+
+    {
+      "nome": "Balanced",
+      "tipo": "powerplan",
+      "classificacao": "depende",
+      "descricao": "Plano de energia padrao do Windows - equilibra automaticamente desempenho e economia de energia conforme o uso do PC.",
+      "impacto_desativar": "Trocar para outro plano faz o PC priorizar desempenho maximo (mais consumo de energia/calor) ou economia (menos desempenho), conforme o plano escolhido.",
+      "impacto_manter": "Bom padrao para a maioria dos usuarios - equilibra performance e consumo automaticamente."
+    },
+    {
+      "nome": "Equilibrado",
+      "tipo": "powerplan",
+      "classificacao": "depende",
+      "descricao": "Versao em portugues do plano de energia padrao do Windows ('Balanced') - equilibra automaticamente desempenho e economia de energia.",
+      "impacto_desativar": "Trocar para outro plano faz o PC priorizar desempenho maximo ou economia de energia, conforme o plano escolhido.",
+      "impacto_manter": "Bom padrao para a maioria dos usuarios - equilibra performance e consumo automaticamente."
+    },
+    {
+      "nome": "High performance",
+      "tipo": "powerplan",
+      "classificacao": "depende",
+      "descricao": "Plano de energia que prioriza desempenho maximo, sem limitar a velocidade do processador para economizar energia - recomendado para jogos e tarefas pesadas.",
+      "impacto_desativar": "Trocar para outro plano (ex: Equilibrado) pode reduzir levemente o desempenho maximo em troca de menor consumo de energia e temperatura.",
+      "impacto_manter": "Consome mais energia e gera mais calor/ruido de ventoinha, mas garante o maximo desempenho possivel do hardware."
+    },
+    {
+      "nome": "Alto desempenho",
+      "tipo": "powerplan",
+      "classificacao": "depende",
+      "descricao": "Versao em portugues do plano de energia 'High performance' - prioriza desempenho maximo do processador, ideal para jogos e uso intenso.",
+      "impacto_desativar": "Trocar para outro plano pode reduzir levemente o desempenho maximo em troca de menor consumo de energia e temperatura.",
+      "impacto_manter": "Consome mais energia e gera mais calor/ruido de ventoinha, mas garante o maximo desempenho do hardware."
+    },
+    {
+      "nome": "Power saver",
+      "tipo": "powerplan",
+      "classificacao": "depende",
+      "descricao": "Plano de energia que reduz o desempenho do processador para economizar bateria/energia - mais indicado para notebooks longe da tomada.",
+      "impacto_desativar": "Trocar para outro plano aumenta o desempenho disponivel, mas tambem o consumo de energia.",
+      "impacto_manter": "PC roda mais devagar (processador limitado) para economizar energia - pode deixar jogos e tarefas pesadas visivelmente mais lentos."
+    },
+    {
+      "nome": "Economia de energia",
+      "tipo": "powerplan",
+      "classificacao": "depende",
+      "descricao": "Versao em portugues do plano de energia 'Power saver' - reduz o desempenho do processador para economizar energia/bateria.",
+      "impacto_desativar": "Trocar para outro plano aumenta o desempenho disponivel, mas tambem o consumo de energia.",
+      "impacto_manter": "PC roda mais devagar para economizar energia - pode deixar jogos e tarefas pesadas visivelmente mais lentos."
+    },
+    {
+      "nome": "Ultimate Performance",
+      "tipo": "powerplan",
+      "classificacao": "depende",
+      "descricao": "Plano de energia oculto do Windows (precisa ser habilitado) que remove praticamente todos os limites de economia de energia, buscando a menor latencia/maximo desempenho possivel - voltado para estacoes de trabalho e PCs gamers de ponta.",
+      "impacto_desativar": "Trocar para outro plano reintroduz pequenas otimizacoes de economia de energia, com efeito praticamente imperceptivel no desempenho para a maioria dos jogos.",
+      "impacto_manter": "Maximo desempenho possivel, porem com maior consumo de energia constante - o ganho real sobre 'Alto desempenho' costuma ser pequeno na maioria dos PCs."
+    },
+    {
+      "nome": "Desempenho maximo",
+      "tipo": "powerplan",
+      "classificacao": "depende",
+      "descricao": "Versao em portugues do plano de energia oculto 'Ultimate Performance' - remove praticamente todos os limites de economia de energia para o menor tempo de resposta possivel.",
+      "impacto_desativar": "Trocar para outro plano reintroduz pequenas otimizacoes de economia de energia, com efeito praticamente imperceptivel no desempenho para a maioria dos jogos.",
+      "impacto_manter": "Maximo desempenho possivel, porem com maior consumo de energia constante."
+    },
+
+    {
+      "nome": "Nivel de Telemetria (Politica de Grupo)",
+      "tipo": "telemetry",
+      "classificacao": "seguro",
+      "descricao": "Controle central de quantos dados de diagnostico e uso o Windows envia para a Microsoft, definido via politica de grupo (tem prioridade sobre a configuracao normal do sistema).",
+      "impacto_desativar": "Reduzir para o nivel minimo (0 ou 1) nao afeta nenhuma funcionalidade do dia a dia do Windows para a grande maioria dos usuarios domesticos.",
+      "impacto_manter": "Quanto mais alto o nivel, mais dados de diagnostico (uso de apps, erros, desempenho) sao enviados automaticamente para a Microsoft."
+    },
+    {
+      "nome": "Nivel de Telemetria (Configuracao do Sistema)",
+      "tipo": "telemetry",
+      "classificacao": "seguro",
+      "descricao": "Mesmo controle de telemetria acima, mas na chave usada quando nao ha uma politica de grupo aplicada - a situacao mais comum em PCs domesticos.",
+      "impacto_desativar": "Reduzir para o nivel minimo nao afeta nenhuma funcionalidade do dia a dia do Windows para a grande maioria dos usuarios domesticos.",
+      "impacto_manter": "Quanto mais alto o nivel, mais dados de diagnostico sao enviados automaticamente para a Microsoft."
+    },
+    {
+      "nome": "ID de Publicidade",
+      "tipo": "telemetry",
+      "classificacao": "seguro",
+      "descricao": "Identificador unico usado pelos aplicativos da Microsoft Store para mostrar anuncios mais 'personalizados' com base no que voce usa no PC.",
+      "impacto_desativar": "Voce continua vendo anuncios (em apps que os exibem), mas eles deixam de ser personalizados com base no seu uso do PC.",
+      "impacto_manter": "Apps podem rastrear seu uso entre si para direcionar anuncios mais especificos ao seu perfil."
+    },
+    {
+      "nome": "Experiencias Personalizadas com Dados de Diagnostico",
+      "tipo": "telemetry",
+      "classificacao": "seguro",
+      "descricao": "Permite que a Microsoft personalize dicas, sugestoes e recomendacoes dentro do Windows com base nos dados de diagnostico enviados pelo seu PC.",
+      "impacto_desativar": "Voce recebe menos dicas/sugestoes 'personalizadas' do Windows - nenhuma funcionalidade essencial e afetada.",
+      "impacto_manter": "A Microsoft usa os dados de diagnostico do seu PC para tentar sugerir recursos e dicas relevantes."
+    },
+    {
+      "nome": "Frequencia de Pedidos de Feedback",
+      "tipo": "telemetry",
+      "classificacao": "seguro",
+      "descricao": "Controla com que frequencia o Windows pede para voce avaliar sua experiencia de uso, atraves de notificacoes do programa de feedback.",
+      "impacto_desativar": "Voce para de receber (ou recebe bem menos) esses popups pedindo para avaliar o Windows.",
+      "impacto_manter": "O Windows pode interromper seu uso periodicamente com pedidos de avaliacao/feedback."
+    },
+    {
+      "nome": "Relatorio de Erros do Windows",
+      "tipo": "telemetry",
+      "classificacao": "depende",
+      "descricao": "Quando um programa trava ou o Windows encontra um erro serio, esse recurso pode enviar um relatorio automatico do problema para a Microsoft, e por vezes ajudar a encontrar uma solucao.",
+      "impacto_desativar": "Voce deixa de enviar relatorios automaticos de erro, e tambem perde as sugestoes de solucao que o Windows as vezes mostra apos um travamento (baseadas nesses relatorios).",
+      "impacto_manter": "Ajuda a Microsoft (e, ocasionalmente, voce mesmo) a diagnosticar a causa de travamentos, mas envia detalhes tecnicos do erro pela internet."
+    },
+    {
+      "nome": "Rastreamento de Apps Mais Usados",
+      "tipo": "telemetry",
+      "classificacao": "depende",
+      "descricao": "Controla se o Windows rastreia quais programas voce mais abre, para personalizar sugestoes no menu Iniciar e nos resultados de busca.",
+      "impacto_desativar": "O menu Iniciar e a busca deixam de sugerir programas 'mais usados' automaticamente - voce ainda encontra tudo pesquisando pelo nome.",
+      "impacto_manter": "O Windows usa seu historico de uso de programas para tentar deixar o menu Iniciar e a busca mais 'inteligentes'."
+    },
+
+    {
+      "nome": "Widgets (App)",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "O app UWP por tras do painel de Widgets do Windows 11 (noticias, clima, informacoes rapidas). E o mesmo recurso acessado pelo icone de Widgets na barra de tarefas.",
+      "impacto_desativar": "O icone de Widgets para de funcionar/some da barra de tarefas. Nenhuma outra funcao do Windows e afetada.",
+      "impacto_manter": "Fica instalado consumindo espaco em disco e, as vezes, atualizando conteudo em segundo plano."
+    },
+    {
+      "nome": "Copilot",
+      "tipo": "bloatware",
+      "classificacao": "depende",
+      "descricao": "Assistente de inteligencia artificial integrado ao Windows 11 (Microsoft Copilot), acessivel pela barra de tarefas ou pelo atalho Win+C.",
+      "impacto_desativar": "Voce perde o acesso rapido ao assistente de IA integrado ao Windows - ainda e possivel usar o Copilot/ChatGPT pelo navegador se quiser.",
+      "impacto_manter": "Fica disponivel para uso a qualquer momento, mas ocupa espaco em disco e, dependendo da versao do Windows, pode iniciar componentes em segundo plano."
+    },
+    {
+      "nome": "Xbox Game Bar (Overlay)",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "App UWP por tras da sobreposicao (overlay) do Xbox Game Bar, acionada com Win+G durante jogos, para gravar clipes, tirar prints e ver desempenho.",
+      "impacto_desativar": "Voce perde o atalho Win+G e a gravacao de clipes automatica de jogos. Se voce usa outro programa (ex: NVIDIA, OBS) para gravar, nao faz falta.",
+      "impacto_manter": "Fica pronto em segundo plano para abrir rapidamente durante jogos, com impacto leve em RAM."
+    },
+    {
+      "nome": "Xbox (Apps Auxiliares)",
+      "tipo": "bloatware",
+      "classificacao": "depende",
+      "descricao": "Grupo de apps auxiliares do ecossistema Xbox (identidade/login, interface de convites/chat, texto-para-fala) que dao suporte a jogos com recursos online da Microsoft.",
+      "impacto_desativar": "Jogos que dependem de login/recursos do Xbox Live (conquistas, multiplayer, chat de voz com legendas) podem parar de funcionar corretamente.",
+      "impacto_manter": "Se voce joga titulos com integracao Xbox, e recomendado manter; caso contrario, ficam instalados sem uso pratico."
+    },
+    {
+      "nome": "Xbox App (Gaming App)",
+      "tipo": "bloatware",
+      "classificacao": "depende",
+      "descricao": "Aplicativo principal do Xbox no Windows - loja/launcher de jogos do Xbox/Game Pass, lista de amigos e conquistas.",
+      "impacto_desativar": "Voce perde o acesso ao Xbox Game Pass para PC e a lista de amigos/conquistas integrada, mas jogos ja instalados de outras lojas (Steam, Epic etc.) continuam funcionando normalmente.",
+      "impacto_manter": "Util para quem assina o Xbox Game Pass; caso contrario, ocupa espaco e pode iniciar processos auxiliares em segundo plano."
+    },
+    {
+      "nome": "OneDrive (App UWP)",
+      "tipo": "bloatware",
+      "classificacao": "depende",
+      "descricao": "Em algumas instalacoes do Windows 11, o OneDrive tambem aparece como um pacote UWP alem do aplicativo Win32 tradicional (que ja e coberto pela varredura de itens de inicializacao). Raro, mas pode aparecer na lista de apps UWP.",
+      "impacto_desativar": "Mesmo impacto do OneDrive tradicional: seus arquivos param de sincronizar automaticamente com a nuvem.",
+      "impacto_manter": "Continua disponivel para sincronizar arquivos com a nuvem Microsoft."
+    },
+    {
+      "nome": "Cortana",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "Assistente de voz da Microsoft, hoje bastante reduzido no Windows 11 (substituido em boa parte pelo Copilot).",
+      "impacto_desativar": "Nenhum impacto perceptivel - a Cortana ja nao e mais integrada as funcoes principais do Windows 11 moderno.",
+      "impacto_manter": "Ocupa espaco em disco sem uso pratico na grande maioria dos PCs atuais."
+    },
+    {
+      "nome": "Solitaire Collection",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "Colecao de jogos de cartas classicos (Paciencia, Copas etc.) que vem pre-instalada no Windows.",
+      "impacto_desativar": "Nenhum impacto no sistema - apenas o app de jogos de carta deixa de estar disponivel.",
+      "impacto_manter": "Ocupa espaco em disco; alguns modos do jogo exibem anuncios e podem iniciar componentes leves em segundo plano."
+    },
+    {
+      "nome": "Bing News",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "Aplicativo de noticias da Microsoft (Bing/MSN Noticias) pre-instalado no Windows.",
+      "impacto_desativar": "Nenhum impacto no sistema - voce pode ler noticias por qualquer navegador ou app de sua preferencia.",
+      "impacto_manter": "Pode atualizar conteudo em segundo plano mesmo sem ser aberto."
+    },
+    {
+      "nome": "Bing Weather",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "Aplicativo de previsao do tempo da Microsoft pre-instalado no Windows (tambem usado como fonte de dados do painel de Widgets).",
+      "impacto_desativar": "Nenhum impacto no sistema - voce pode consultar o clima por qualquer outro app ou site.",
+      "impacto_manter": "Pode atualizar dados de previsao do tempo em segundo plano mesmo sem ser aberto."
+    },
+    {
+      "nome": "Zune Music (Reprodutor de Musica)",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "App de musica nativo do Windows (nome interno herdado do antigo Zune) - reproduz arquivos de audio locais.",
+      "impacto_desativar": "Nenhum impacto se voce usa outro player (Spotify, VLC, etc.) para ouvir musica.",
+      "impacto_manter": "Fica disponivel como opcao padrao para tocar arquivos de audio, sem consumo relevante quando fechado."
+    },
+    {
+      "nome": "Zune Video (Filmes e TV)",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "App de video nativo do Windows (nome interno herdado do antigo Zune) - reproduz arquivos de video locais e da acesso a loja de filmes/series da Microsoft.",
+      "impacto_desativar": "Nenhum impacto se voce usa outro player (VLC, streaming, etc.) para assistir video.",
+      "impacto_manter": "Fica disponivel como opcao padrao para tocar arquivos de video, sem consumo relevante quando fechado."
+    },
+    {
+      "nome": "Central do Office",
+      "tipo": "bloatware",
+      "classificacao": "depende",
+      "descricao": "Atalho/vitrine para os aplicativos do Microsoft 365/Office (Word, Excel, PowerPoint), usado tambem para promover a assinatura do Office.",
+      "impacto_desativar": "Nenhum impacto nos programas do Office ja instalados (Word, Excel etc. continuam funcionando normalmente) - so a 'vitrine' de atalhos e promocoes some.",
+      "impacto_manter": "Util como atalho central para quem usa varios apps do Office; caso contrario, e apenas uma vitrine promocional."
+    },
+    {
+      "nome": "Feedback Hub",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "Aplicativo usado para enviar sugestoes e relatar problemas do Windows diretamente para a Microsoft.",
+      "impacto_desativar": "Nenhum impacto no uso do PC - voce so perde a forma mais facil de reportar bugs/sugestoes ao Windows (ainda pode fazer isso pelo site da Microsoft).",
+      "impacto_manter": "Ocupa espaco em disco; a maioria dos usuarios nunca abre esse app."
+    },
+    {
+      "nome": "Correio e Calendario",
+      "tipo": "bloatware",
+      "classificacao": "depende",
+      "descricao": "Apps nativos de e-mail (Mail) e calendario do Windows.",
+      "impacto_desativar": "Se voce usa Outlook, Gmail pelo navegador ou outro cliente de e-mail, nenhum impacto. Se usa esses apps nativos para checar e-mail/agenda, precisara de uma alternativa.",
+      "impacto_manter": "Uteis para quem gosta de um cliente de e-mail/calendario leve e integrado ao Windows."
     }
   ]
 }

@@ -169,27 +169,27 @@ nitroboost/
 ### ✅ FASE 3 — Expansão de Varredura
 
 #### 3.1 TaskSchedulerScanner
-- [ ] Listar tarefas agendadas via `schtasks /query`
-- [ ] Parsear nome, status, próxima execução
-- [ ] Método para desativar tarefa agendada
+- [x] Listar tarefas agendadas via `schtasks /query`
+- [x] Parsear nome, status, próxima execução
+- [x] Método para desativar tarefa agendada
 
 #### 3.2 PowerPlanScanner
-- [ ] Listar planos de energia via `powercfg /list`
-- [ ] Identificar plano ativo
-- [ ] Método para trocar/ativar plano de energia (ex: Alto Desempenho)
+- [x] Listar planos de energia via `powercfg /list`
+- [x] Identificar plano ativo
+- [x] Método para trocar/ativar plano de energia (ex: Alto Desempenho)
 
 #### 3.3 TelemetryScanner
-- [ ] Mapear chaves de registro relacionadas a telemetria/relatórios (pesquisar lista conhecida de chaves do Windows 11)
-- [ ] Método para ler valor atual e alterar (0/1) com backup prévio
+- [x] Mapear chaves de registro relacionadas a telemetria/relatórios (pesquisar lista conhecida de chaves do Windows 11)
+- [x] Método para ler valor atual e alterar (0/1) com backup prévio
 
 #### 3.4 BloatwareScanner
-- [ ] Listar apps UWP instalados via PowerShell (`Get-AppxPackage`)
-- [ ] Identificar itens conhecidos: Widgets, Copilot, Game Bar, Xbox apps, OneDrive
-- [ ] Método para desinstalar/desativar cada categoria
+- [x] Listar apps UWP instalados via PowerShell (`Get-AppxPackage`)
+- [x] Identificar itens conhecidos: Widgets, Copilot, Game Bar, Xbox apps, OneDrive
+- [x] Método para desinstalar/desativar cada categoria
 
 #### 3.5 Atualização da Base de Conhecimento
-- [ ] Adicionar classificação para todos os novos itens descobertos nesta fase
-- [ ] Commit: `[Fase3] Varredura expandida (tarefas, energia, telemetria, bloatware)`
+- [x] Adicionar classificação para todos os novos itens descobertos nesta fase
+- [x] Commit: `[Fase3] Varredura expandida (tarefas, energia, telemetria, bloatware)`
 
 **Critério de conclusão da fase:** todas as 7 áreas definidas no plano original estão sendo escaneadas e classificadas.
 

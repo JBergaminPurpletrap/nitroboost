@@ -199,3 +199,138 @@ Todos os itens do checklist da Fase 2 estão marcados `[x]` em
 `NITRO-BOOST-documentacao-completa.md`.
 
 Próximo passo (não iniciado): **Fase 3 — Expansão de Varredura**.
+
+---
+
+## 2026-07-23 — Fase 3 concluída (Expansão de Varredura)
+
+As 7 áreas de varredura definidas no plano original agora estão cobertas: processos, serviços,
+startup (Fase 1) + tarefas agendadas, plano de energia, telemetria e bloatware (Fase 3). Todos os
+4 novos scanners e as respectivas ações seguem exatamente o mesmo padrão (lock → backup → ação →
+histórico) já validado nas Fases 1 e 2. Resumo do que foi feito:
+
+- **`TaskSchedulerScanner`** (`core/`): lista tarefas agendadas via `schtasks /query /fo CSV`
+  (formato CSV simples, só com as 3 colunas necessárias - nome, próxima execução, status - mais
+  fácil de parsear que o modo verboso `/v`). O parser descarta linhas de cabeçalho de forma
+  robusta verificando se a primeira coluna começa com `\` (todo nome de tarefa real começa com
+  `\`), em vez de assumir que só a primeira linha é cabeçalho - necessário porque o `schtasks`
+  repete o cabeçalho a cada "página" interna quando há muitas tarefas (274 tarefas nesta máquina).
+- **`PowerPlanScanner`** (`core/`): lista planos de energia via `powercfg /list` e identifica o
+  ativo. O regex de parsing busca apenas o padrão do GUID (`xxxxxxxx-xxxx-...`) em vez do texto
+  fixo `"Power Scheme GUID:"`, porque esse texto é traduzido pelo Windows conforme o idioma do
+  sistema (nesta máquina, em português, a linha real é `"GUID do Esquema de Energia:"`) - bug
+  encontrado e corrigido durante o teste (ver seção de bugs abaixo).
+- **`TelemetryScanner`** (`core/`): mapeia 7 chaves de registro conhecidas relacionadas a
+  telemetria/relatórios/personalização do Windows 11 (nível de telemetria via política e via
+  configuração normal, ID de publicidade, experiências personalizadas, frequência de pedidos de
+  feedback, relatório de erros do Windows, rastreamento de apps mais usados), com descrição em
+  português para cada uma. `readValue()` lê o valor atual via `reg query` de forma defensiva
+  (chave/valor ausente = estado válido "não definido", não é erro).
+- **`BloatwareScanner`** (`core/`): lista apps UWP do usuário atual via PowerShell
+  `Get-AppxPackage` (mesmo padrão de arquivo temporário + UTF-8 do `ServiceScanner`, pelo mesmo
+  motivo de evitar corrupção de acentuação). Classifica por substring (case-insensitive, já que
+  nomes de pacote mudam de versão para versão do Windows) nas categorias pedidas - Widgets,
+  Copilot, Game Bar, Xbox (apps auxiliares e app principal), OneDrive - mais uma categoria extra
+  `OTHER_KNOWN_BLOAT` para bloatware comum adicional (Cortana, Solitaire, Bing News/Weather, Zune
+  Music/Video, Office Hub, Feedback Hub, People, Mail and Calendar, To Do). Na máquina de
+  desenvolvimento: 134 apps UWP instalados, 16 reconhecidos como bloatware conhecido.
+- **`ActionExecutor`** (`actions/`, expandido): 4 pares de métodos novos, todos seguindo o mesmo
+  contrato das Fases 1/2 (checar `LockManager.isLocked` antes de agir, `BackupManager
+  .snapshotBeforeAction` antes de qualquer alteração real, `recordHistory` sempre, inclusive em
+  recusas por bloqueio):
+  - `disableScheduledTask`/`enableScheduledTask`/`restoreScheduledTask` - via
+    `schtasks /change /tn <nome> /disable|/enable`.
+  - `switchPowerPlan`/`restorePowerPlan` - via `powercfg /setactive <guid>`; o backup guarda o
+    GUID+nome do plano que estava ativo antes da troca. Item de catálogo usa um nome fixo
+    (`ActivePowerPlan`), já que só existe "o plano ativo" como conceito, não um item por plano.
+  - `setTelemetryValue`/`restoreTelemetryValue` - via `reg add .../t REG_DWORD` para alterar, e
+    `reg add` (com o valor original) ou `reg delete` (se a chave não existia antes) para reverter,
+    conforme o que o backup capturou.
+  - `uninstallBloatwareApp`/`restoreBloatwareApp` - via PowerShell `Remove-AppxPackage -Package
+    <PackageFullName>` (aceita um parâmetro `whatIf` que adiciona `-WhatIf` ao comando - ver
+    decisão de segurança abaixo). O restore é "melhor esforço": tenta re-registrar o pacote a
+    partir do `AppxManifest.xml` na pasta de instalação capturada no backup
+    (`Add-AppxPackage -Register`) - só funciona se os arquivos ainda existirem em disco, uma
+    limitação inerente da plataforma Appx (não há como "desfazer" uma desinstalação de forma
+    totalmente confiável sem reinstalar pela Microsoft Store). Isso está documentado no próprio
+    Javadoc do método.
+  - `restoreFromHistory` (já existente desde a Fase 2) foi estendido para despachar também os
+    tipos `task`, `powerplan`, `telemetry` e `bloatware`.
+- **Base de conhecimento:** `knowledge-base.json` expandido de 27 para **66 itens** - 6 tarefas
+  agendadas comuns do Windows (CEIP/Compatibility Appraiser/Error Reporting), 8 planos de energia
+  (versões em inglês e português dos 4 planos padrão/ocultos do Windows, já que o nome retornado
+  por `powercfg /list` depende do idioma do sistema), 7 chaves de telemetria (uma entrada por
+  chave mapeada no `TelemetryScanner`) e 14 itens de bloatware (Widgets, Copilot, Game Bar, os dois
+  grupos de apps do Xbox, OneDrive como UWP, mais bloatware comum adicional).
+- **`Phase3ConsoleDemo`:** demonstração de integração via console cobrindo as 4 sub-fases, testada
+  de ponta a ponta na máquina de desenvolvimento.
+
+### Decisões de segurança tomadas para os testes (regra explícita da Fase 3)
+
+- **Tarefas agendadas:** a listagem roda contra as 274 tarefas reais da máquina (somente leitura,
+  sem risco). O teste de bloqueio/desativação/reversão roda **apenas** contra uma tarefa de TESTE
+  própria (`NitroBoostTestTaskFase3`, agendada para `01/01/2099` - nunca executa de fato),
+  criada e removida pelo próprio `Phase3ConsoleDemo`. Nenhuma tarefa real do sistema/usuário foi
+  desativada.
+- **Plano de energia:** a listagem roda contra os planos reais da máquina (leitura). Esta máquina
+  de desenvolvimento expõe **apenas 1 plano visível** via `powercfg /list` (Equilibrado/Balanced -
+  provavelmente por política/OEM, já que `powercfg -duplicatescheme` consegue criar planos novos
+  que continuam não aparecendo em `/list`, sugerindo alguma restrição de visibilidade no sistema).
+  Como a regra pede para gravar o plano original e restaurá-lo ao final "sem exceção", mas não
+  havia um segundo plano real pré-existente para testar a troca sem depender do único plano real,
+  o teste criou um **plano de TESTE próprio** (`powercfg -duplicatescheme <guid original>`,
+  renomeado para "NitroBoostTestPlan"), trocou para ele via `ActionExecutor.switchPowerPlan`
+  (o mesmo caminho de código usado em produção), confirmou a troca, **reverteu para o plano
+  original via `ActionExecutor.restorePowerPlan`** e removeu o plano de teste
+  (`powercfg -delete`) - com uma rede de segurança adicional no `finally` que força
+  `powercfg /setactive <guid original>` novamente caso a reversão não tenha sido confirmada.
+  Verificado ao final (both durante o teste automatizado e manualmente via `powercfg /list`
+  depois): o plano ativo da máquina é `Equilibrado` (o mesmo de antes do teste, mesmo GUID), e o
+  plano de teste foi removido sem deixar rastro.
+- **Telemetria:** a leitura das 7 chaves conhecidas roda contra o registro real (somente leitura,
+  sem risco - nenhum valor real foi alterado). O teste de "alterar com backup" roda **apenas**
+  contra uma chave de TESTE própria e fabricada (`HKCU\Software\NitroBoostTest\TelemetryTestFlag`,
+  que não corresponde a nenhuma das 7 chaves reais mapeadas), removida ao final (`reg delete`)
+  independentemente do resultado do teste.
+- **Bloatware:** a listagem roda contra os 134 apps UWP reais instalados (leitura via
+  `Get-AppxPackage`, sem risco). **Nenhum app UWP foi desinstalado de verdade neste teste
+  automatizado.** O método `uninstallBloatwareApp()` foi exercitado com o parâmetro `whatIf=true`,
+  que adiciona `-WhatIf` ao comando PowerShell `Remove-AppxPackage` - o comando roda de verdade
+  (validando que o nome do pacote e a sintaxe estão corretos), mas o próprio PowerShell garante que
+  nada é alterado no sistema quando `-WhatIf` está presente. Confirmado após o teste: o app usado
+  na validação (`Microsoft.Windows.PeopleExperienceHost`) continua instalado.
+
+### Bug encontrado e corrigido durante o teste
+
+O `PowerPlanScanner` inicialmente buscava o texto fixo `"Power Scheme GUID:"` na saída do
+`powercfg /list`, que só existe no Windows em inglês - nesta máquina (Windows em português), a
+saída real é `"GUID do Esquema de Energia:"`, então o parser retornava 0 planos. Corrigido trocando
+o regex para buscar apenas o padrão do GUID em si (`xxxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`),
+ignorando o texto ao redor - funciona em qualquer idioma do Windows. O `TaskSchedulerScanner`
+teve um ajuste semelhante: em vez de assumir que só a primeira linha da saída do `schtasks` é
+cabeçalho, o parser agora descarta qualquer linha cuja primeira coluna não comece com `\` (todo
+nome de tarefa real começa com `\`) - necessário porque o `schtasks` repete a linha de cabeçalho
+a cada "página" interna quando há muitas tarefas agendadas (essa máquina tem 274).
+
+### Build e testes
+
+- `./mvnw -q compile` - OK, sem erros.
+- `./mvnw exec:java -Dexec.mainClass=com.nitroboost.core.TaskSchedulerScanner` /
+  `...PowerPlanScanner` / `...TelemetryScanner` / `...BloatwareScanner` - os 4 scanners testados
+  isoladamente contra a máquina real antes da integração, confirmando parsing correto.
+- `./mvnw exec:java -Dexec.mainClass=com.nitroboost.Phase3ConsoleDemo` - roda até o fim, cobrindo
+  as 4 sub-fases com sucesso: bloqueio recusa a ação em tarefa de teste → desbloqueio permite →
+  desativar/reverter tarefa de teste; trocar/reverter plano de energia de teste (com o plano
+  original confirmado restaurado); alterar/reverter chave de telemetria de teste; validar comando
+  de desinstalação de bloatware em modo `-WhatIf` sem alterar nada. Histórico completo (30 entradas
+  mais recentes) impresso ao final, mostrando todas as ações (inclusive a recusa por bloqueio) com
+  seus ids de backup vinculados.
+- Verificado manualmente após a execução (`powercfg /list`, `schtasks /query`, `reg query`,
+  `Get-AppxPackage`): nenhum resíduo de teste ficou na máquina - plano de energia original ativo,
+  tarefa de teste removida, chave de registro de teste removida, app de bloatware usado na
+  validação continua instalado.
+
+Todos os itens do checklist da Fase 3 estão marcados `[x]` em
+`NITRO-BOOST-documentacao-completa.md`.
+
+Próximo passo (não iniciado): **Fase 4 — Interface Gráfica (JavaFX) — Tema Booster Gamer**.
