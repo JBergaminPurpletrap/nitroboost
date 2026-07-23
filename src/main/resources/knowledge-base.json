@@ -1,5 +1,5 @@
 {
-  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware), classificacao (seguro/essencial/depende), descricao, impacto_desativar e impacto_manter - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura). Os campos 'version'/'updatedAt' foram adicionados na Fase 7 (Expansao Online) para permitir comparar esta base local com uma base remota - ver com.nitroboost.knowledge.RemoteKnowledgeUpdater.",
+  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware/performance/gaming/hibernation), classificacao (seguro/essencial/depende), descricao, impacto_desativar e impacto_manter - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura). Os campos 'version'/'updatedAt' foram adicionados na Fase 7 (Expansao Online) para permitir comparar esta base local com uma base remota - ver com.nitroboost.knowledge.RemoteKnowledgeUpdater. Os tipos performance/gaming/hibernation foram adicionados na Fase 9 Parte 1 (Novos scanners de Performance e Jogos).",
   "version": "1.0",
   "updatedAt": "2026-07-23",
   "items": [
@@ -113,7 +113,7 @@
       "classificacao": "depende",
       "descricao": "Servico de Pesquisa do Windows (Windows Search) - indexa arquivos e e-mails no fundo para deixar a busca do menu Iniciar mais rapida.",
       "impacto_desativar": "A busca do menu Iniciar e do Explorador de Arquivos fica mais lenta (procura na hora, sem indice pronto).",
-      "impacto_manter": "Consome CPU e disco periodicamente para manter o indice de busca atualizado, principalmente logo apos ligar o PC ou copiar muitos arquivos."
+      "impacto_manter": "Consome CPU e disco periodicamente para manter o indice de busca atualizado, principalmente logo apos ligar o PC ou copiar muitos arquivos - o impacto e bem mais notavel em HDDs (discos mecanicos) do que em SSDs, onde a leitura/escrita e muito mais rapida."
     },
     {
       "nome": "SysMain",
@@ -534,6 +534,94 @@
       "descricao": "Apps nativos de e-mail (Mail) e calendario do Windows.",
       "impacto_desativar": "Se voce usa Outlook, Gmail pelo navegador ou outro cliente de e-mail, nenhum impacto. Se usa esses apps nativos para checar e-mail/agenda, precisara de uma alternativa.",
       "impacto_manter": "Uteis para quem gosta de um cliente de e-mail/calendario leve e integrado ao Windows."
+    },
+    {
+      "nome": "Efeitos Visuais (Animacoes e Sombras)",
+      "tipo": "performance",
+      "classificacao": "seguro",
+      "descricao": "Controla as animacoes, sombras e efeitos de transicao do Windows (janelas, menus, sombras de icones). Ajustar para 'melhor desempenho' remove a maioria desses efeitos.",
+      "impacto_desativar": "A interface fica visualmente mais 'seca' (sem animacoes/sombras), mas libera um pouco de CPU/GPU - efeito puramente cosmetico, nenhuma funcao do Windows e perdida.",
+      "impacto_manter": "Windows continua com a aparencia padrao (animado), consumindo um pouco mais de recursos graficos para renderizar as transicoes."
+    },
+    {
+      "nome": "Transparencia da Interface (Acrilico/Fluent)",
+      "tipo": "performance",
+      "classificacao": "seguro",
+      "descricao": "Controla o efeito de transparencia (acrilico) de janelas, menu Iniciar e barra de tarefas.",
+      "impacto_desativar": "Janelas e menus passam a ter fundo solido em vez de transparente/desfocado - efeito puramente cosmetico, reduz um pouco o uso de GPU para renderizar a interface.",
+      "impacto_manter": "Visual com transparencia (Fluent Design) mantido, com leve custo extra de GPU para compor o efeito."
+    },
+    {
+      "nome": "GPU Hardware-Accelerated Scheduling",
+      "tipo": "performance",
+      "classificacao": "depende",
+      "descricao": "Deixa a propria GPU gerenciar sua fila de memoria de video em vez do driver fazer isso via CPU, reduzindo latencia - ganho real em jogos, mas requer GPU/driver compativel e reinicio do Windows para valer.",
+      "impacto_desativar": "Volta ao gerenciamento tradicional (via driver/CPU) - comportamento padrao de fabrica, sem risco.",
+      "impacto_manter": "Em GPUs/drivers compativeis, pode reduzir latencia em jogos; em hardware nao compativel ou drivers desatualizados, o valor simplesmente nao tem efeito (nao quebra nada, mas tambem nao ajuda)."
+    },
+    {
+      "nome": "Inicializacao Rapida (Fast Startup)",
+      "tipo": "performance",
+      "classificacao": "depende",
+      "descricao": "Recurso que acelera o boot salvando parte do estado do sistema em disco ao desligar (uma especie de hibernacao parcial), em vez de um desligamento completo.",
+      "impacto_desativar": "O boot fica um pouco mais lento, porem mais 'limpo' - recomendado para quem usa dual-boot com outro sistema operacional ou tem problemas apos atualizar drivers/hardware.",
+      "impacto_manter": "Boot mais rapido no dia a dia; em desktops (nao notebooks) pode ocasionalmente causar inconsistencias apos trocar hardware ou em configuracoes de dual-boot."
+    },
+    {
+      "nome": "Indice de Limitacao de Rede (Network Throttling)",
+      "tipo": "performance",
+      "classificacao": "depende",
+      "descricao": "Configuracao antiga do Windows que limita a banda de rede disponivel para priorizar audio/multimidia em segundo plano.",
+      "impacto_desativar": "Remove o limite de rede - pode ajudar em jogos online sensiveis a latencia; em cenarios raros com audio/video simultaneos a rede pesada, pode haver leve engasgo de midia.",
+      "impacto_manter": "Comportamento padrao do Windows, priorizando estabilidade de audio/midia sobre desempenho maximo de rede."
+    },
+    {
+      "nome": "Otimizacao de Entrega do Windows Update (Delivery Optimization)",
+      "tipo": "performance",
+      "classificacao": "seguro",
+      "descricao": "Por padrao, o Windows pode compartilhar atualizacoes ja baixadas com outros PCs pela internet (like um P2P), consumindo banda de upload da sua conexao.",
+      "impacto_desativar": "Voce deixa de compartilhar atualizacoes com PCs de fora da sua rede (ou desativa o compartilhamento por completo) - o recebimento de atualizacoes do Windows continua funcionando normalmente, so muda a 'forma de entrega'.",
+      "impacto_manter": "Seu PC pode usar banda de upload para ajudar outros PCs (dentro ou fora da sua rede, dependendo da configuracao) a baixar atualizacoes mais rapido - util para a comunidade, mas consome sua banda."
+    },
+    {
+      "nome": "Arquivo de Hibernacao",
+      "tipo": "hibernation",
+      "classificacao": "depende",
+      "descricao": "Arquivo especial (hiberfil.sys) que guarda o estado da memoria RAM em disco para permitir hibernar o PC (e tambem e usado pela Inicializacao Rapida). Ocupa espaco em disco proporcional ao tamanho da sua RAM.",
+      "impacto_desativar": "Libera espaco em disco (util em SSDs pequenos), mas voce perde a opcao de hibernar o PC e a Inicializacao Rapida deixa de funcionar.",
+      "impacto_manter": "Voce pode hibernar o PC (economiza energia mantendo tudo aberto) e a Inicializacao Rapida funciona, mas o arquivo ocupa espaco fixo em disco (proximo ao tamanho da sua RAM instalada)."
+    },
+    {
+      "nome": "Otimizacoes de Tela Cheia (Fullscreen Optimizations)",
+      "tipo": "gaming",
+      "classificacao": "depende",
+      "descricao": "Recurso do Windows que roda jogos 'tela cheia' num modo similar a janela sem bordas por baixo dos panos, para permitir alternar de tela mais rapido. Desativar forca o modo de tela cheia exclusivo tradicional.",
+      "impacto_desativar": "Alguns jogos ganham menor input lag/melhor desempenho em modo tela cheia exclusivo; a troca entre janelas pode ficar um pouco mais lenta durante o jogo.",
+      "impacto_manter": "Troca entre janelas mais rapida durante o jogo (Alt+Tab quase instantaneo); em alguns jogos/GPUs pode haver um pequeno impacto de desempenho ou input lag comparado ao modo exclusivo."
+    },
+    {
+      "nome": "Game DVR (Gravacao em Segundo Plano)",
+      "tipo": "gaming",
+      "classificacao": "seguro",
+      "descricao": "Recurso do Xbox Game Bar que grava continuamente um buffer em segundo plano para permitir salvar os 'ultimos minutos' de jogo, mesmo sem estar gravando ativamente.",
+      "impacto_desativar": "Voce perde a funcao de salvar clipes automaticos do Xbox Game Bar; a gravacao manual (Win+Alt+R) pode continuar disponivel dependendo da configuracao.",
+      "impacto_manter": "Consome CPU/GPU/disco continuamente para manter o buffer de gravacao, mesmo em jogos onde voce nunca salva um clipe."
+    },
+    {
+      "nome": "Modo de Jogo (Game Mode) do Windows",
+      "tipo": "gaming",
+      "classificacao": "depende",
+      "descricao": "Quando ativo, o Windows prioriza automaticamente recursos do sistema (CPU/GPU) para o jogo em primeiro plano, pausando notificacoes e reduzindo atividade em segundo plano.",
+      "impacto_desativar": "O Windows para de priorizar automaticamente o jogo em primeiro plano - alguns usuarios avancados preferem isso para ter controle manual total sobre prioridades.",
+      "impacto_manter": "Geralmente melhora a estabilidade de FPS na maioria dos jogos; em casos raros pode interferir em overlays ou ferramentas de streaming/gravacao de terceiros."
+    },
+    {
+      "nome": "Prioridade de Processador para Jogos",
+      "tipo": "gaming",
+      "classificacao": "depende",
+      "descricao": "Controla como o Windows divide o tempo de CPU entre o programa em primeiro plano (ex: o jogo) e processos em segundo plano.",
+      "impacto_desativar": "Volta a divisao padrao (mais igualitaria) entre primeiro e segundo plano - melhor se voce roda tarefas pesadas em segundo plano enquanto joga (ex: gravacao, transmissao ao vivo).",
+      "impacto_manter": "O jogo em primeiro plano recebe mais tempo de CPU, o que geralmente melhora a fluidez - processos em segundo plano (incluindo gravacao/streaming) podem ficar levemente menos responsivos."
     }
   ]
 }
