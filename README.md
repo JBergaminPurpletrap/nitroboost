@@ -8,9 +8,9 @@ item faz, e permite desativar/bloquear/reverter cada ajuste com segurança (back
 de qualquer ação destrutiva). Tema visual: **Carbono & Verde Turbo** — preto com textura de fibra
 de carbono e acentos em verde neon, estilo HUD gamer.
 
-> Consulte `NITRO-BOOST-documentacao-completa.md` para a documentação completa do projeto
-> (objetivo, arquitetura, checklist detalhado por fase) e `NITRO-BOOST-skills-tecnicas.md` para o
-> guia de bibliotecas/comandos usados na implementação.
+> Consulte `docs/NITRO-BOOST-documentacao-completa.md` para a documentação completa do projeto
+> (objetivo, arquitetura, checklist detalhado por fase) e `docs/NITRO-BOOST-skills-tecnicas.md` para
+> o guia de bibliotecas/comandos usados na implementação.
 >
 > ⚠️ **Projeto pessoal e privado.** Feito para uso individual, sem garantias, sem suporte e sem
 > distribuição pública planejada. Ele mexe em processos, serviços, registro, tarefas agendadas,
@@ -22,9 +22,8 @@ de carbono e acentos em verde neon, estilo HUD gamer.
 Todas as fases "core" do projeto (0 a 6) estão concluídas — o app escaneia o sistema, executa e
 reverte ações com backup automático, tem interface gráfica completa com o tema Carbono & Verde
 Turbo, tutoriais (incluindo detecção de XMP/EXPO desativado), e já pode ser empacotado como um
-executável standalone via `jpackage` (veja "Empacotamento" abaixo). Veja `PROGRESS.md` para o
-histórico detalhado de cada fase e `BLOCKERS.md` para bloqueios técnicos conhecidos. A Fase 7
-(expansão online) é opcional/futura e não foi iniciada.
+executável standalone via `jpackage` (veja "Empacotamento" abaixo). Veja `docs/PROGRESS.md` para o
+histórico detalhado de cada fase e `docs/BLOCKERS.md` para bloqueios técnicos conhecidos.
 
 ## Stack técnica
 
@@ -138,8 +137,10 @@ UAC (prompt padrão do Windows) e abre o `NitroBoost.exe`:
 
 ## Estrutura de pastas
 
-Ver seção 3 de `NITRO-BOOST-documentacao-completa.md` para a estrutura completa e o racional de
-cada pacote (`core/`, `actions/`, `knowledge/`, `ui/`, `db/`).
+Ver seção 3 de `docs/NITRO-BOOST-documentacao-completa.md` para a estrutura completa e o racional
+de cada pacote (`core/`, `actions/`, `knowledge/`, `ui/`, `db/`). Toda a documentação do projeto
+(incluindo os prompts de início de fase) fica em `docs/`; `README.md` é o único `.md` que permanece
+na raiz, por convenção do GitHub.
 
 ## Convenções do projeto
 
