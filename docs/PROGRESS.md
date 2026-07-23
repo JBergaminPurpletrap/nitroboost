@@ -860,3 +860,121 @@ exatamente com o diagnóstico do documento (~15 de ~134).
 Parte 1 concluída. Aguardando validação do usuário antes de seguir para a Parte 2 (novas
 categorias IA e Recursos de Consumidor), conforme instruído em
 `prompt-fase8-debloat-completo.md`.
+
+---
+
+## 2026-07-23 — Fase 9 - Parte 1 concluída (Novos scanners de Performance e Jogos)
+
+Duas categorias novas de varredura/ação (Performance e Energia, Otimizações para Jogos), cobrindo
+os itens reais das seções 1 e 2 de `NITRO-BOOST-fase9-diagnostico-e-performance.md`, seguindo
+exatamente o mesmo contrato (lock → backup → ação → histórico) já validado desde a Fase 1. A Parte 2
+(módulo de Diagnóstico/`SystemAuditEngine`) **não foi iniciada**, conforme instruído.
+
+- **`PerformanceScanner`** (`core/`, novo): mesmo padrão defensivo do `TelemetryScanner` (leitura
+  via `reg query`, chave/valor ausente = "não definido", nunca lança exceção). Cobre 6 chaves de
+  registro (efeitos visuais `VisualFXSetting`, transparência `EnableTransparency`, GPU
+  Hardware-Accelerated Scheduling `HwSchMode`, Fast Startup `HiberbootEnabled`, Network Throttling
+  Index `NetworkThrottlingIndex`, Delivery Optimization `DODownloadMode`) mais o estado do arquivo
+  de hibernação, verificado por **existência do arquivo `hiberfil.sys`** (via `Files.exists`,
+  unidade do sistema resolvida dinamicamente por `System.getenv("SystemDrive")`, nunca hardcoded)
+  em vez de parsing da saída localizada de `powercfg /a` — mais simples e independente de idioma
+  (o documento permitia qualquer um dos dois mecanismos). Cada definição de chave carrega também um
+  `recommendedValue` (o valor sugerido para melhor desempenho, ex: `"0"` para transparência), usado
+  pela UI como alvo padrão do botão de ação — não confundir com o campo `valor_recomendado` da
+  Parte 2 (Diagnóstico), que ainda não existe no `knowledge-base.json` nesta fase.
+- **`GamingScanner`** (`core/`, novo): mesmo padrão, cobrindo as 4 chaves de otimização para jogos
+  (Fullscreen Optimizations `GameDVR_FSEBehaviorMode`, Game DVR `GameDVR_Enabled`, Game Mode
+  `AllowAutoGameMode`, Prioridade de Processador `Win32PrioritySeparation`).
+- **`ActionExecutor`** (expandido): `setPerformanceValue`/`restorePerformanceValue` e
+  `setGamingValue`/`restoreGamingValue` compartilham uma mecânica privada genérica
+  (`applyRegistryDwordChange`/`restoreRegistryDwordChange`) — as duas categorias são, por baixo, o
+  mesmo mecanismo já validado em `setTelemetryValue` desde a Fase 3 (uma chave/valor DWORD alterada
+  via `reg add`/`reg delete`, com backup prévio e histórico); extraído para não triplicar a mesma
+  lógica nesta fase, **sem alterar `setTelemetryValue`/`restoreTelemetryValue`** (já testados desde
+  a Fase 3, sem motivo para arriscar uma regressão neles). `setHibernationEnabled`/
+  `restoreHibernationState` (mecanismo próprio, via `powercfg /hibernate on|off`, já que não é uma
+  chave de registro). `restoreFromHistory` estendido para despachar também os tipos `performance`,
+  `gaming` e `hibernation`.
+  - **Decisão deliberada de consistência (não é uma correção de bug existente):** o item usado como
+    nome do item no catálogo/lock/histórico é o **nome amigável** (`friendlyName()`) da definição,
+    não um id interno curto — ao contrário de `setTelemetryValue` (Fase 3), que usa `definition.id()`
+    internamente enquanto a UI exibe/bloqueia pelo `friendlyName()` (uma inconsistência pré-existente
+    que faz o botão "Bloquear" da tela de Telemetria nunca bloquear de fato a ação correspondente,
+    porque as duas chamadas usam nomes diferentes como chave). Não foi corrigida na Fase 9 por estar
+    fora do escopo desta tarefa (risco de regressão em código já testado), mas registrada aqui e em
+    `BLOCKERS.md` para não repetir o mesmo problema nas categorias novas — `Performance`/`Gaming` já
+    nascem com o nome consistente entre `ScannedItem.name()`, `LockManager` e `ActionExecutor`,
+    confirmado funcionando no teste de bloqueio/desbloqueio real (ver abaixo).
+- **Base de conhecimento:** `knowledge-base.json` expandido de 66 para **77 itens** — as 6 chaves de
+  performance + o item de hibernação (tipo `performance`/`hibernation`) e as 4 chaves de jogos (tipo
+  `gaming`), todas com descrição/impacto em português claro, nenhuma classificada como `essencial`
+  (conforme a seção 5 do documento — nada de segurança nesta lista). `SysMain`, `WSearch`,
+  `Spooler` e `bthserv` **já existiam** na base (catalogados desde as Fases 1/3 como serviços
+  genéricos comuns do Windows, com descrições já adequadas) — só a descrição do `WSearch` foi
+  complementada com a nuance HDD-vs-SSD pedida explicitamente pelo documento desta fase.
+- **`ui/SystemScanTask.java`:** duas novas categorias (`CATEGORY_PERFORMANCE`, `CATEGORY_GAMING`),
+  `scanPerformance()`/`scanGaming()` seguindo exatamente o padrão de `scanTelemetry()` (chamados de
+  `scanSafely`, um scanner por categoria isolado em try/catch). `ui/ScanResultsView.java`: as duas
+  categorias novas adicionadas ao filtro `ComboBox`. `ui/ItemActionDispatcher.java`: casos novos para
+  `performance` (`setPerformanceValue` com o `recommendedValue` da definição), `gaming` (idem) e
+  `hibernation` (`setHibernationEnabled(false)` — ação principal sempre desativa, já que o caso de
+  uso do documento é liberar espaço em disco; reativar fica disponível via reversão no Histórico).
+- **`Phase9Part1ConsoleDemo`:** testado isoladamente via console antes de qualquer alteração na UI
+  (regra de ouro do projeto), cobrindo: listagem real das 6+1 chaves de Performance e das 4 chaves
+  de Jogos; um teste de bloqueio/desbloqueio contra um item **real** (Transparência — bloquear não
+  toca no sistema, é seguro testar contra um item real); e um round-trip real (ler original → aplicar
+  → confirmar → reverter → **confirmar com leitura direta pós-restore**, não só confiar no
+  `success=true` da chamada) para cada uma das 6 chaves de Performance, o arquivo de hibernação e as
+  4 chaves de Jogos.
+
+### Decisões de segurança tomadas para os testes (regra explícita da Fase 9)
+
+Diferente da Fase 3 (que usou uma chave de registro **fabricada** para testar telemetria), o teste
+desta fase rodou o round-trip completo contra as **chaves reais** de Performance/Jogos desta máquina
+de desenvolvimento — decisão deliberada, já que o propósito explícito desta fase é validar o
+comportamento em cima dos mecanismos reais (efeitos visuais, transparência, GPU scheduling,
+hibernação etc.), não de chaves fabricadas sem relação com o produto final. Para cada item alterado
+de verdade, o teste seguiu sempre: (1) ler o valor **original** antes de qualquer mudança via leitura
+direta do scanner, (2) aplicar a mudança de teste via `ActionExecutor` (o mesmo caminho de código
+usado em produção), (3) confirmar a mudança, (4) reverter via `ActionExecutor.restore*`, (5)
+confirmar com uma **leitura direta pós-restore** (não só o `success=true` da chamada) que a máquina
+voltou exatamente ao estado original.
+
+Resultado real, nesta máquina de desenvolvimento (sessão sem privilégio de Administrador):
+
+- **5 chaves HKCU** (Efeitos Visuais, Transparência, Fullscreen Optimizations, Game DVR, Game Mode)
+  foram alteradas e revertidas com sucesso — confirmado restaurado ao original em todos os casos,
+  tanto pelo teste automatizado quanto por uma verificação manual independente extra via
+  `reg query` após a execução (ex: `EnableTransparency` = `0x1` antes e depois; `VisualFXSetting` e
+  `AllowAutoGameMode` = "não definido" antes e depois — nenhuma dessas chaves existia previamente).
+- **4 chaves HKLM** (GPU Hardware-Accelerated Scheduling, Fast Startup, Network Throttling Index,
+  Prioridade de Processador para Jogos) e a **Delivery Optimization** (também HKLM) falharam ao
+  escrever com `ERRO: Acesso negado` — **falha esperada e documentada** (ver `BLOCKERS.md`), pois
+  esta sessão de console não roda como Administrador. Confirmado, em cada caso, que **nada foi
+  alterado no registro** (leitura direta pós-tentativa idêntica ao valor original).
+- **Arquivo de hibernação:** `powercfg /hibernate off` também falhou por falta de elevação (erro
+  `0x65b`, "A função falhou durante a execução") — mesma categoria de falha esperada. Confirmado
+  via `Test-Path C:\hiberfil.sys` (comando PowerShell manual, fora do processo de teste) que o
+  arquivo **continua presente** (hibernação continua ativada, estado original desta máquina
+  inalterado).
+- **Nenhuma chave de teste fabricada foi necessária** e nenhum resíduo ficou na máquina — todas as
+  chaves realmente escritas durante o teste foram revertidas e confirmadas.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.core.PerformanceScanner` /
+  `...GamingScanner` — os 2 scanners testados isoladamente contra a máquina real antes da
+  integração, confirmando leitura correta (ver valores reais na seção de resultados acima).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase9Part1ConsoleDemo` — roda até o fim,
+  cobrindo listagem, bloqueio/desbloqueio contra item real e os 11 round-trips reais (6 Performance +
+  1 Hibernação + 4 Jogos) com sucesso, incluindo as falhas esperadas por falta de elevação. Histórico
+  completo (40 entradas mais recentes) impresso ao final, mostrando todas as ações (inclusive as
+  falhas e a recusa por bloqueio) com seus ids de backup vinculados.
+
+Todos os itens do checklist da Fase 9 correspondentes à Parte 1 estão marcados `[x]` em
+`NITRO-BOOST-fase9-diagnostico-e-performance.md`; os itens da Parte 2 (Diagnóstico/`SystemAuditEngine`/
+`AuditView`) permanecem `[ ]`, não iniciados, conforme instruído.
+
+Próximo passo (não iniciado, aguardando validação do usuário antes de prosseguir): **Fase 9 - Parte
+2 — Módulo de Diagnóstico do Sistema (`SystemAuditEngine`, `AuditReport`, `ui/AuditView`)**.

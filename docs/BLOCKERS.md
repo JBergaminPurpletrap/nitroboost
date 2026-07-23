@@ -106,6 +106,59 @@ projeto (nunca pular uma tarefa silenciosamente por causa de um bloqueio).
 
 ---
 
+## Fase 9 - Parte 1 (Novos scanners de Performance e Jogos)
+
+### 6. Escrita em chaves HKLM (Performance/Jogos) e em `powercfg /hibernate` exige Administrador
+- **Status:** Não é um bug - comportamento esperado do Windows, documentado aqui conforme instrução
+  explícita da Fase 9.
+- **Descrição:** das 6 chaves de `PerformanceScanner` e 4 chaves de `GamingScanner`, as que ficam em
+  `HKLM` (GPU Hardware-Accelerated Scheduling, Fast Startup, Network Throttling Index, Delivery
+  Optimization, Prioridade de Processador para Jogos) exigem privilégio de Administrador para
+  **escrever** (a leitura funciona normalmente sem elevação, todas foram lidas com sucesso). O
+  arquivo de hibernação (`powercfg /hibernate on|off`) também exige elevação. Testado nesta máquina
+  de desenvolvimento (sessão de console **sem** privilégio de Administrador): todas as tentativas de
+  escrita nessas chaves falharam com `ERRO: Acesso negado` (registro) ou erro `0x65b` (`powercfg`),
+  exatamente o comportamento esperado.
+- **Mitigação aplicada:** a **lógica** de cada chamada (comando montado corretamente - caminho da
+  chave, nome do valor, tipo `REG_DWORD`, valor a gravar) foi validada mesmo com a escrita falhando -
+  o `ActionExecutor` trata a falha de forma graciosa (sem exceção, backup permanece intacto para uma
+  tentativa futura, histórico registra a falha com mensagem clara mencionando a necessidade de rodar
+  como Administrador). Confirmado, para cada chave HKLM testada, que **nada foi alterado no
+  registro/disco** (leitura direta pós-tentativa idêntica ao valor original) - nenhum risco à máquina
+  de desenvolvimento.
+- **Ação pendente:** nenhuma ação de código pendente - este é o comportamento correto e esperado. Ao
+  rodar o NITRO BOOST publicado (`NitroBoost.exe`) como Administrador (via `run-as-admin.bat`, já
+  existente desde a Fase 6), essas 5 ações passam a funcionar normalmente. Documentado também nas
+  mensagens de erro exibidas ao usuário final na UI (via `ItemDetailView`/`ScanResultsView`, que já
+  exibem a mensagem de falha completa retornada pelo `ActionExecutor`).
+
+### 7. Inconsistência pré-existente no nome usado para lock em `setTelemetryValue` (Fase 3) - não corrigida nesta fase
+- **Status:** Registrado, não corrigido (fora do escopo desta tarefa).
+- **Descrição:** `ActionExecutor.setTelemetryValue` (Fase 3) usa `definition.id()` (ex:
+  `"allow_telemetry_policy"`) como nome do item para o catálogo/lock/histórico internamente, enquanto
+  a UI (`SystemScanTask.scanTelemetry`, `ScanResultsView`, `ItemDetailView`) exibe e bloqueia o item
+  pelo `friendlyName()` (ex: `"Nivel de Telemetria (Politica de Grupo)"`). Como
+  `LockManager.isLocked` é consultado por nome exato, bloquear um item de Telemetria pela tela
+  (`Bloquear`) grava o bloqueio sob o nome amigável, mas `setTelemetryValue` verifica o bloqueio sob
+  o id curto - os dois nunca coincidem, então **bloquear um item de Telemetria pela UI não impede,
+  de fato, a ação de alterá-lo** (o lock fica "órfão", sem nunca ser encontrado pela verificação).
+- **Por que não foi corrigido agora:** fora do escopo explícito desta tarefa (Fase 9 Parte 1), que
+  pediu para não alterar `setTelemetryValue`/`restoreTelemetryValue` para não arriscar uma regressão
+  em código já testado desde a Fase 3. O risco prático também é baixo (o item ainda pode ser
+  desbloqueado/bloqueado sem erro, e a ação de "set" real continua passando por backup+histórico
+  normalmente - só a *recusa por bloqueio* específica não funciona para este tipo).
+- **Mitigação aplicada nesta fase:** as categorias novas (`performance`, `gaming`) foram implementadas
+  desde o início usando o **nome amigável consistentemente** em `ScannedItem`, `LockManager` e
+  `ActionExecutor` (ver `PROGRESS.md`, Fase 9 Parte 1) - confirmado funcionando corretamente no teste
+  de bloqueio/desbloqueio real (`Phase9Part1ConsoleDemo`, seção 9.1). O mesmo bug não foi introduzido
+  nas categorias novas.
+- **Ação pendente:** corrigir `setTelemetryValue`/`restoreTelemetryValue` para usar `friendlyName()`
+  em vez de `id()` como nome do item (mesmo padrão agora usado em `performance`/`gaming`), com um
+  teste de regressão específico para confirmar que o bloqueio de um item de Telemetria real passa a
+  funcionar. Fica para uma fase de manutenção/polimento futura, fora do escopo atual.
+
+---
+
 ## Itens sem bloqueio (apenas para referência)
 
 - Repositório GitHub remoto: criado com `gh repo create nitroboost --private --source=. --remote=origin`
