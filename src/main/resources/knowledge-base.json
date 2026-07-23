@@ -1,4 +1,245 @@
 {
-  "_comentario": "Base de conhecimento do NITRO BOOST. Populada de verdade na Fase 1 (KnowledgeBase.java). Estrutura de cada item: nome, tipo, classificacao (seguro/essencial/depende), descricao, impacto_desativar, impacto_manter.",
-  "items": []
+  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup), classificacao (seguro/essencial/depende), descricao, impacto_desativar e impacto_manter - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase.",
+  "items": [
+    {
+      "nome": "OneDrive",
+      "tipo": "startup",
+      "classificacao": "depende",
+      "descricao": "Programa da Microsoft que sincroniza automaticamente arquivos da sua pasta com a nuvem (OneDrive). Se voce nao usa OneDrive para guardar arquivos, ele so consome memoria e rede a toa.",
+      "impacto_desativar": "Seus arquivos param de sincronizar com a nuvem automaticamente. Se voce usa o OneDrive no dia a dia, precisara abri-lo manualmente quando quiser sincronizar.",
+      "impacto_manter": "Continua rodando em segundo plano desde a inicializacao do Windows, consumindo um pouco de RAM e rede mesmo quando voce nao esta mexendo em arquivos."
+    },
+    {
+      "nome": "Widgets",
+      "tipo": "process",
+      "classificacao": "seguro",
+      "descricao": "Painel de noticias, clima e informacoes rapidas que aparece ao clicar no icone de Widgets na barra de tarefas do Windows 11. Pouca gente usa esse recurso no dia a dia.",
+      "impacto_desativar": "O icone de Widgets some ou para de funcionar na barra de tarefas. Nenhuma outra funcao do Windows e afetada.",
+      "impacto_manter": "Fica de prontidao em segundo plano, consumindo memoria e, as vezes, rede para atualizar noticias, mesmo que voce nunca abra o painel."
+    },
+    {
+      "nome": "GameBar",
+      "tipo": "process",
+      "classificacao": "seguro",
+      "descricao": "Painel de sobreposicao (overlay) do Windows para gravar a tela, tirar prints e ver desempenho durante jogos, acionado com Win+G.",
+      "impacto_desativar": "Voce perde o atalho Win+G e a gravacao de clipes automatica de jogos. Se voce usa outro programa (ex: NVIDIA, OBS) para gravar, nao faz falta.",
+      "impacto_manter": "Fica pronto em segundo plano para abrir rapidamente durante jogos, com impacto leve em RAM."
+    },
+    {
+      "nome": "PhoneExperienceHost",
+      "tipo": "process",
+      "classificacao": "depende",
+      "descricao": "Parte do recurso 'Vincular ao Celular' (Phone Link), que permite ver notificacoes, mensagens e fotos do celular direto no PC.",
+      "impacto_desativar": "Voce perde a integracao com o celular (notificacoes, SMS, fotos) enquanto ele estiver desativado.",
+      "impacto_manter": "Roda em segundo plano tentando manter a conexao com o celular, consumindo RAM e, ocasionalmente, rede."
+    },
+    {
+      "nome": "Teams",
+      "tipo": "startup",
+      "classificacao": "depende",
+      "descricao": "Microsoft Teams configurado para abrir automaticamente junto com o Windows, ficando pronto para chamadas e mensagens de trabalho.",
+      "impacto_desativar": "O Teams para de abrir sozinho - voce precisa abri-lo manualmente quando for usar. Nenhuma mensagem ou reuniao e perdida.",
+      "impacto_manter": "Consome memoria RAM significativa desde o momento em que o Windows liga, mesmo que voce nao use o Teams naquele dia."
+    },
+    {
+      "nome": "Spotify",
+      "tipo": "startup",
+      "classificacao": "depende",
+      "descricao": "Aplicativo de musica Spotify configurado para abrir automaticamente com o Windows.",
+      "impacto_desativar": "O Spotify deixa de abrir sozinho; e so abrir manualmente quando quiser ouvir musica.",
+      "impacto_manter": "Fica aberto (mesmo minimizado) desde o inicio do Windows, usando RAM e, se estiver tocando, rede e um pouco de processamento."
+    },
+    {
+      "nome": "Discord",
+      "tipo": "startup",
+      "classificacao": "depende",
+      "descricao": "Aplicativo de chat por voz e texto muito usado por jogadores, configurado para abrir junto com o Windows.",
+      "impacto_desativar": "O Discord deixa de abrir sozinho e voce nao recebe notificacoes de mensagens ate abrir o programa manualmente.",
+      "impacto_manter": "Fica rodando em segundo plano o tempo todo, consumindo RAM, para voce ja estar 'online' para os amigos assim que liga o PC."
+    },
+    {
+      "nome": "Steam",
+      "tipo": "startup",
+      "classificacao": "depende",
+      "descricao": "Loja e launcher de jogos da Valve, configurado para abrir automaticamente junto com o Windows.",
+      "impacto_desativar": "O Steam deixa de abrir sozinho; voce perde o status 'online' automatico para amigos ate abrir o programa.",
+      "impacto_manter": "Consome memoria e, as vezes, rede (baixando atualizacoes de jogos) mesmo antes de voce decidir jogar algo."
+    },
+    {
+      "nome": "NvTelemetryContainer",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Servico da NVIDIA que envia dados de uso e desempenho da placa de video para a propria NVIDIA (telemetria). Nao afeta o funcionamento da placa de video.",
+      "impacto_desativar": "Nenhum impacto perceptivel no uso do PC ou nos jogos. Apenas a NVIDIA deixa de receber dados sobre o uso do seu hardware.",
+      "impacto_manter": "Roda ocasionalmente em segundo plano enviando informacoes de diagnostico para os servidores da NVIDIA."
+    },
+    {
+      "nome": "NVIDIA GeForce Experience",
+      "tipo": "startup",
+      "classificacao": "depende",
+      "descricao": "Aplicativo da NVIDIA que otimiza configuracoes de jogos, grava gameplay (ShadowPlay) e avisa sobre atualizacoes de driver.",
+      "impacto_desativar": "Voce perde a gravacao automatica de gameplay e as otimizacoes automaticas de jogos, mas o driver de video continua funcionando normalmente - so precisa atualizar manualmente pelo site da NVIDIA.",
+      "impacto_manter": "Consome uma quantidade razoavel de RAM e inicia varios processos auxiliares desde a ligacao do PC."
+    },
+    {
+      "nome": "RtkAudUService",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico do driver de audio Realtek, usado por placas-mae com som onboard Realtek para recursos avancados (efeitos, multiplos dispositivos de audio).",
+      "impacto_desativar": "Recursos avancados do painel de audio Realtek (efeitos, troca automatica de fone/caixa) podem parar de funcionar. O som basico geralmente continua funcionando pelo driver padrao do Windows.",
+      "impacto_manter": "Consome poucos recursos, mas fica sempre ativo mesmo que voce nunca abra o painel de configuracao de audio."
+    },
+    {
+      "nome": "Spooler",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico de Spooler de Impressao - gerencia a fila de documentos enviados para impressoras (fisicas ou virtuais, como 'Salvar como PDF').",
+      "impacto_desativar": "Voce nao consegue mais imprimir nem usar a opcao 'Salvar como PDF' via impressora virtual do Windows.",
+      "impacto_manter": "Se voce nao tem nenhuma impressora instalada, esse servico fica ligado sem nenhuma utilidade pratica."
+    },
+    {
+      "nome": "Fax",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Servico de Fax do Windows, usado para enviar/receber fax por modem - tecnologia raramente usada hoje em dia.",
+      "impacto_desativar": "Nenhum impacto para quase ningeum, a nao ser que a pessoa realmente use fax por modem (muito raro atualmente).",
+      "impacto_manter": "Fica disponivel sem uso na grande maioria dos computadores modernos, que nem possuem modem de fax."
+    },
+    {
+      "nome": "WSearch",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico de Pesquisa do Windows (Windows Search) - indexa arquivos e e-mails no fundo para deixar a busca do menu Iniciar mais rapida.",
+      "impacto_desativar": "A busca do menu Iniciar e do Explorador de Arquivos fica mais lenta (procura na hora, sem indice pronto).",
+      "impacto_manter": "Consome CPU e disco periodicamente para manter o indice de busca atualizado, principalmente logo apos ligar o PC ou copiar muitos arquivos."
+    },
+    {
+      "nome": "SysMain",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Tambem conhecido como Superfetch - pre-carrega na memoria RAM os programas que voce mais usa, para abrirem mais rapido.",
+      "impacto_desativar": "Programas usados com frequencia podem demorar um pouco mais para abrir da primeira vez apos ligar o PC. Em SSDs modernos e alguns jogos, desativar pode ate reduzir picos de uso de disco.",
+      "impacto_manter": "Usa uma parte da RAM disponivel para pre-carregar programas, o que em PCs com pouca memoria pode competir com outros aplicativos."
+    },
+    {
+      "nome": "DiagTrack",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Servico de 'Experiencias de Usuario Conectado e Telemetria' - coleta dados de uso e diagnostico do Windows e envia para a Microsoft.",
+      "impacto_desativar": "Nenhum recurso visivel do Windows deixa de funcionar. Apenas menos dados de uso sao enviados para a Microsoft.",
+      "impacto_manter": "Roda periodicamente em segundo plano coletando e enviando telemetria, consumindo um pouco de CPU, disco e rede."
+    },
+    {
+      "nome": "RemoteRegistry",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Permite que outros computadores da rede editem o registro do Windows remotamente. Ja vem desativado por padrao na maioria das instalacoes.",
+      "impacto_desativar": "Nenhum impacto no uso normal do PC - alias, manter desativado e mais seguro (evita acesso remoto indevido ao registro).",
+      "impacto_manter": "Se estiver ativo sem necessidade, representa um risco de seguranca desnecessario para um PC domestico/gamer."
+    },
+    {
+      "nome": "wisvc",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Servico do Windows Insider - usado apenas por quem participa do programa de testes de versoes beta do Windows.",
+      "impacto_desativar": "Nenhum impacto, a menos que voce esteja inscrito no Programa Windows Insider para receber atualizacoes beta.",
+      "impacto_manter": "Fica ligado sem uso na grande maioria dos PCs, que nunca participam do programa de testes."
+    },
+    {
+      "nome": "bthserv",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico de Suporte a Bluetooth - permite conectar fones, mouses, teclados e outros dispositivos via Bluetooth.",
+      "impacto_desativar": "Todos os dispositivos Bluetooth (fones, mouse, teclado sem fio via Bluetooth) param de funcionar.",
+      "impacto_manter": "Se o seu PC nao tem Bluetooth ou voce nunca usa dispositivos sem fio por Bluetooth, o servico fica ligado sem necessidade."
+    },
+    {
+      "nome": "wuauserv",
+      "tipo": "service",
+      "classificacao": "essencial",
+      "descricao": "Servico de Windows Update - responsavel por baixar e instalar atualizacoes de seguranca e correcoes do Windows.",
+      "impacto_desativar": "Seu PC para de receber atualizacoes de seguranca automaticamente, ficando mais vulneravel a falhas e ataques com o tempo. Nao recomendado desativar.",
+      "impacto_manter": "Consome recursos apenas quando ha atualizacoes disponiveis para baixar/instalar - e essencial para a seguranca do sistema."
+    },
+    {
+      "nome": "WinDefend",
+      "tipo": "service",
+      "classificacao": "essencial",
+      "descricao": "Antivirus nativo do Windows (Microsoft Defender), que protege o PC contra virus e outras ameacas em tempo real.",
+      "impacto_desativar": "Seu PC fica sem protecao antivirus, a menos que voce ja tenha outro antivirus de terceiros instalado e ativo. Nao recomendado desativar sem substituto.",
+      "impacto_manter": "Usa uma parte de CPU e disco para verificar arquivos em tempo real, mas e o preco normal de manter o PC protegido."
+    },
+    {
+      "nome": "Themes",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico responsavel por aplicar temas visuais personalizados (cores, sons, icones) no Windows.",
+      "impacto_desativar": "O Windows volta a aparencia visual mais basica (sem temas personalizados). Pode deixar a interface visualmente 'quebrada' em alguns casos.",
+      "impacto_manter": "Consome recursos minimos - normalmente seguro manter ativado, a nao ser em instalacoes muito enxutas (ex: servidores)."
+    },
+    {
+      "nome": "PcaSvc",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Assistente de Compatibilidade de Programas - detecta problemas de compatibilidade ao instalar/rodar programas antigos e sugere correcoes.",
+      "impacto_desativar": "Voce deixa de receber avisos automaticos de incompatibilidade ao instalar programas mais antigos, mas os programas continuam rodando normalmente.",
+      "impacto_manter": "Fica de prontidao com impacto leve, util principalmente para quem usa softwares mais antigos ou legados."
+    },
+    {
+      "nome": "MapsBroker",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Gerenciador de Mapas Baixados - baixa e atualiza mapas offline do aplicativo Mapas do Windows em segundo plano.",
+      "impacto_desativar": "Nenhum impacto, a menos que voce use o aplicativo Mapas do Windows com mapas offline (raro em PCs desktop).",
+      "impacto_manter": "Pode tentar baixar atualizacoes de mapas periodicamente mesmo que voce nunca use o aplicativo de Mapas."
+    },
+    {
+      "nome": "RetailDemo",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Servico de Demonstracao de Varejo - usado apenas em computadores de exposicao em lojas, para mostrar o modo demo do Windows.",
+      "impacto_desativar": "Nenhum impacto em uso domestico/pessoal - esse servico so faz sentido em PCs de vitrine de loja.",
+      "impacto_manter": "Fica ligado sem nenhuma utilidade pratica fora do ambiente de varejo."
+    },
+    {
+      "nome": "XblAuthManager",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Gerenciador de Autenticacao do Xbox Live - cuida do login da sua conta Xbox/Microsoft para jogos com recursos online (conquistas, multiplayer).",
+      "impacto_desativar": "Jogos que usam login do Xbox (conquistas, salvamento na nuvem, multiplayer via Xbox Live) podem parar de funcionar corretamente.",
+      "impacto_manter": "Se voce joga jogos com integracao Xbox, e recomendado manter ativo; caso contrario, fica ligado sem necessidade."
+    },
+    {
+      "nome": "TabletInputService",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico de Teclado de Toque e Painel de Escrita a Mao - usado em notebooks conversiveis e tablets com tela sensivel ao toque.",
+      "impacto_desativar": "O teclado virtual/touch e o reconhecimento de escrita a mao deixam de funcionar. Sem impacto se seu PC nao tem tela touch.",
+      "impacto_manter": "Em desktops e notebooks tradicionais (sem tela touch), fica ligado sem nenhum uso pratico."
+    },
+    {
+      "nome": "DPS",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico de Politica de Diagnostico - permite que o Windows detecte e tente resolver automaticamente problemas em componentes do sistema (rede, audio, energia).",
+      "impacto_desativar": "As ferramentas de solucao de problemas automaticas do Windows ('Solucionar Problemas') deixam de funcionar corretamente.",
+      "impacto_manter": "Fica de prontidao com impacto leve, util quando algo da errado e voce usa as ferramentas de diagnostico do Windows."
+    },
+    {
+      "nome": "jusched",
+      "tipo": "startup",
+      "classificacao": "seguro",
+      "descricao": "Agendador de Atualizacoes do Java (Java Update Scheduler) - verifica periodicamente se ha uma nova versao do Java instalada no PC.",
+      "impacto_desativar": "Voce para de receber avisos automaticos de atualizacao do Java. Pode atualizar manualmente pelo site oficial quando quiser.",
+      "impacto_manter": "Roda uma verificacao em segundo plano sempre que o Windows liga, mesmo que voce raramente use programas em Java."
+    },
+    {
+      "nome": "Reader_sl",
+      "tipo": "startup",
+      "classificacao": "seguro",
+      "descricao": "'Speed Launcher' do Adobe Acrobat Reader - deixa o programa pre-carregado na memoria para abrir PDFs mais rapido.",
+      "impacto_desativar": "O Adobe Reader pode demorar um pouco mais para abrir na primeira vez que voce clicar em um PDF, mas continua funcionando normalmente.",
+      "impacto_manter": "Ocupa uma pequena parte da RAM desde a inicializacao do Windows, mesmo que voce abra PDFs raramente."
+    }
+  ]
 }
