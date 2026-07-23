@@ -9,6 +9,7 @@ import javafx.scene.chart.XYChart;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.Group;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -135,7 +136,11 @@ public class DashboardView extends BorderPane {
         VBox textBox = new VBox(2, valueLabel, captionLabel);
         textBox.setAlignment(Pos.CENTER);
 
-        StackPane pane = new StackPane(track, arc, textBox);
+        // Agrupa track+arc num Group (nao um StackPane) para que o arco parcial
+        // nao seja recentralizado pelo proprio bounding box a cada atualizacao
+        // de angulo - o Group herda os bounds fixos e simetricos do Circle
+        // completo, entao o centro nunca se desloca conforme a carga muda.
+        StackPane pane = new StackPane(new Group(track, arc), textBox);
         pane.getStyleClass().add("gauge-pane");
         pane.setPrefSize(radius * 2 + 24, radius * 2 + 24);
         return new Gauge(pane, arc, valueLabel);
