@@ -1,0 +1,4 @@
+{
+  "_comentario": "Base de conhecimento do NITRO BOOST. Populada de verdade na Fase 1 (KnowledgeBase.java). Estrutura de cada item: nome, tipo, classificacao (seguro/essencial/depende), descricao, impacto_desativar, impacto_manter.",
+  "items": []
+}
