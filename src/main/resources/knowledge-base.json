@@ -1,5 +1,5 @@
 {
-  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware/performance/gaming/hibernation), classificacao (seguro/essencial/depende), descricao, impacto_desativar e impacto_manter - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura). Os campos 'version'/'updatedAt' foram adicionados na Fase 7 (Expansao Online) para permitir comparar esta base local com uma base remota - ver com.nitroboost.knowledge.RemoteKnowledgeUpdater. Os tipos performance/gaming/hibernation foram adicionados na Fase 9 Parte 1 (Novos scanners de Performance e Jogos).",
+  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware/performance/gaming/hibernation/ai/consumer), classificacao (seguro/essencial/depende), descricao, impacto_desativar e impacto_manter - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura). Os campos 'version'/'updatedAt' foram adicionados na Fase 7 (Expansao Online) para permitir comparar esta base local com uma base remota - ver com.nitroboost.knowledge.RemoteKnowledgeUpdater. Os tipos performance/gaming/hibernation foram adicionados na Fase 9 Parte 1 (Novos scanners de Performance e Jogos). Os tipos ai/consumer foram adicionados na Fase 8 Parte 2 (Debloat Real Completo, incluindo IAs do Windows 11) - ver AiFeatureScanner e ConsumerFeatureScanner.",
   "version": "1.0",
   "updatedAt": "2026-07-23",
   "items": [
@@ -622,6 +622,158 @@
       "descricao": "Controla como o Windows divide o tempo de CPU entre o programa em primeiro plano (ex: o jogo) e processos em segundo plano.",
       "impacto_desativar": "Volta a divisao padrao (mais igualitaria) entre primeiro e segundo plano - melhor se voce roda tarefas pesadas em segundo plano enquanto joga (ex: gravacao, transmissao ao vivo).",
       "impacto_manter": "O jogo em primeiro plano recebe mais tempo de CPU, o que geralmente melhora a fluidez - processos em segundo plano (incluindo gravacao/streaming) podem ficar levemente menos responsivos."
+    },
+    {
+      "nome": "Windows Copilot (Usuario Atual)",
+      "tipo": "ai",
+      "classificacao": "seguro",
+      "descricao": "Assistente de Inteligencia Artificial integrado ao Windows 11, acessivel pela barra de tarefas. Se voce nao usa IA no dia a dia, e seguro desativar.",
+      "impacto_desativar": "O Copilot deixa de responder/abrir para o seu usuario. Nenhuma outra funcao do Windows e afetada.",
+      "impacto_manter": "Fica disponivel na barra de tarefas, pronto para uso a qualquer momento - sem custo perceptivel de desempenho quando nao esta em uso."
+    },
+    {
+      "nome": "Windows Copilot (Todos os Usuarios)",
+      "tipo": "ai",
+      "classificacao": "seguro",
+      "descricao": "Mesma politica do Windows Copilot acima, mas aplicada a todos os usuarios cadastrados neste PC (chave em HKLM - normalmente exige rodar o NITRO BOOST como Administrador para alterar).",
+      "impacto_desativar": "O Copilot deixa de responder/abrir para qualquer usuario deste PC, nao so o atual.",
+      "impacto_manter": "Fica disponivel para todos os usuarios do PC que quiserem usar."
+    },
+    {
+      "nome": "Botao do Copilot na Barra de Tarefas",
+      "tipo": "ai",
+      "classificacao": "seguro",
+      "descricao": "Icone/botao de atalho para o Copilot exibido na barra de tarefas do Windows 11.",
+      "impacto_desativar": "O icone do Copilot some da barra de tarefas, deixando ela mais limpa.",
+      "impacto_manter": "O icone fica visivel na barra de tarefas, ocupando um pequeno espaco visual."
+    },
+    {
+      "nome": "Windows Recall (Retomar)",
+      "tipo": "ai",
+      "classificacao": "depende",
+      "descricao": "Recurso de IA (Copilot+ PCs, Windows 11 24H2 em diante) que tira 'fotos' periodicas da sua tela e as indexa por IA, para voce depois buscar algo que viu antes. ATENCAO A PRIVACIDADE: essas capturas ficam guardadas no seu PC e podem incluir senhas, conversas ou qualquer coisa que apareceu na tela - avalie com cuidado antes de manter ativado. Se a chave de politica nao existir na sua maquina, o Recall pode nao estar disponivel na sua edicao do Windows, ou so pode ser desativado manualmente (ver tutorial 'Desativando o Recall pelas Configuracoes' na aba Tutoriais).",
+      "impacto_desativar": "O Windows para de capturar e indexar instantaneos periodicos da tela - reduz o uso de disco/CPU em segundo plano e elimina o risco de privacidade de ter um historico visual detalhado guardado no PC.",
+      "impacto_manter": "Voce ganha a capacidade de buscar por IA algo que viu na tela antigamente, mas o Windows fica continuamente tirando e guardando capturas de tela em segundo plano, com implicacao real de privacidade caso outra pessoa tenha acesso ao seu usuario no PC."
+    },
+    {
+      "nome": "Click to Do",
+      "tipo": "ai",
+      "classificacao": "depende",
+      "descricao": "Recurso de IA que sugere acoes contextuais (copiar texto, resumir, abrir link) sobre o conteudo que esta na tela no momento.",
+      "impacto_desativar": "Voce perde as sugestoes automaticas de acao sobre o conteudo da tela - continua podendo fazer tudo manualmente (copiar, abrir, etc).",
+      "impacto_manter": "Fica disponivel para agilizar tarefas repetitivas com sugestoes de IA sobre o que esta na tela; alguns usuarios acham a sugestao constante um pouco intrusiva."
+    },
+    {
+      "nome": "Cocreator / Criacao de Imagem por IA (Paint e Fotos)",
+      "tipo": "ai",
+      "classificacao": "depende",
+      "descricao": "Recurso de geracao de imagens por IA (Cocreator) disponivel nos apps Paint e Fotos do Windows 11. NOTA DE TRANSPARENCIA: a Microsoft nao disponibiliza uma chave exclusiva so para o Cocreator - desativar este item tambem desativa o 'Windows Recall' (e vice-versa), porque os dois compartilham a mesma politica por baixo.",
+      "impacto_desativar": "Os apps Paint e Fotos deixam de oferecer a geracao/edicao de imagem por IA. Como consequencia (mesma chave), o Windows Recall tambem e desativado junto.",
+      "impacto_manter": "Voce pode gerar/editar imagens com IA direto no Paint e no Fotos; como consequencia (mesma chave), o Windows Recall tambem continua disponivel."
+    },
+    {
+      "nome": "Copilot no Microsoft Edge (Barra Lateral)",
+      "tipo": "ai",
+      "classificacao": "seguro",
+      "descricao": "Barra lateral de IA (Copilot/Bing Chat) integrada ao navegador Microsoft Edge.",
+      "impacto_desativar": "A barra lateral de IA some do Edge; a navegacao normal nao e afetada.",
+      "impacto_manter": "Fica disponivel como atalho de IA dentro do proprio navegador."
+    },
+    {
+      "nome": "Sugestoes e Anuncios no Menu Iniciar",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Apps 'sugeridos' (as vezes patrocinados) que aparecem misturados na lista de apps do Menu Iniciar.",
+      "impacto_desativar": "O Menu Iniciar mostra so os apps que voce realmente instalou, sem sugestoes de terceiros.",
+      "impacto_manter": "O Menu Iniciar pode exibir apps que voce nunca instalou, as vezes com fins promocionais."
+    },
+    {
+      "nome": "Dicas e Sugestoes do Windows",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Notificacoes do tipo 'Experimente isso' que o proprio Windows envia sugerindo recursos ou apps.",
+      "impacto_desativar": "Voce para de receber essas notificacoes promocionais do sistema.",
+      "impacto_manter": "De vez em quando aparecem notificacoes sugerindo algo para experimentar no Windows."
+    },
+    {
+      "nome": "Instalacao Silenciosa de Apps Sugeridos",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Permite que o Windows instale sozinho, sem perguntar, apps 'recomendados' (comum em instalacoes novas do Windows).",
+      "impacto_desativar": "Nenhum app novo e instalado sozinho pelo Windows sem sua acao direta.",
+      "impacto_manter": "O Windows pode instalar apps promocionais automaticamente de tempos em tempos, sem pedir confirmacao previa."
+    },
+    {
+      "nome": "Sugestoes no Painel de Configuracoes",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Sugestoes promocionais exibidas dentro do proprio app Configuracoes do Windows.",
+      "impacto_desativar": "O app Configuracoes fica mais limpo, sem sugestoes misturadas as opcoes reais do sistema.",
+      "impacto_manter": "Aparecem sugestoes ocasionais (as vezes promocionais) dentro das telas de Configuracoes."
+    },
+    {
+      "nome": "Tela de Bloqueio com Conteudo Dinamico (Windows Spotlight)",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Imagens e dicas que trocam automaticamente na tela de bloqueio, as vezes com conteudo promocional (Windows Spotlight).",
+      "impacto_desativar": "A tela de bloqueio para de trocar de imagem sozinha (volta a usar uma imagem fixa escolhida por voce).",
+      "impacto_manter": "A tela de bloqueio muda de imagem periodicamente, podendo incluir dicas ou conteudo promocional."
+    },
+    {
+      "nome": "Pesquisa do Bing no Menu Iniciar (Politica)",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Via politica de grupo, controla se a pesquisa do Windows traz resultados da web (Bing) junto com os resultados locais do seu PC. Tem prioridade sobre a configuracao de usuario, quando definida.",
+      "impacto_desativar": "A pesquisa do Menu Iniciar passa a mostrar so resultados locais (arquivos, apps, configuracoes do seu PC), sem misturar resultados da web.",
+      "impacto_manter": "A pesquisa mistura resultados locais com resultados da web (Bing), o que pode deixar a busca mais lenta e cheia de conteudo nao relacionado ao seu PC."
+    },
+    {
+      "nome": "Pesquisa do Bing no Menu Iniciar (Usuario)",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Mesmo controle de pesquisa web acima, mas na configuracao do usuario (usada quando nao ha politica de grupo aplicada - a maioria dos PCs domesticos).",
+      "impacto_desativar": "A pesquisa do Menu Iniciar passa a mostrar so resultados locais.",
+      "impacto_manter": "A pesquisa mistura resultados locais com resultados da web (Bing)."
+    },
+    {
+      "nome": "Notificacoes de Sincronizacao do OneDrive",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Pop-ups do Windows insistindo para voce configurar backup de arquivos no OneDrive.",
+      "impacto_desativar": "Esses pop-ups deixam de aparecer. O OneDrive continua funcionando normalmente se voce ja o usa.",
+      "impacto_manter": "De tempos em tempos aparecem lembretes pedindo para configurar o backup no OneDrive."
+    },
+    {
+      "nome": "Icone de Chat (Teams Pessoal) na Barra de Tarefas",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Icone de Chat (versao consumidor do Microsoft Teams) exibido na barra de tarefas do Windows.",
+      "impacto_desativar": "O icone de Chat some da barra de tarefas, deixando ela mais limpa.",
+      "impacto_manter": "O icone fica disponivel na barra de tarefas para chamadas/mensagens pessoais via Teams."
+    },
+    {
+      "nome": "Apps em Segundo Plano (Politica Geral)",
+      "tipo": "consumer",
+      "classificacao": "depende",
+      "descricao": "Controla, para todos os apps UWP instalados, se eles podem continuar rodando em segundo plano mesmo depois de fechados (recebendo notificacoes, atualizando dados, etc).",
+      "impacto_desativar": "Apps UWP param de consumir bateria/RAM em segundo plano quando fechados - porem alguns apps (ex: mensagens, e-mail) podem parar de avisar sobre notificacoes novas ate voce abri-los manualmente.",
+      "impacto_manter": "Apps UWP continuam disponiveis para notificar/atualizar mesmo fechados, ao custo de consumir RAM e, em notebooks, bateria em segundo plano."
+    },
+    {
+      "nome": "Limpeza Automatica de Arquivos (Storage Sense)",
+      "tipo": "consumer",
+      "classificacao": "depende",
+      "descricao": "ALERTA: controla a limpeza AUTOMATICA de arquivos temporarios e da lixeira feita pelo Storage Sense, sem confirmacao a cada execucao. Desativar essa limpeza automatica e seguro (voce continua podendo limpar manualmente quando quiser); manter ativado nao arrisca travar o sistema, mas pode apagar arquivos da lixeira/temporarios que voce nao esperava perder, se voce costuma guardar coisas la 'por garantia'.",
+      "impacto_desativar": "O Windows para de apagar arquivos temporarios/lixeira sozinho - o espaco em disco so e liberado quando voce limpar manualmente (ou rodar a limpeza pelo NITRO BOOST/Configuracoes sob demanda).",
+      "impacto_manter": "O Windows libera espaco em disco automaticamente de tempos em tempos - conveniente, mas pode remover arquivos da lixeira/temporarios antes do que voce esperava."
+    },
+    {
+      "nome": "Coleta de Dados de Digitacao (Typing Insights)",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Coleta de dados sobre como voce digita, usada pela Microsoft para 'melhorar sugestoes' de texto e teclado.",
+      "impacto_desativar": "Nenhum impacto perceptivel no uso do teclado. Apenas a Microsoft deixa de receber esses dados de digitacao.",
+      "impacto_manter": "O Windows envia dados sobre padroes de digitacao para a Microsoft em segundo plano."
     }
   ]
 }

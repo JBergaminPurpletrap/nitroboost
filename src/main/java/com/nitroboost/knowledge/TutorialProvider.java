@@ -28,7 +28,8 @@ public class TutorialProvider {
      * de XMP na tela de Tutoriais aponta para a chave "xmp-bios").
      */
     private static final Map<String, String> TUTORIALS_BY_KEY = Map.of(
-            "xmp-bios", "/tutorials/xmp-bios.md"
+            "xmp-bios", "/tutorials/xmp-bios.md",
+            "recall-configuracoes", "/tutorials/recall-configuracoes.md"
     );
 
     private final Map<String, Tutorial> cache = new LinkedHashMap<>();
