@@ -10,6 +10,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -156,9 +157,19 @@ public final class ItemDetailView {
         root.setPadding(new Insets(20));
         VBox.setVgrow(descriptionLabel, Priority.NEVER);
 
-        Scene scene = new Scene(root, 480, 460);
+        // ScrollPane em vez de VBox direto na Scene: garante que o modal continue
+        // usavel (sem cortar texto) em resolucoes/escalas de tela menores ou quando
+        // a descricao de um item for mais longa que o esperado - a janela deixa de
+        // ter um tamanho fixo rigido e passa a ter apenas um tamanho inicial + minimo.
+        ScrollPane scrollPane = new ScrollPane(root);
+        scrollPane.setFitToWidth(true);
+
+        Scene scene = new Scene(scrollPane, 480, 460);
         scene.getStylesheets().add(ItemDetailView.class.getResource(Theme.STYLESHEET).toExternalForm());
         stage.setScene(scene);
+        stage.setResizable(true);
+        stage.setMinWidth(420);
+        stage.setMinHeight(360);
         stage.showAndWait();
     }
 
