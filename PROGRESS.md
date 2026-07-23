@@ -488,3 +488,93 @@ Todos os itens do checklist da Fase 4 estão marcados `[x]` em
 
 Próximo passo (não iniciado, aguardando validação visual do usuário antes de prosseguir):
 **Fase 5 — Tutoriais e Educação (XMP/BIOS e afins)**.
+
+---
+
+## 2026-07-23 — Fase 5 concluída (Tutoriais e Educação: XMP/BIOS e afins)
+
+O NITRO BOOST agora consegue alertar sobre possível XMP/EXPO desativado e guiar o usuário até a
+solução, mesmo sem poder aplicá-la sozinho (configuração de BIOS não é algo que dê para automatizar
+por software). Resumo do que foi feito:
+
+- **`MemorySpeedScanner`** (`core/`, novo): lê, via PowerShell (`Get-CimInstance
+  Win32_PhysicalMemory`), a velocidade nominal/rotulada (`Speed`) e a velocidade configurada/ativa no
+  momento (`ConfiguredClockSpeed`) de cada módulo de RAM instalado — mesmo padrão de temp-file +
+  UTF-8 já usado em `ServiceScanner`/`BloatwareScanner`. Retorna lista vazia (nunca lança exceção)
+  se o comando falhar.
+- **`XmpAdvisor`** (`knowledge/`, novo): interpreta os dados do `MemorySpeedScanner` — se a
+  velocidade configurada estiver abaixo de 90% da nominal, é considerado um indício (não uma
+  certeza absoluta — documentado no Javadoc a limitação de que o campo SMBIOS "Speed" nem sempre
+  reflete o perfil XMP mais alto do módulo) de que o XMP/EXPO está desativado na BIOS. Gera uma
+  mensagem pronta em português claro para exibir na interface.
+- **`src/main/resources/tutorials/xmp-bios.md`** (novo): tutorial interno "Como Habilitar o XMP (ou
+  EXPO) na BIOS" — o que é, passo a passo genérico (varia por fabricante), o que fazer se algo der
+  errado (Clear CMOS), e uma seção de links oficiais por fabricante (ASUS, Gigabyte, MSI, ASRock),
+  tudo em português claro, sem jargão técnico excessivo (regra de ouro #10).
+- **`TutorialProvider`** (`knowledge/`, novo — já previsto na estrutura de pastas da Fase 0):
+  carrega os arquivos `.md` de `src/main/resources/tutorials/` a partir de um mapa simples
+  chave → caminho de recurso (`Map.of("xmp-bios", "/tutorials/xmp-bios.md")`), extrai o título do
+  próprio arquivo (primeira linha `# Título`) e disponibiliza por chave (`find`) ou lista completa
+  (`all`) — genérico o suficiente para novos tutoriais no futuro (basta adicionar uma entrada no
+  mapa), sem abstração além do necessário (YAGNI).
+- **`TutorialView`** (`ui/`, reescrita): deixou de ser o placeholder "EM BREVE" da Fase 4 e passou a
+  exibir o conteúdo real — lista de tutoriais (`ListView`) à esquerda, conteúdo renderizado à
+  direita (renderização leve de Markdown feita à mão — títulos, subtítulos, listas e texto corrido —
+  sem depender de nenhuma biblioteca externa de Markdown, desnecessária para o volume de conteúdo
+  atual). Ao abrir a tela, a verificação de XMP roda em uma thread de fundo (comando PowerShell pode
+  levar alguns segundos, nunca trava a UI) e, se houver indício de XMP desativado, mostra um card de
+  alerta âmbar no topo com a mensagem e um botão "Ver Tutorial de XMP" que seleciona o tutorial
+  correspondente na lista. Reaproveita o mesmo tema `nitroboost-carbon.css` — duas classes CSS novas
+  e mínimas foram adicionadas (`.alert-card`, `.text-warning`, mais um ajuste de fundo transparente
+  para `ScrollPane`, componente novo nesta fase).
+
+### Teste da detecção de XMP via console (máquina real de desenvolvimento)
+
+```
+./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.core.MemorySpeedScanner
+===== NITRO BOOST - Velocidade dos Modulos de RAM =====
+Modulos detectados: 1
+Fabricante=01980000802C Capacidade=16GB RatedSpeed=3200MHz ConfiguredClockSpeed=3200MHz
+
+./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.knowledge.XmpAdvisor
+===== NITRO BOOST - Indicio de XMP/EXPO Desativado =====
+Dados disponiveis: true
+Velocidade nominal (rated): 3200 MHz
+Velocidade configurada (atual): 3200 MHz
+XMP provavelmente desativado: false
+Mensagem: Sua memoria RAM esta rodando a 3200 MHz, proximo da velocidade nominal do modulo
+(3200 MHz). Nenhum indicio de XMP/EXPO desativado foi encontrado.
+```
+
+Nesta máquina de desenvolvimento, a velocidade configurada já é igual à nominal (3200MHz = 3200MHz)
+— ou seja, nenhum indício de XMP desativado, e o card de alerta corretamente não aparece na tela de
+Tutoriais. A lógica de comparação foi revisada manualmente para o caso oposto (configurada bem
+abaixo da nominal, ex: 2133MHz configurado vs 3200MHz nominal), que dispararia `likelyXmpDisabled =
+true` e o alerta na UI — não há como forçar esse cenário na máquina real de desenvolvimento sem
+mexer fisicamente na BIOS.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.core.MemorySpeedScanner` — OK, testado
+  isoladamente antes de conectar à UI (regra de ouro #9).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.knowledge.XmpAdvisor` — OK, testado
+  isoladamente antes de conectar à UI.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.knowledge.TutorialProvider` — OK, carregou o
+  tutorial `xmp-bios` (3078 caracteres) e extraiu o título corretamente.
+- **Validação visual**: `.\mvnw.cmd clean javafx:run` rodado como processo destacado (mesma técnica
+  da Fase 4 — `Start-Process` com saída redirecionada para arquivo de log, sem bloquear o terminal).
+  O build recompilou os 34 arquivos-fonte sem erro, empacotou os 5 recursos (incluindo o novo
+  `tutorials/xmp-bios.md`), o banco SQLite inicializou normalmente e a aplicação ficou rodando sem
+  nenhuma exceção nos logs de saída/erro pelo tempo observado. O processo Java (e os processos
+  filhos do Maven Wrapper) foram encerrados ao final do teste via `Stop-Process -Force` — confirmado
+  via `tasklist`/`Get-CimInstance Win32_Process` que nenhum processo relacionado ao NITRO BOOST
+  ficou órfão na máquina (os dois `java.exe` remanescentes são processos do VS Code — extensões de
+  linguagem Java/XML —, não relacionados a este projeto).
+
+Nenhum bloqueio técnico foi encontrado durante esta fase (ver `BLOCKERS.md` — sem itens novos da
+Fase 5).
+
+Todos os itens do checklist da Fase 5 estão marcados `[x]` em `NITRO-BOOST-documentacao-completa.md`.
+
+Próximo passo (não iniciado): **Fase 6 — Refinamento, Generalização e Empacotamento**.

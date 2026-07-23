@@ -262,11 +262,11 @@ nitroboost/
 
 ### ✅ FASE 5 — Tutoriais e Educação (XMP/BIOS e afins)
 
-- [ ] Implementar detecção de indício de XMP desativado: comparar velocidade nominal da RAM (via especificação, se detectável) vs velocidade real reportada pelo OSHI
-- [ ] Escrever tutorial interno genérico: "Como habilitar XMP na BIOS" com passos gerais (varia por fabricante)
-- [ ] Adicionar seção de links por fabricante (ASUS, Gigabyte, MSI, ASRock) para tutoriais oficiais
-- [ ] Expandir `TutorialProvider` para outros itens que precisem de ação manual
-- [ ] Commit: `[Fase5] Sistema de tutoriais e detecção de XMP`
+- [x] Implementar detecção de indício de XMP desativado: comparar velocidade nominal da RAM (via especificação, se detectável) vs velocidade real reportada pelo OSHI
+- [x] Escrever tutorial interno genérico: "Como habilitar XMP na BIOS" com passos gerais (varia por fabricante)
+- [x] Adicionar seção de links por fabricante (ASUS, Gigabyte, MSI, ASRock) para tutoriais oficiais
+- [x] Expandir `TutorialProvider` para outros itens que precisem de ação manual
+- [x] Commit: `[Fase5] Sistema de tutoriais e detecção de XMP`
 
 **Critério de conclusão da fase:** o app consegue alertar sobre possível XMP desativado e guiar o usuário até a solução, mesmo sem poder aplicá-la sozinho.
 
