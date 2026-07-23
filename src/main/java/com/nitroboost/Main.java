@@ -1,6 +1,7 @@
 package com.nitroboost;
 
 import com.nitroboost.ui.AppContext;
+import com.nitroboost.ui.AuditView;
 import com.nitroboost.ui.DashboardView;
 import com.nitroboost.ui.HistoryView;
 import com.nitroboost.ui.ScanResultsView;
@@ -60,6 +61,7 @@ public class Main extends Application {
 
         Runnable[] navigateToTutorial = new Runnable[1];
         ScanResultsView scanResultsView = new ScanResultsView(context, () -> navigateToTutorial[0].run());
+        AuditView auditView = new AuditView(context);
         dashboardView = new DashboardView(() -> {
             switchTo(root, views, "Resultados do Scan");
             scanResultsView.startScan();
@@ -67,11 +69,12 @@ public class Main extends Application {
 
         views.put("Dashboard", dashboardView);
         views.put("Resultados do Scan", scanResultsView);
+        views.put("Diagnostico", auditView);
         views.put("Historico", historyView);
         views.put("Tutoriais", tutorialView);
         navigateToTutorial[0] = () -> switchTo(root, views, "Tutoriais");
 
-        VBox sidebar = buildSidebar(root, views, historyView);
+        VBox sidebar = buildSidebar(root, views, historyView, auditView);
         root.setLeft(sidebar);
         switchTo(root, views, "Dashboard");
 
@@ -99,12 +102,12 @@ public class Main extends Application {
         return header;
     }
 
-    private VBox buildSidebar(BorderPane root, Map<String, Node> views, HistoryView historyView) {
+    private VBox buildSidebar(BorderPane root, Map<String, Node> views, HistoryView historyView, AuditView auditView) {
         VBox sidebar = new VBox();
         sidebar.getStyleClass().add("sidebar");
 
-        String[] labels = {"Dashboard", "Resultados do Scan", "Historico", "Tutoriais"};
-        String[] icons = {"🏠", "📋", "🕒", "📖"};
+        String[] labels = {"Dashboard", "Resultados do Scan", "Diagnostico", "Historico", "Tutoriais"};
+        String[] icons = {"🏠", "📋", "🩺", "🕒", "📖"};
         for (int i = 0; i < labels.length; i++) {
             String viewName = labels[i];
             Button navButton = new Button(icons[i] + "  " + viewName.toUpperCase());
@@ -113,6 +116,8 @@ public class Main extends Application {
             navButton.setOnAction(e -> {
                 if ("Historico".equals(viewName)) {
                     historyView.refresh();
+                } else if ("Diagnostico".equals(viewName)) {
+                    auditView.runAudit();
                 }
                 switchTo(root, views, viewName);
                 highlightActive(sidebar, navButton);
