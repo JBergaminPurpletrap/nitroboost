@@ -75,7 +75,8 @@ public class ScanResultsView extends BorderPane {
         categoryFilter.getItems().addAll("Todos", SystemScanTask.CATEGORY_PROCESS, SystemScanTask.CATEGORY_SERVICE,
                 SystemScanTask.CATEGORY_STARTUP, SystemScanTask.CATEGORY_TASK, SystemScanTask.CATEGORY_POWERPLAN,
                 SystemScanTask.CATEGORY_TELEMETRY, SystemScanTask.CATEGORY_BLOATWARE,
-                SystemScanTask.CATEGORY_PERFORMANCE, SystemScanTask.CATEGORY_GAMING);
+                SystemScanTask.CATEGORY_PERFORMANCE, SystemScanTask.CATEGORY_GAMING,
+                SystemScanTask.CATEGORY_AI, SystemScanTask.CATEGORY_CONSUMER);
         categoryFilter.setValue("Todos");
         categoryFilter.setOnAction(e -> applyFilter());
 

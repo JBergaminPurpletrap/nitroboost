@@ -1,7 +1,9 @@
 package com.nitroboost.ui;
 
 import com.nitroboost.actions.ActionExecutor;
+import com.nitroboost.core.AiFeatureScanner;
 import com.nitroboost.core.BloatwareScanner;
+import com.nitroboost.core.ConsumerFeatureScanner;
 import com.nitroboost.core.GamingScanner;
 import com.nitroboost.core.PerformanceScanner;
 import com.nitroboost.core.PowerPlanScanner;
@@ -71,6 +73,14 @@ public final class ItemActionDispatcher {
                 // O arquivo de hibernacao so tem sentido como um "toggle": a acao principal desativa
                 // (caso comum de liberar espaco em disco) - se ja estiver desativado, e um no-op seguro.
                 case "hibernation" -> executor.setHibernationEnabled(false);
+                case "ai" -> {
+                    var definition = (AiFeatureScanner.AiFeatureKeyDefinition) item.source();
+                    yield executor.setAiFeatureValue(definition, definition.recommendedValue());
+                }
+                case "consumer" -> {
+                    var definition = (ConsumerFeatureScanner.ConsumerFeatureKeyDefinition) item.source();
+                    yield executor.setConsumerFeatureValue(definition, definition.recommendedValue());
+                }
                 default -> new ActionExecutor.ActionResult(false, "Tipo de item desconhecido: " + item.type(), null);
             };
         } catch (Exception e) {

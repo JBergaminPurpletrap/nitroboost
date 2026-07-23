@@ -1,6 +1,8 @@
 package com.nitroboost.ui;
 
+import com.nitroboost.core.AiFeatureScanner;
 import com.nitroboost.core.BloatwareScanner;
+import com.nitroboost.core.ConsumerFeatureScanner;
 import com.nitroboost.core.GamingScanner;
 import com.nitroboost.core.PerformanceScanner;
 import com.nitroboost.core.PowerPlanScanner;
@@ -37,6 +39,8 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
     public static final String CATEGORY_BLOATWARE = "Bloatware";
     public static final String CATEGORY_PERFORMANCE = "Performance e Energia";
     public static final String CATEGORY_GAMING = "Otimizacoes para Jogos";
+    public static final String CATEGORY_AI = "IA / Inteligencia Artificial";
+    public static final String CATEGORY_CONSUMER = "Recursos de Consumidor e Segundo Plano";
 
     /** Nome fixo do item de hibernacao - mesmo valor usado por {@link com.nitroboost.actions.ActionExecutor}. */
     private static final String HIBERNATION_ITEM_NAME = "Arquivo de Hibernacao";
@@ -64,6 +68,8 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
         scanSafely(items, "bloatware", this::scanBloatware);
         scanSafely(items, "performance", this::scanPerformance);
         scanSafely(items, "jogos", this::scanGaming);
+        scanSafely(items, "IA", this::scanAiFeatures);
+        scanSafely(items, "recursos de consumidor", this::scanConsumerFeatures);
         return items;
     }
 
@@ -165,6 +171,26 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
             String state = info.exists() ? "Valor atual: " + info.currentValue() : "Nao definido (padrao do Windows)";
             // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setGamingValue espera.
             result.add(build(CATEGORY_GAMING, "gaming", info.definition().friendlyName(), state, info.definition()));
+        }
+        return result;
+    }
+
+    private List<ScannedItem> scanAiFeatures() {
+        List<ScannedItem> result = new ArrayList<>();
+        for (AiFeatureScanner.AiFeatureKeyInfo info : new AiFeatureScanner().scan()) {
+            String state = info.exists() ? "Valor atual: " + info.currentValue() : "Nao definido (padrao do Windows)";
+            // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setAiFeatureValue espera.
+            result.add(build(CATEGORY_AI, "ai", info.definition().friendlyName(), state, info.definition()));
+        }
+        return result;
+    }
+
+    private List<ScannedItem> scanConsumerFeatures() {
+        List<ScannedItem> result = new ArrayList<>();
+        for (ConsumerFeatureScanner.ConsumerFeatureKeyInfo info : new ConsumerFeatureScanner().scan()) {
+            String state = info.exists() ? "Valor atual: " + info.currentValue() : "Nao definido (padrao do Windows)";
+            // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setConsumerFeatureValue espera.
+            result.add(build(CATEGORY_CONSUMER, "consumer", info.definition().friendlyName(), state, info.definition()));
         }
         return result;
     }
