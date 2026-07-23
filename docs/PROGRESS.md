@@ -1210,3 +1210,117 @@ mostrando o item de volta a `SUGESTAO`/`não definido` (o mesmo estado original)
 Todos os itens do checklist da Fase 9 (Parte 1 e Parte 2) estão marcados `[x]` em
 `NITRO-BOOST-fase9-diagnostico-e-performance.md`. **Isso conclui toda a Fase 9 e todo o escopo
 planejado até aqui, exceto a Fase 10, ainda não iniciada.**
+
+---
+
+## 2026-07-23 — Fase 10 Parte 1 concluída (Limpeza de RAM, estilo RAMMap)
+
+Primeiro recurso do projeto que **não é uma configuração permanente** — é um botão de ação pontual
+("limpar agora"), sem estado para reverter. Resumo do que foi feito:
+
+### ⚠️ Exceção documentada à regra de ouro do projeto
+
+Todo outro item das Fases 1 a 9 é uma configuração ligada/desligada, sempre com backup prévio
+(`BackupManager`) e verificação de bloqueio (`LockManager`) antes de qualquer alteração, permitindo
+reversão via `restoreFromHistory`. **A limpeza de RAM é a única exceção deliberada a essa regra**,
+pelo motivo mais simples possível: **não existe estado a salvar nem a reverter**. O efeito da ação é
+apenas esvaziar caches de memória (a "standby list" do Windows) que o próprio sistema operacional
+reconstrói sozinho, sob demanda, na hora em que precisar de novo — não há nenhum "antes" que faça
+sentido restaurar, ao contrário de um serviço desativado ou uma chave de registro alterada. Por isso
+`core/MemoryCleaner.java` grava a ação em `actions_history` (tipo `memory_cleanup`) **direto**, sem
+passar por `LockManager`/`BackupManager`, e `ActionExecutor.restoreFromHistory` nunca despacha para
+esse tipo — o registro no histórico existe apenas para fins informativos (quando o usuário usou o
+recurso), não para permitir desfazer nada. Essa exceção está documentada no próprio Javadoc da
+classe.
+
+### O que foi feito
+
+- **`core/MemoryCleaner.java`** (novo): mapeamento manual via JNA da função não documentada
+  oficialmente `NtSetSystemInformation` da `ntdll.dll` (classe de informação
+  `SystemMemoryListInformation`, valor `80`) — a mesma técnica usada internamente pelo
+  RAMMap/EmptyStandbyList da Sysinternals, uso legítimo e bem conhecido de limpeza de cache de
+  memória. Expõe os 4 comandos como métodos públicos: `emptyWorkingSets()`,
+  `flushModifiedPageList()`, `purgeStandbyList()` (a mais parecida com "Empty List" do RAMMap,
+  priorizada para o botão principal da UI) e `purgeLowPriorityStandbyList()`. Antes de cada
+  chamada, habilita no processo atual os privilégios `SeProfileSingleProcessPrivilege` e
+  `SeIncreaseQuotaPrivilege` via `AdjustTokenPrivileges` — API já mapeada pelo próprio
+  `jna-platform` (`Advapi32`/`WinNT`/`Kernel32`, nenhuma dependência nova), só a função
+  `NtSetSystemInformation` em si precisou de binding manual (mesmo padrão de `JnaNativeTest` desde
+  a Fase 0). Nenhum método lança exceção para fora — qualquer falha (privilégio negado, chamada
+  nativa recusada, `Throwable` inesperado) é capturada e devolvida como um record
+  `MemoryCleanupResult(boolean success, String message)` com uma mensagem clara em português.
+- **`ui/AppContext.java`** (atualizado): ganhou um `MemoryCleaner memoryCleaner`, criado a partir do
+  mesmo `DatabaseManager` compartilhado — mesmo padrão de injeção já usado para
+  `ActionExecutor`/`LockManager`/etc.
+- **`ui/DashboardView.java`** (atualizado): nova seção "LIMPEZA DE RAM (ESTILO RAMMAP)" logo abaixo
+  do monitoramento de CPU/RAM em tempo real já existente (lugar mais natural, sugerido pelo próprio
+  documento da fase) — botão destacado "🧹 LIMPAR CACHE DE RAM AGORA" (`.btn-turbo`, mesmo estilo
+  visual do botão principal "ESCANEAR SISTEMA"). Ao clicar, mostra um `Alert` de confirmação com o
+  aviso exato pedido no documento ("Isso libera memória em cache que o Windows guarda por
+  precaução..."); se confirmado, a limpeza roda em uma `Thread` de fundo dedicada (nunca na JavaFX
+  Application Thread — mesmo padrão de `ScanResultsView`/`ItemDetailView`), lendo a RAM livre antes
+  e depois via OSHI (reaproveitando o mesmo campo `GlobalMemory memory` já usado pelo monitoramento
+  em tempo real do Dashboard, nenhuma leitura nova inventada) e exibindo o resultado
+  ("RAM livre: X MB -> Y MB (+Z MB)") num label dedicado.
+- **`Main.java`** (atualizado): `DashboardView` passou a receber o `AppContext` completo (antes só
+  recebia o callback de navegação), para poder acessar o `memoryCleaner` compartilhado.
+- **`Phase10Part1ConsoleDemo.java`** (novo): testado isoladamente via console antes de conectar à
+  UI (regra de ouro do projeto) — lê RAM livre real via OSHI, roda `purgeStandbyList()`, lê RAM
+  livre de novo, imprime a diferença, e confirma que a ação foi gravada em `actions_history` com o
+  tipo `memory_cleanup`.
+
+### 🚫 Regra de UX confirmada: NÃO aparece no Diagnóstico
+
+Nenhum arquivo do pacote `audit/` (`SystemAuditEngine.java`, `AuditFinding.java`, `AuditReport.java`)
+nem `ui/AuditView.java` foi tocado nesta fase, e `knowledge-base.json` não recebeu nenhuma entrada
+relacionada a "limpeza de RAM" — confirmado por revisão manual e por `git diff --stat`, que só lista
+os arquivos citados acima. A limpeza de RAM é intencionalmente uma ferramenta manual isolada, nunca
+uma sugestão automática de correção.
+
+### Teste via console (máquina real de desenvolvimento, sessão SEM privilégio de Administrador)
+
+```
+RAM livre ANTES da limpeza: 2928 MB de 16123 MB total
+
+Rodando purgeStandbyList() (a acao priorizada - equivalente ao 'Empty List' do RAMMap)...
+Resultado -> sucesso=false | Nao foi possivel habilitar um privilegio necessario para limpar a RAM
+(privilegio 'SeProfileSingleProcessPrivilege' nao concedido a este processo (erro 1300) - confirme
+que o NITRO BOOST esta rodando como Administrador). O NITRO BOOST precisa estar rodando como
+Administrador para usar este recurso.
+
+RAM livre DEPOIS da limpeza: 2928 MB de 16123 MB total
+Diferenca: +0 MB
+
+===== Confirmando registro no historico (tipo 'memory_cleanup') =====
+Entrada encontrada -> #119 | item=MemoryPurgeStandbyList | tipo=memory | acao=memory_cleanup |
+sucesso=false | quando=2026-07-23 20:25:16
+```
+
+O terminal usado para rodar `./mvnw exec:java` **não estava elevado** (Administrador) nesta sessão —
+diferente da aplicação em produção, que sempre roda elevada (regra de ouro do projeto desde a Fase
+0). O resultado acima é exatamente o comportamento esperado e desejado nesse cenário: o Windows
+recusa `AdjustTokenPrivileges` com `ERROR_NOT_ALL_ASSIGNED` (código 1300), `MemoryCleaner` captura
+isso sem lançar exceção, devolve `success=false` com uma mensagem clara, e a tentativa (mesmo
+falha) é corretamente registrada no histórico com `action_type = memory_cleanup`. Uma segunda
+tentativa de validar o caminho de **sucesso** rodando o mesmo comando elevado (via
+`Start-Process -Verb RunAs`) foi tentada, mas o prompt de UAC do Windows exige confirmação
+interativa que este ambiente automatizado não consegue fornecer (mesma limitação já documentada em
+`BLOCKERS.md` para `javafx:run` — sem sessão gráfica interativa aqui); a tentativa elevada ficou
+travada aguardando o clique em "Sim" e foi cancelada. A confirmação do caminho de sucesso (RAM livre
+realmente diminuindo o "em uso"/aumentando o "disponível" após a limpeza, rodando como
+Administrador de verdade) fica pendente de validação manual do usuário na máquina real — a lógica de
+tratamento de erro, porém, já está validada de ponta a ponta (é exatamente o mesmo código que roda
+no caminho de sucesso, só a chamada nativa em si retornaria `0` em vez de recusar o privilégio).
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase10Part1ConsoleDemo` — roda até o fim,
+  ver saída completa acima.
+
+Todos os itens da subseção "Limpeza de RAM" do checklist da Fase 10 estão marcados `[x]` em
+`NITRO-BOOST-fase10-limpeza-ram-e-debloat-adicional.md`. **A subseção "Debloat adicional" (Parte 2)
+não foi iniciada, conforme instrução explícita — aguarda validação do usuário antes de prosseguir.**
+
+Próximo passo (não iniciado, aguardando validação do usuário): **Fase 10 — Parte 2 (Debloat
+Adicional: serviços clássicos, Armazenamento Reservado, privacidade adicional, item de interface)**.

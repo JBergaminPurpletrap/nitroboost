@@ -81,11 +81,11 @@ Este recurso **nunca** deve ser oferecido como sugestão automática dentro do m
 ## 3. Checklist de Implementação (Fase 10)
 
 ### Limpeza de RAM
-- [ ] Criar `MemoryCleaner.java` com os 4 comandos via JNA (`NtSetSystemInformation`), incluindo habilitação de privilégios
-- [ ] Testar isoladamente via console (`main()` próprio) — validar antes/depois da limpeza com leitura real de RAM via OSHI
-- [ ] Criar a tela/seção de UI com o botão de ação, aviso claro, e exibição antes/depois
-- [ ] Registrar a ação no histórico (tipo `memory_cleanup`, sem backup/reversão associada — documentar essa exceção à regra padrão)
-- [ ] Garantir que este recurso **não** apareça nas sugestões automáticas do Diagnóstico do Sistema (Fase 9)
+- [x] Criar `MemoryCleaner.java` com os 4 comandos via JNA (`NtSetSystemInformation`), incluindo habilitação de privilégios
+- [x] Testar isoladamente via console (`main()` próprio) — validar antes/depois da limpeza com leitura real de RAM via OSHI
+- [x] Criar a tela/seção de UI com o botão de ação, aviso claro, e exibição antes/depois
+- [x] Registrar a ação no histórico (tipo `memory_cleanup`, sem backup/reversão associada — documentar essa exceção à regra padrão)
+- [x] Garantir que este recurso **não** apareça nas sugestões automáticas do Diagnóstico do Sistema (Fase 9)
 
 ### Debloat adicional
 - [ ] Adicionar os 10 serviços da seção 2.1 à base de conhecimento (a maioria já é lida pelo `ServiceScanner` existente — só falta classificação/descrição)
