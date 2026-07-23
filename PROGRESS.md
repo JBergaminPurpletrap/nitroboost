@@ -720,3 +720,113 @@ Checklist da Fase 6 marcado em `NITRO-BOOST-documentacao-completa.md`: todos os 
 **Esta é a conclusão do escopo "core" do projeto (Fases 0 a 6).** A Fase 7 (expansão online) é
 opcional/futura e **não foi iniciada**, conforme instrução explícita de aguardar validação do
 usuário antes de começá-la.
+
+---
+
+## 2026-07-23 — Fase 7 concluída (Expansão Online)
+
+Com autorização explícita do usuário, a última fase do roadmap original (opcional/futura) foi
+implementada. Diferente das Fases 0-6, o texto original da Fase 7 é escrito com verbos de
+planejamento/avaliação, não uma checklist rígida — dois dos três itens foram implementados de
+verdade (formato + verificação de atualização), o terceiro (telemetria) foi tratado como uma
+avaliação por escrito, não como uma ordem para construir coleta de dados de usuários. Resumo do
+que foi feito:
+
+### 7.1/7.2 Formato de base remota + verificação de atualização
+
+- **Schema da base remota**: reusa exatamente o mesmo schema de `knowledge-base.json` local
+  (`nome`, `tipo`, `classificacao`, `descricao`, `impacto_desativar`, `impacto_manter` por item) —
+  nenhum formato novo foi inventado. O topo do JSON ganhou dois campos novos, tanto no arquivo
+  local (`src/main/resources/knowledge-base.json`, agora com `"version": "1.0"` e `"updatedAt":
+  "2026-07-23"`) quanto no remoto, para permitir comparar se há uma versão mais nova disponível.
+- **`KnowledgeBase.java`** (`knowledge/`, refatorado): a lógica de parse (antes só
+  `loadFromClasspath()`) virou um método estático reutilizável `parse(InputStream)` que devolve um
+  `LoadedData` (entradas + `version` + `updatedAt`) — usado tanto para carregar do classpath quanto
+  para inspecionar um JSON remoto já baixado, sem duplicar o parser (YAGNI: um schema, um parser).
+  Ganhou também um construtor novo `KnowledgeBase(Path cacheFilePath)` que tenta carregar
+  primeiro de um arquivo de cache local; se o arquivo não existir ou falhar ao parsear (por
+  qualquer motivo), cai de volta para o recurso embutido no classpath sem lançar exceção. O
+  construtor sem argumentos continua exatamente como antes (usado por toda a UI e pelos demos
+  anteriores — nenhum código existente foi quebrado).
+- **`RemoteKnowledgeUpdater.java`** (`knowledge/`, novo): usa `java.net.http.HttpClient`
+  (biblioteca padrão do Java 11+, nenhuma dependência nova adicionada) com timeout curto (5s de
+  conexão + 5s de request) para baixar o JSON remoto de uma URL HTTP(S) configurável.
+  `checkForUpdate(url)` baixa, faz o parse (reusando `KnowledgeBase.parse`), compara
+  `version`/`updatedAt` remoto com o local e devolve um `UpdateCheckResult` (record) — nunca lança
+  exceção: qualquer falha (sem internet, host fora do ar, timeout, JSON malformado, status HTTP
+  != 200) é capturada e devolvida como `available=false` com uma mensagem clara em português,
+  mantendo a base local intacta como fallback. `applyUpdate(result)` salva o JSON bruto em
+  `%USERPROFILE%\.nitroboost\remote-knowledge-base-cache.json` — **nunca** sobrescreve o recurso
+  original do classpath (`src/main/resources/knowledge-base.json`), só o arquivo de cache no
+  perfil do usuário, seguindo o mesmo padrão de pasta já usado pelo `DatabaseManager` desde a
+  Fase 0.
+- **Configuração da URL sem precisar de UI nova**: `resolveConfiguredUrl()` lê
+  `%USERPROFILE%\.nitroboost\remote-config.properties` (chave `remoteKnowledgeBaseUrl`); se o
+  arquivo não existir ou a chave não estiver definida, usa `RemoteKnowledgeUpdater.DEFAULT_REMOTE_URL`
+  (uma constante documentada, apontando hoje para o Gist de exemplo público usado no teste real —
+  ver seção 7.3). Não há URL de produção "oficial" definida ainda; essa é uma decisão de deploy
+  deliberadamente deixada para depois, conforme a tarefa pediu.
+
+### 7.3 Teste real via console (`Phase7ConsoleDemo`)
+
+Como o repositório GitHub do projeto é **privado**, `raw.githubusercontent.com` exigiria um token
+de autenticação para servir o JSON — o que inviabilizaria um cliente simples sem exigir que todo
+usuário final tivesse credenciais do GitHub do desenvolvedor. Para testar de ponta a ponta com uma
+URL de verdade, publicado um **Gist público** (via `gh gist create`, já autenticado neste
+ambiente) com um `remote-knowledge-base.json` de exemplo (3 itens, `version: "1.1"`, `updatedAt:
+"2026-07-24"` — deliberadamente mais novo que a base local):
+
+**URL usada no teste:**
+`https://gist.githubusercontent.com/JBergaminPurpletrap/e9690bc766d352089d1ff46f95a3534c/raw/remote-knowledge-base.json`
+(Gist: `https://gist.github.com/JBergaminPurpletrap/e9690bc766d352089d1ff46f95a3534c`)
+
+`./mvnw exec:java -Dexec.mainClass=com.nitroboost.Phase7ConsoleDemo` — dois cenários, ambos com
+sucesso:
+
+1. **Caminho de sucesso** (URL pública real): baixou o JSON, comparou versão/data corretamente
+   (`remoteVersion=1.1` vs local `1.0`, `remoteUpdatedAt=2026-07-24` vs local `2026-07-23` →
+   `newerThanLocal=true`), aplicou (`applyUpdate` salvou o cache local) e confirmou que uma
+   `KnowledgeBase` recarregada a partir do cache (`new KnowledgeBase(cacheFilePath)`) reflete o
+   conteúdo remoto — inclusive um item fabricado que só existe na base remota
+   (`ExemploItemNovoRemoto`), encontrado com sucesso após a atualização.
+2. **Caminho de falha** (URL inválida/inacessível, `https://este-host-nao-existe.invalido
+   .nitroboost-teste/base.json`): `checkForUpdate` devolveu `available=false` com mensagem clara
+   (`ConnectException` capturada, sem propagar exceção), e a base local (`new KnowledgeBase()`)
+   continuou intacta e idêntica (`versao=1.0`, 66 itens) após a tentativa.
+
+O arquivo de cache de teste (`%USERPROFILE%\.nitroboost\remote-knowledge-base-cache.json`) foi
+removido manualmente após a validação, para não deixar resíduo de teste na máquina.
+
+### 7.4 Avaliação de telemetria (sem implementação de coleta)
+
+Escrita em `docs/telemetria-avaliacao.md`: o que seria coletado, por que alguém pediria, riscos de
+privacidade específicos deste tipo de app (combinações de bloatware/processos instalados já são
+quase uma impressão digital da máquina), esforço de implementação (exigiria infraestrutura de
+servidor nova, que o projeto não tem hoje), e três alternativas comparadas. **Recomendação:** não
+implementar telemetria agora — a tabela `actions_history` já existente (SQLite local, desde a Fase
+2) já cobre a maior parte do valor prático ("quais ações eu mais uso") sem nenhum dado saindo da
+máquina; revisitar telemetria de verdade (opt-in, com infraestrutura própria) só se o projeto
+ganhar uma base de usuários real fora do desenvolvedor. Nenhuma coleta de dados foi implementada
+nesta fase.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros, após todas as mudanças (`KnowledgeBase` refatorado,
+  `RemoteKnowledgeUpdater` novo, `Phase7ConsoleDemo` novo, `knowledge-base.json` com campos novos).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase7ConsoleDemo` — roda até o fim, os dois
+  cenários (sucesso contra Gist público real + falha contra URL inválida) confirmados com sucesso
+  (ver saída completa na seção 7.3).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.knowledge.KnowledgeBase` e
+  `...RemoteKnowledgeUpdater` — testados isoladamente antes da integração no demo, seguindo o
+  mesmo padrão das fases anteriores (regra de ouro #9).
+
+Nenhum bloqueio técnico foi encontrado durante esta fase (ver `BLOCKERS.md` — sem itens novos da
+Fase 7).
+
+Checklist da Fase 7 marcado em `NITRO-BOOST-documentacao-completa.md`: os dois itens de
+implementação (formato + verificação de atualização) `[x]`; o item de telemetria permanece `[ ]`
+(não é uma tarefa de implementação, é avaliação) com uma nota apontando para este documento e para
+`docs/telemetria-avaliacao.md`.
+
+**Esta é a conclusão de todo o roadmap original do projeto (Fases 0 a 7).** Todo o escopo
+planejado em `NITRO-BOOST-documentacao-completa.md` está implementado.

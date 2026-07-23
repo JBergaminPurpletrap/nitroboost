@@ -289,13 +289,18 @@ nitroboost/
 
 ---
 
-### 🔜 FASE 7 (Futuro/Opcional) — Expansão Online
+### ✅ FASE 7 (Futuro/Opcional) — Expansão Online
 
-- [ ] Planejar formato de base de conhecimento remota (JSON hospedado em repositório próprio)
-- [ ] Implementar verificação de atualização da base de conhecimento
-- [ ] Avaliar necessidade de telemetria anônima opcional, caso o projeto vire produto distribuído
+- [x] Planejar formato de base de conhecimento remota (JSON hospedado em repositório próprio) —
+      reusa exatamente o schema de `knowledge-base.json`, com `version`/`updatedAt` no topo
+- [x] Implementar verificação de atualização da base de conhecimento —
+      `com.nitroboost.knowledge.RemoteKnowledgeUpdater`, com fallback gracioso para a base local
+- [ ] Avaliar necessidade de telemetria anônima opcional, caso o projeto vire produto distribuído —
+      **avaliado, ver `PROGRESS.md` (Fase 7) e `docs/telemetria-avaliacao.md`**; decisão de
+      implementar de fato fica para o usuário (feature sensível de privacidade, não decidida
+      silenciosamente por um agente)
 
-*(Esta fase não deve ser iniciada sem validação prévia sua — é opcional e depende do rumo que o projeto tomar.)*
+*(Esta fase foi iniciada com autorização explícita do usuário em 2026-07-23.)*
 
 ---
 
