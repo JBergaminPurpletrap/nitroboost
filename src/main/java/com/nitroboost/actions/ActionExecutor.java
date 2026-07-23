@@ -1,8 +1,11 @@
 package com.nitroboost.actions;
 
+import com.nitroboost.core.BloatwareScanner;
+import com.nitroboost.core.PowerPlanScanner;
 import com.nitroboost.core.ProcessScanner;
 import com.nitroboost.core.ServiceScanner;
 import com.nitroboost.core.StartupScanner;
+import com.nitroboost.core.TelemetryScanner;
 import com.nitroboost.db.ActionHistoryRepository;
 import com.nitroboost.db.DatabaseManager;
 import com.nitroboost.db.ItemRepository;
@@ -52,6 +55,11 @@ public class ActionExecutor {
     private final LockManager lockManager;
     private final ProcessScanner processScanner = new ProcessScanner();
     private final ServiceScanner serviceScanner = new ServiceScanner();
+    private final PowerPlanScanner powerPlanScanner = new PowerPlanScanner();
+    private final TelemetryScanner telemetryScanner = new TelemetryScanner();
+
+    /** Nome fixo de catalogo para o "conceito" de plano de energia ativo (so existe um por vez). */
+    private static final String POWER_PLAN_ITEM_NAME = "ActivePowerPlan";
 
     public ActionExecutor(DatabaseManager databaseManager) {
         this.backupManager = new BackupManager(databaseManager);
@@ -372,6 +380,373 @@ public class ActionExecutor {
     }
 
     // ------------------------------------------------------------------
+    // Tarefas Agendadas (Task Scheduler)
+    // ------------------------------------------------------------------
+
+    /** Desativa uma tarefa agendada via {@code schtasks /change /disable}, com backup previo. */
+    public ActionResult disableScheduledTask(com.nitroboost.core.TaskSchedulerScanner.TaskInfo task) {
+        String itemType = "task";
+        String itemName = task.name();
+        Long itemId = upsertItemQuiet(itemName, itemType, null, task.status());
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, itemName, itemType, "disable", task.status());
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
+
+        Long backupId = null;
+        try {
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            snapshot.put("name", itemName);
+            snapshot.put("status", task.status());
+            snapshot.put("nextRunTime", task.nextRunTime());
+            backupId = backupManager.snapshotBeforeAction(itemId, itemName, itemType, snapshot);
+        } catch (SQLException e) {
+            System.err.println("[NITRO BOOST] Falha ao criar backup antes de desativar a tarefa '" + itemName + "': " + e.getMessage());
+        }
+
+        try {
+            CommandResult result = runCommand("schtasks", "/change", "/tn", itemName, "/disable");
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Tarefa agendada '" + itemName + "' desativada com sucesso."
+                    : "Falha ao desativar a tarefa '" + itemName + "' "
+                        + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
+
+            recordHistory(itemId, itemName, itemType, "disable", task.status(), success ? "Disabled" : null, success, success ? null : message, backupId);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao desativar a tarefa agendada '" + itemName + "': " + e.getMessage();
+            recordHistory(itemId, itemName, itemType, "disable", task.status(), null, false, errorMessage, backupId);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    /** Reabilita uma tarefa agendada pelo nome (usado em restores - nunca recusado por bloqueio). */
+    public ActionResult enableScheduledTask(String taskName) {
+        try {
+            CommandResult result = runCommand("schtasks", "/change", "/tn", taskName, "/enable");
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Tarefa agendada '" + taskName + "' reativada com sucesso."
+                    : "Falha ao reativar a tarefa '" + taskName + "': " + result.output().trim();
+            return new ActionResult(success, message, null);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao reativar a tarefa agendada '" + taskName + "': " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, null);
+        }
+    }
+
+    public ActionResult restoreScheduledTask(long backupId) {
+        String itemType = "task";
+        try {
+            Optional<BackupManager.BackupRecord> backupOpt = backupManager.findById(backupId);
+            if (backupOpt.isEmpty()) {
+                return new ActionResult(false, "Backup #" + backupId + " nao encontrado.", backupId);
+            }
+            BackupManager.BackupRecord backup = backupOpt.get();
+
+            ActionResult enableResult = enableScheduledTask(backup.itemName());
+            if (enableResult.success()) {
+                backupManager.markRestored(backupId);
+            }
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "Disabled",
+                    enableResult.success() ? "Ready" : null, enableResult.success(), enableResult.success() ? null : enableResult.message(), null);
+            return new ActionResult(enableResult.success(),
+                    "Tarefa agendada '" + backup.itemName() + "' restaurada (reativada).", backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao restaurar tarefa agendada a partir do backup #" + backupId + ": " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Plano de Energia
+    // ------------------------------------------------------------------
+
+    /** Troca o plano de energia ativo, com backup do plano anterior. */
+    public ActionResult switchPowerPlan(String targetGuid, String targetName) {
+        String itemType = "powerplan";
+        Optional<PowerPlanScanner.PowerPlanInfo> before = powerPlanScanner.findActive();
+        String previousState = before.map(p -> p.name() + " (" + p.guid() + ")").orElse("desconhecido");
+        Long itemId = upsertItemQuiet(POWER_PLAN_ITEM_NAME, itemType, null, previousState);
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, POWER_PLAN_ITEM_NAME, itemType, "switch", previousState);
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
+
+        Long backupId = null;
+        try {
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            before.ifPresent(p -> {
+                snapshot.put("guid", p.guid());
+                snapshot.put("name", p.name());
+            });
+            backupId = backupManager.snapshotBeforeAction(itemId, POWER_PLAN_ITEM_NAME, itemType, snapshot);
+        } catch (SQLException e) {
+            System.err.println("[NITRO BOOST] Falha ao criar backup antes de trocar o plano de energia: " + e.getMessage());
+        }
+
+        try {
+            CommandResult result = runCommand("powercfg", "/setactive", targetGuid);
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Plano de energia alterado para '" + targetName + "'."
+                    : "Falha ao trocar o plano de energia para '" + targetName + "': " + result.output().trim();
+
+            recordHistory(itemId, POWER_PLAN_ITEM_NAME, itemType, "switch", previousState,
+                    success ? targetName + " (" + targetGuid + ")" : null, success, success ? null : message, backupId);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao trocar o plano de energia: " + e.getMessage();
+            recordHistory(itemId, POWER_PLAN_ITEM_NAME, itemType, "switch", previousState, null, false, errorMessage, backupId);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    public ActionResult restorePowerPlan(long backupId) {
+        String itemType = "powerplan";
+        try {
+            Optional<BackupManager.BackupRecord> backupOpt = backupManager.findById(backupId);
+            if (backupOpt.isEmpty()) {
+                return new ActionResult(false, "Backup #" + backupId + " nao encontrado.", backupId);
+            }
+            BackupManager.BackupRecord backup = backupOpt.get();
+            Object guidObj = backup.stateSnapshot().get("guid");
+            Object nameObj = backup.stateSnapshot().get("name");
+            if (guidObj == null) {
+                String message = "Backup nao possui o plano de energia anterior (nenhum plano ativo foi detectado no momento da troca).";
+                recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "switched", null, false, message, null);
+                return new ActionResult(false, message, backupId);
+            }
+
+            CommandResult result = runCommand("powercfg", "/setactive", guidObj.toString());
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Plano de energia restaurado para '" + nameObj + "'."
+                    : "Falha ao restaurar o plano de energia: " + result.output().trim();
+
+            if (success) {
+                backupManager.markRestored(backupId);
+            }
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "switched",
+                    success ? nameObj + " (" + guidObj + ")" : null, success, success ? null : message, null);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao restaurar plano de energia a partir do backup #" + backupId + ": " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Telemetria (chaves de registro)
+    // ------------------------------------------------------------------
+
+    /** Altera um valor de telemetria conhecido, com backup previo do valor atual (ou de sua ausencia). */
+    public ActionResult setTelemetryValue(TelemetryScanner.TelemetryKeyDefinition definition, String newValue) {
+        String itemType = "telemetry";
+        String itemName = definition.id();
+        TelemetryScanner.TelemetryKeyInfo before = telemetryScanner.readValue(definition);
+        String previousState = before.exists() ? before.currentValue() : "nao definido";
+        Long itemId = upsertItemQuiet(itemName, itemType, null, previousState);
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, itemName, itemType, "set", previousState);
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
+
+        Long backupId = null;
+        try {
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            snapshot.put("registryPath", definition.registryPath());
+            snapshot.put("valueName", definition.valueName());
+            snapshot.put("existed", before.exists());
+            if (before.exists()) {
+                snapshot.put("previousValue", before.currentValue());
+            }
+            backupId = backupManager.snapshotBeforeAction(itemId, itemName, itemType, snapshot);
+        } catch (SQLException e) {
+            System.err.println("[NITRO BOOST] Falha ao criar backup antes de alterar '" + definition.friendlyName() + "': " + e.getMessage());
+        }
+
+        try {
+            CommandResult result = runCommand("reg", "add", definition.registryPath(),
+                    "/v", definition.valueName(), "/t", "REG_DWORD", "/d", newValue, "/f");
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Valor de '" + definition.friendlyName() + "' alterado para " + newValue + "."
+                    : "Falha ao alterar '" + definition.friendlyName() + "' "
+                        + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
+
+            recordHistory(itemId, itemName, itemType, "set", previousState, success ? newValue : null, success, success ? null : message, backupId);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao alterar valor de telemetria '" + definition.friendlyName() + "': " + e.getMessage();
+            recordHistory(itemId, itemName, itemType, "set", previousState, null, false, errorMessage, backupId);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    public ActionResult restoreTelemetryValue(long backupId) {
+        String itemType = "telemetry";
+        try {
+            Optional<BackupManager.BackupRecord> backupOpt = backupManager.findById(backupId);
+            if (backupOpt.isEmpty()) {
+                return new ActionResult(false, "Backup #" + backupId + " nao encontrado.", backupId);
+            }
+            BackupManager.BackupRecord backup = backupOpt.get();
+            Map<String, Object> snapshot = backup.stateSnapshot();
+            String registryPath = String.valueOf(snapshot.get("registryPath"));
+            String valueName = String.valueOf(snapshot.get("valueName"));
+            boolean existed = Boolean.TRUE.equals(snapshot.get("existed"));
+
+            CommandResult result;
+            if (existed) {
+                String previousValue = String.valueOf(snapshot.get("previousValue"));
+                // O valor lido de "reg query" vem em formato hexadecimal (ex: "0x1") - "reg add"
+                // com REG_DWORD aceita tanto decimal quanto hexadecimal (0x...) como dado, entao
+                // podemos recriar exatamente o valor original sem precisar converter.
+                result = runCommand("reg", "add", registryPath, "/v", valueName, "/t", "REG_DWORD", "/d", previousValue, "/f");
+            } else {
+                result = runCommand("reg", "delete", registryPath, "/v", valueName, "/f");
+            }
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Valor de telemetria '" + backup.itemName() + "' restaurado ao estado anterior."
+                    : "Falha ao restaurar valor de telemetria '" + backup.itemName() + "': " + result.output().trim();
+
+            if (success) {
+                backupManager.markRestored(backupId);
+            }
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "set", success ? "restored" : null, success, success ? null : message, null);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao restaurar valor de telemetria a partir do backup #" + backupId + ": " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Bloatware (apps UWP)
+    // ------------------------------------------------------------------
+
+    /**
+     * Desinstala um app UWP/Appx conhecido como bloatware, com backup previo
+     * (nome do pacote e pasta de instalacao, usados em uma tentativa de
+     * restore "melhor esforco" - ver {@link #restoreBloatwareApp(long)}).
+     *
+     * @param whatIf quando {@code true}, adiciona {@code -WhatIf} ao comando PowerShell:
+     *               o comando roda de verdade, mas o PowerShell apenas relata o que SERIA
+     *               feito, sem alterar nada no sistema - usado para validar com seguranca
+     *               que o comando esta correto, sem desinstalar nenhum app de verdade
+     *               (ver regra de seguranca da Fase 3 no BLOCKERS.md/PROGRESS.md).
+     */
+    public ActionResult uninstallBloatwareApp(BloatwareScanner.AppxInfo app, boolean allUsers, boolean whatIf) {
+        String itemType = "bloatware";
+        String itemName = app.name();
+        Long itemId = upsertItemQuiet(itemName, itemType, null, "installed");
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, itemName, itemType, "uninstall", "installed");
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
+
+        Long backupId = null;
+        try {
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            snapshot.put("name", itemName);
+            snapshot.put("packageFullName", app.packageFullName());
+            snapshot.put("installLocation", app.installLocation());
+            snapshot.put("allUsers", allUsers);
+            backupId = backupManager.snapshotBeforeAction(itemId, itemName, itemType, snapshot);
+        } catch (SQLException e) {
+            System.err.println("[NITRO BOOST] Falha ao criar backup antes de desinstalar o app '" + itemName + "': " + e.getMessage());
+        }
+
+        try {
+            StringBuilder script = new StringBuilder("Remove-AppxPackage -Package '")
+                    .append(escapePowerShellSingleQuoted(app.packageFullName())).append("'");
+            if (allUsers) {
+                script.append(" -AllUsers");
+            }
+            if (whatIf) {
+                script.append(" -WhatIf");
+            }
+            script.append(" -ErrorAction Stop");
+
+            CommandResult result = runPowerShell(script.toString());
+            boolean success = result.exitCode() == 0;
+            String actionLabel = whatIf ? "uninstall-simulado" : "uninstall";
+            String message = success
+                    ? (whatIf
+                        ? "[SIMULACAO -WhatIf] Comando de desinstalacao valido para '" + itemName + "' - nada foi alterado. " + result.output().trim()
+                        : "App '" + itemName + "' desinstalado com sucesso.")
+                    : "Falha ao desinstalar app '" + itemName + "' "
+                        + "(comum se o app nao estiver rodando como Administrador, quando -AllUsers e usado): " + result.output().trim();
+
+            recordHistory(itemId, itemName, itemType, actionLabel, "installed",
+                    success ? (whatIf ? "installed (simulado)" : "uninstalled") : null, success, success ? null : message, backupId);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao desinstalar app '" + itemName + "': " + e.getMessage();
+            recordHistory(itemId, itemName, itemType, whatIf ? "uninstall-simulado" : "uninstall", "installed", null, false, errorMessage, backupId);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    /**
+     * Tentativa de restauracao "melhor esforco" de um app UWP desinstalado,
+     * re-registrando o pacote a partir do manifesto na pasta de instalacao
+     * capturada no backup. SO funciona se os arquivos do pacote ainda
+     * existirem em disco (o que nao e garantido - ver nota tecnica no
+     * PROGRESS.md sobre a limitacao inerente da plataforma Appx aqui).
+     */
+    public ActionResult restoreBloatwareApp(long backupId) {
+        String itemType = "bloatware";
+        try {
+            Optional<BackupManager.BackupRecord> backupOpt = backupManager.findById(backupId);
+            if (backupOpt.isEmpty()) {
+                return new ActionResult(false, "Backup #" + backupId + " nao encontrado.", backupId);
+            }
+            BackupManager.BackupRecord backup = backupOpt.get();
+            Object installLocationObj = backup.stateSnapshot().get("installLocation");
+            String installLocation = installLocationObj == null ? "" : installLocationObj.toString();
+            if (installLocation.isBlank()) {
+                String message = "Nao e possivel restaurar '" + backup.itemName() + "': backup nao possui a pasta de "
+                        + "instalacao original. Reinstale manualmente pela Microsoft Store, se necessario.";
+                recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "uninstalled", null, false, message, null);
+                return new ActionResult(false, message, backupId);
+            }
+
+            String manifestPath = installLocation + "\\AppxManifest.xml";
+            String script = "if (Test-Path -LiteralPath '" + escapePowerShellSingleQuoted(manifestPath) + "') { "
+                    + "Add-AppxPackage -DisableDevelopmentMode -Register '" + escapePowerShellSingleQuoted(manifestPath) + "' } "
+                    + "else { throw 'Manifesto do pacote nao encontrado em disco - provavelmente removido junto com o app.' }";
+            CommandResult result = runPowerShell(script);
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "App '" + backup.itemName() + "' re-registrado a partir dos arquivos originais (restauracao melhor-esforco)."
+                    : "Nao foi possivel restaurar '" + backup.itemName() + "' automaticamente: " + result.output().trim()
+                        + " Reinstale manualmente pela Microsoft Store, se necessario.";
+
+            if (success) {
+                backupManager.markRestored(backupId);
+            }
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "uninstalled", success ? "installed" : null, success, success ? null : message, null);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao tentar restaurar app UWP a partir do backup #" + backupId + ": " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Utilitarios internos
     // ------------------------------------------------------------------
 
@@ -450,6 +825,10 @@ public class ActionExecutor {
                 case "process" -> restoreProcess(backupId);
                 case "service" -> restoreService(backupId);
                 case "startup" -> restoreStartupItem(backupId);
+                case "task" -> restoreScheduledTask(backupId);
+                case "powerplan" -> restorePowerPlan(backupId);
+                case "telemetry" -> restoreTelemetryValue(backupId);
+                case "bloatware" -> restoreBloatwareApp(backupId);
                 default -> new ActionResult(false,
                         "Tipo de item '" + entry.itemType() + "' nao possui reversao automatica implementada.", backupId);
             };
