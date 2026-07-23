@@ -291,6 +291,19 @@
     -fx-effect: dropshadow(gaussian, rgba(57,255,20,0.18), 14, 0.15, 0, 0);
 }
 
+.alert-card {
+    -fx-background-color: #2a2110;
+    -fx-border-color: #FFB300;
+    -fx-border-width: 1;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-padding: 16;
+}
+
+.text-warning {
+    -fx-text-fill: #FFB300;
+}
+
 /* ---------------------------------------------------------------------- */
 /* Controles de formulario (combo/texto)                                  */
 /* ---------------------------------------------------------------------- */
@@ -370,6 +383,10 @@
 
 .list-cell:filled:hover {
     -fx-background-color: #161616;
+}
+
+.scroll-pane, .scroll-pane > .viewport {
+    -fx-background-color: transparent;
 }
 
 .scroll-bar {
