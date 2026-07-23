@@ -196,6 +196,31 @@ projeto (nunca pular uma tarefa silenciosamente por causa de um bloqueio).
 
 ---
 
+## Fase 10 - Parte 1 (Limpeza de RAM, estilo RAMMap)
+
+### 9. Validação do caminho de sucesso de `MemoryCleaner` exige elevação interativa (UAC) - mesma limitação de fundo do item 2
+- **Status:** Não resolvido neste ambiente automatizado (limitação de ambiente, não do código) -
+  caminho de falha totalmente validado; caminho de sucesso pendente de validação manual do usuário.
+- **Descrição:** o terminal usado para rodar `./mvnw exec:java` neste ambiente **não estava elevado**
+  (Administrador), então `MemoryCleaner.purgeStandbyList()` recusou o privilégio
+  `SeProfileSingleProcessPrivilege` com `ERROR_NOT_ALL_ASSIGNED` (código 1300) - comportamento
+  correto e esperado, tratado sem exceção e registrado no histórico como falha (ver
+  `Phase10Part1ConsoleDemo`/`PROGRESS.md`). Uma tentativa de validar também o caminho de **sucesso**,
+  reexecutando o mesmo comando elevado via `Start-Process -Verb RunAs`, ficou travada aguardando o
+  clique interativo em "Sim" no prompt de UAC do Windows - este ambiente automatizado não tem sessão
+  gráfica interativa para confirmar esse prompt (mesma causa raiz do item 2/Fase 0, que documentou a
+  mesma limitação para `javafx:run`).
+- **Mitigação aplicada:** a tentativa elevada foi cancelada (nenhum processo travado ficou para trás).
+  Como o código de tratamento de privilégio/erro é o mesmo em ambos os caminhos (só o valor de retorno
+  de `NtSetSystemInformation` muda - `0` em vez de recusa de privilégio), o caminho de erro validado
+  cobre toda a lógica de `MemoryCleaner` exceto a chamada nativa bem-sucedida em si.
+- **Ação pendente:** o usuário deve rodar o NITRO BOOST como Administrador (fluxo normal de produção,
+  via `run-as-admin.bat` já existente desde a Fase 6, ou clicando em "🧹 LIMPAR CACHE DE RAM AGORA" no
+  Dashboard) e confirmar visualmente que o resultado mostra `sucesso=true` e a RAM livre
+  aumentando/mudando após o clique.
+
+---
+
 ## Itens sem bloqueio (apenas para referência)
 
 - Repositório GitHub remoto: criado com `gh repo create nitroboost --private --source=. --remote=origin`
