@@ -102,6 +102,38 @@ public class BackupManager {
         return Optional.empty();
     }
 
+    /** Backup vinculado a uma entrada especifica do historico de acoes, se houver. */
+    public Optional<BackupRecord> findByActionHistoryId(long historyId) throws SQLException {
+        String sql = "SELECT id, item_id, item_name, item_type, state_snapshot, restored FROM backups "
+                + "WHERE action_history_id = ? ORDER BY id DESC LIMIT 1";
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, historyId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return Optional.of(toRecord(resultSet));
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Vincula um backup ja existente a entrada de historico que registrou a
+     * acao que o originou. Chamado pelo {@link ActionExecutor} logo apos
+     * gravar o historico (o backup e criado ANTES da acao, e portanto antes
+     * de existir uma entrada de historico para vincular).
+     */
+    public void linkToHistory(long backupId, long historyId) throws SQLException {
+        String sql = "UPDATE backups SET action_history_id = ? WHERE id = ?";
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, historyId);
+            statement.setLong(2, backupId);
+            statement.executeUpdate();
+        }
+    }
+
     /** Backup mais recente ainda nao restaurado para um item, se houver. */
     public Optional<BackupRecord> findLatestNotRestored(String itemName, String itemType) throws SQLException {
         String sql = "SELECT id, item_id, item_name, item_type, state_snapshot, restored FROM backups "
