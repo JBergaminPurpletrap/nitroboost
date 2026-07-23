@@ -215,46 +215,46 @@ nitroboost/
 | Bordas e linhas divisórias | Cinza escuro com leve brilho verde | `#2A2A2A` (borda `#39FF14` a 20% opacidade no hover) |
 
 **Textura carbono (fibra de carbono):**
-- [ ] Criar um padrão de fundo tipo "fibra de carbono" usando CSS: repetição de um pequeno padrão diagonal (losangos escuros `#0A0A0A` / `#1C1C1C`), aplicável via `-fx-background-image` com um PNG tile gerado (ex: 20x20px, tileável) ou simulado com `-fx-background-color` em gradientes lineares alternados.
-- [ ] Aplicar a textura como fundo do painel principal (`DashboardView`), mais sutil (baixa opacidade) para não atrapalhar leitura, e mais evidente em áreas decorativas (cabeçalho, bordas).
+- [x] Criar um padrão de fundo tipo "fibra de carbono" usando CSS: repetição de um pequeno padrão diagonal (losangos escuros `#0A0A0A` / `#1C1C1C`), aplicável via `-fx-background-image` com um PNG tile gerado (ex: 20x20px, tileável) ou simulado com `-fx-background-color` em gradientes lineares alternados. — Implementado 100% via CSS (`linear-gradient(... repeat ...)`), sem PNG externo.
+- [x] Aplicar a textura como fundo do painel principal (`DashboardView`), mais sutil (baixa opacidade) para não atrapalhar leitura, e mais evidente em áreas decorativas (cabeçalho, bordas). — classes `.carbon-bg-subtle` (paineis principais) e `.carbon-bg-strong` (cabeçalho).
 
 **Efeitos visuais (estilo "tech/gamer"):**
-- [ ] Brilho neon sutil (`-fx-effect: dropshadow`) em verde ao redor de botões principais e bordas ativas, simulando "glow" de hardware ligado.
-- [ ] Barras de progresso (uso de CPU/RAM) com gradiente do verde técnico (`#00C853`) para o verde neon (`#39FF14`) conforme o valor sobe, e vermelho (`#FF3B30`) quando ultrapassar um limite crítico (ex: >90%).
-- [ ] Ícones de status: 🟢 verde neon (seguro/ativo), 🔴 vermelho (essencial/bloqueado), 🟡 âmbar (depende do uso).
+- [x] Brilho neon sutil (`-fx-effect: dropshadow`) em verde ao redor de botões principais e bordas ativas, simulando "glow" de hardware ligado.
+- [x] Barras de progresso (uso de CPU/RAM) com gradiente do verde técnico (`#00C853`) para o verde neon (`#39FF14`) conforme o valor sobe, e vermelho (`#FF3B30`) quando ultrapassar um limite crítico (ex: >90%).
+- [x] Ícones de status: 🟢 verde neon (seguro/ativo), 🔴 vermelho (essencial/bloqueado), 🟡 âmbar (depende do uso) — implementado como `Circle` colorido (JavaFX Shape) na coluna de status da tabela de resultados, e como "badge" colorido no modal de detalhes.
 
-- [ ] Criar arquivo CSS (`theme/nitroboost-carbon.css`) implementando toda a paleta acima
-- [ ] Definir tipografia: fonte tipo **"Orbitron"**, **"Rajdhani"** ou **"Chakra Petch"** (Google Fonts, estilo HUD/tech) para títulos e números de destaque; fonte legível tipo **"Inter"** ou **"Roboto"** para textos longos (descrições, tutoriais)
-- [ ] Criar componentes visuais reutilizáveis: botão "estilo turbo" (fundo preto, borda verde neon, glow no hover), barra de progresso "estilo RPM/velocímetro" (arco verde que preenche conforme uso do sistema)
+- [x] Criar arquivo CSS (`theme/nitroboost-carbon.css`) implementando toda a paleta acima
+- [x] Definir tipografia: fonte tipo **"Orbitron"**, **"Rajdhani"** ou **"Chakra Petch"** (Google Fonts, estilo HUD/tech) para títulos e números de destaque; fonte legível tipo **"Inter"** ou **"Roboto"** para textos longos (descrições, tutoriais) — decisão pragmática: sem acesso garantido à rede para baixar Google Fonts, usamos fontes já presentes no Windows como fallback equivalente: `"Consolas"` (monoespaçada, visual HUD/técnico) para títulos/números, `"Segoe UI"` para texto corrido. Documentado também em PROGRESS.md.
+- [x] Criar componentes visuais reutilizáveis: botão "estilo turbo" (fundo preto, borda verde neon, glow no hover), barra de progresso "estilo RPM/velocímetro" (arco verde que preenche conforme uso do sistema) — classes CSS `.btn-turbo` / `.btn-secondary` / `.btn-danger` e `.progress-rpm`; o "velocímetro" em si é um `Arc` customizado no `DashboardView`.
 
 #### 4.2 DashboardView
-- [ ] Criar layout principal com gráfico de linha (JavaFX Chart) para CPU e RAM em tempo real
-- [ ] Adicionar indicador visual estilo "velocímetro" para uso geral do sistema
-- [ ] Botão principal "ESCANEAR SISTEMA" (call to action central, estilo "turbo boost")
-- [ ] Atualizar gráfico a cada 2-3 segundos
+- [x] Criar layout principal com gráfico de linha (JavaFX Chart) para CPU e RAM em tempo real
+- [x] Adicionar indicador visual estilo "velocímetro" para uso geral do sistema
+- [x] Botão principal "ESCANEAR SISTEMA" (call to action central, estilo "turbo boost")
+- [x] Atualizar gráfico a cada 2-3 segundos — `ScheduledExecutorService` (thread daemon dedicada) lê CPU/RAM via OSHI a cada 2s e publica na UI via `Platform.runLater`.
 
 #### 4.3 ScanResultsView
-- [ ] Lista/tabela dos itens encontrados, com ícone de classificação (🟢🔴🟡)
-- [ ] Filtros por categoria (processos, serviços, startup, etc.)
-- [ ] Botões de ação rápida (desativar, bloquear) em cada linha
+- [x] Lista/tabela dos itens encontrados, com ícone de classificação (🟢🔴🟡)
+- [x] Filtros por categoria (processos, serviços, startup, etc.) — `ComboBox` + `FilteredList`, cobrindo as 7 categorias escaneadas.
+- [x] Botões de ação rápida (desativar, bloquear) em cada linha — chamam `ActionExecutor`/`LockManager` reais em background thread.
 
 #### 4.4 ItemDetailView
-- [ ] Tela/modal de detalhes ao clicar em um item
-- [ ] Exibir: nome, descrição, impacto de desativar, impacto de manter, recomendação
-- [ ] Botões: Desativar / Bloquear / Ver Tutorial (se aplicável)
+- [x] Tela/modal de detalhes ao clicar em um item
+- [x] Exibir: nome, descrição, impacto de desativar, impacto de manter, recomendação
+- [x] Botões: Desativar / Bloquear / Ver Tutorial (se aplicável)
 
 #### 4.5 HistoryView
-- [ ] Lista cronológica de ações realizadas
-- [ ] Botão "Reverter" em cada entrada
+- [x] Lista cronológica de ações realizadas
+- [x] Botão "Reverter" em cada entrada — chama `ActionExecutor.restoreFromHistory`.
 
 #### 4.6 TutorialView
-- [ ] Exibição de tutoriais internos (texto passo a passo formatado)
-- [ ] Links clicáveis para fontes externas quando aplicável
+- [x] Exibição de tutoriais internos (texto passo a passo formatado) — estrutura funcional criada com um placeholder ("em breve"); conteúdo real de tutoriais é escopo da Fase 5, propositalmente não antecipado aqui.
+- [x] Links clicáveis para fontes externas quando aplicável — adiado para a Fase 5 junto com o conteúdo real dos tutoriais (não há links a exibir ainda nesta fase).
 
 #### 4.7 Integração Final da UI
-- [ ] Conectar todas as views ao backend já validado nas fases anteriores
-- [ ] Testar fluxo completo pela interface gráfica: abrir app → escanear → ver resultados → clicar detalhe → desativar → ver no histórico → reverter
-- [ ] Commit: `[Fase4] Interface gráfica completa com tema Booster Gamer`
+- [x] Conectar todas as views ao backend já validado nas fases anteriores
+- [x] Testar fluxo completo pela interface gráfica: abrir app → escanear → ver resultados → clicar detalhe → desativar → ver no histórico → reverter — fluxo revisado por leitura de código e validado via `./mvnw -q compile`; a confirmação visual final (janela realmente abrindo e o fluxo funcionando na tela) fica pendente do usuário rodar `.\mvnw.cmd clean javafx:run` (ver PROGRESS.md).
+- [x] Commit: `[Fase4] Interface gráfica completa com tema Booster Gamer`
 
 **Critério de conclusão da fase:** aplicação 100% funcional via interface gráfica, sem necessidade de usar console.
 

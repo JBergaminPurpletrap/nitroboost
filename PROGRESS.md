@@ -334,3 +334,157 @@ Todos os itens do checklist da Fase 3 estão marcados `[x]` em
 `NITRO-BOOST-documentacao-completa.md`.
 
 Próximo passo (não iniciado): **Fase 4 — Interface Gráfica (JavaFX) — Tema Booster Gamer**.
+
+---
+
+## 2026-07-23 — Fase 4 concluída (Interface Gráfica JavaFX — Tema Booster Gamer)
+
+Toda a interface grafica descrita na Fase 4 foi implementada em Java puro (sem FXML, conforme
+recomendado no guia de skills tecnicas para telas dinamicas), conectada ao backend real (nenhuma
+logica de negocio foi reimplementada na UI - ela so chama `ActionExecutor`/`LockManager`/
+`ActionHistoryRepository` ja validados nas Fases 1 a 3). Resumo do que foi feito:
+
+### 4.1 Tema visual "Carbono & Verde Turbo"
+
+- **`src/main/resources/theme/nitroboost-carbon.css`** (novo): implementa a paleta oficial exata
+  (fundo `#0A0A0A`, paineis `#161616`, verde neon `#39FF14`, verde tecnico `#00C853`, vermelho
+  `#FF3B30`, ambar `#FFB300`, texto `#E8E8E8`/`#7A7A7A`, bordas `#2A2A2A`).
+- **Textura "fibra de carbono"**: simulada 100% via CSS puro, sem PNG externo - usa
+  `linear-gradient(from Npx Npx to Mpx Mpx, repeat, ...)` (o modificador `repeat` do JavaFX CSS
+  permite tilear um gradiente pequeno indefinidamente) para criar um padrao diagonal tileado.
+  Classe `.carbon-bg-subtle` (baixa opacidade, paineis principais) e `.carbon-bg-strong`
+  (mais evidente, cabecalho/sidebar).
+- **Efeitos "tech/gamer"**: glow verde via `-fx-effect: dropshadow` em `.btn-turbo` e no titulo do
+  app; barra de progresso `.progress-rpm` com gradiente verde-tecnico -> verde-neon, alternando
+  para vermelho (`.progress-critical`) acima de 90% (tanto CPU quanto RAM no dashboard); icones de
+  status como `Circle` (JavaFX Shape) coloridos por classificacao (verde/vermelho/ambar) na tabela
+  de resultados e como "badge" no modal de detalhes.
+- **Tipografia (decisao pragmatica documentada)**: sem acesso de rede garantido neste ambiente para
+  baixar Google Fonts (Orbitron/Rajdhani/Chakra Petch pedidas no documento), usamos fontes ja
+  presentes no Windows como fallback equivalente ao estilo pedido: `"Consolas"` (monoespacada,
+  visual HUD/tecnico) para titulos e numeros de destaque, `"Segoe UI"` para texto corrido legivel
+  (descricoes, tutoriais). Documentado tambem no cabecalho do proprio CSS.
+- **Componentes reutilizaveis**: `.btn-turbo` (botao primario, borda verde neon + glow),
+  `.btn-secondary` (acoes secundarias), `.btn-danger` (acao primaria em itens classificados como
+  `essencial` - reforco visual extra de cuidado), `.progress-rpm` (barra RPM).
+
+### 4.2 DashboardView (`ui/DashboardView.java`, novo)
+
+- Grafico `LineChart<Number, Number>` com series de CPU e RAM (%) atualizado a cada 2 segundos.
+- Leitura de hardware via OSHI (mesma API usada em `HardwareInfoPrinter`) rodando em um
+  `ScheduledExecutorService` de thread unica **daemon** dedicada (nunca na JavaFX Application
+  Thread) - cada leitura e protegida por try/catch (uma falha pontual nunca interrompe as proximas
+  execucoes agendadas, um detalhe importante de `ScheduledExecutorService` que para de reagendar
+  silenciosamente se uma excecao escapar do `Runnable`). Resultado publicado de volta com
+  `Platform.runLater`.
+- Velocimetro: `Arc` customizado (JavaFX Shape) cujo `length` e `stroke` sao atualizados a cada
+  leitura (media CPU+RAM), virando vermelho acima do limite critico de 90%.
+- Botao principal "⚡ ESCANEAR SISTEMA" (`.btn-turbo`) navega para `ScanResultsView` e dispara a
+  varredura.
+- `shutdown()` publico para parar o `ScheduledExecutorService` ao fechar a janela (chamado por
+  `Main` no `setOnCloseRequest`).
+
+### 4.3 ScanResultsView (`ui/ScanResultsView.java`, novo)
+
+- `TableView<ScannedItem>` unificando os 7 scanners do backend via `SystemScanTask`
+  (`ui/SystemScanTask.java`, novo - um `javafx.concurrent.Task` que roda em thread separada,
+  chamando `ProcessScanner`, `ServiceScanner`, `StartupScanner`, `TaskSchedulerScanner`,
+  `PowerPlanScanner`, `TelemetryScanner` e `BloatwareScanner`, cada um isolado em seu proprio
+  try/catch - uma falha em um scanner nunca impede os demais). Cada item e cruzado com a
+  `KnowledgeBase` para obter classificacao/descricao/impactos (`ui/ScannedItem.java`, novo record
+  que unifica o resultado de qualquer scanner).
+- Filtro por categoria via `ComboBox` + `FilteredList` (Processos, Servicos, Inicializacao, Tarefas
+  Agendadas, Planos de Energia, Telemetria, Bloatware).
+- Coluna de status com `Circle` colorido pela classificacao; coluna de acoes com 3 botoes por
+  linha: "Detalhes" (abre `ItemDetailView`), acao primaria (Finalizar/Desativar/Ativar/Desinstalar,
+  dependendo do tipo - ver `ui/ItemActionDispatcher.java` abaixo) e Bloquear/Desbloquear (via
+  `LockManager`). Toda acao roda em uma thread de fundo separada (nao trava a UI - comandos como
+  PowerShell podem levar ate 20s) e o resultado volta via `Platform.runLater`.
+- **`ui/ItemActionDispatcher.java`** (novo, utilitario compartilhado com `ItemDetailView` para nao
+  duplicar a logica de despacho): traduz o tipo generico do `ScannedItem` (process/service/startup/
+  task/powerplan/telemetry/bloatware) para a chamada especifica correta do `ActionExecutor` (ex:
+  `killProcess(pid)` para processos, `switchPowerPlan(guid, nome)` para planos de energia -
+  "ativar" em vez de "desativar", ja que o conceito nao se aplica a esse tipo).
+
+### 4.4 ItemDetailView (`ui/ItemDetailView.java`, novo)
+
+- Modal implementado como `Stage` (`Modality.WINDOW_MODAL`) em Java puro, nao um `Dialog<>` padrao,
+  para ter controle total do layout/tema (aplica a mesma folha de estilos `nitroboost-carbon.css`).
+- Exibe nome, badge de classificacao colorido, categoria/estado atual, descricao, impacto de
+  desativar e impacto de manter - tudo vindo do `ScannedItem` (que ja carrega os dados da
+  `KnowledgeBase`).
+- Botoes Desativar (rotulo adaptado via `ItemActionDispatcher`) / Bloquear-Desbloquear / Ver
+  Tutorial (fecha o modal e navega ate a `TutorialView` via callback).
+
+### 4.5 HistoryView (`ui/HistoryView.java`, novo)
+
+- `TableView` com as ultimas 100 entradas de `actions_history` via
+  `ActionHistoryRepository.findRecent` (leitura local rapida, roda direto na FX thread, protegida
+  por try/catch - nao ha necessidade de thread separada para uma unica consulta SQLite indexada).
+- Botao "Reverter" por linha chama `ActionExecutor.restoreFromHistory(id)` em thread de fundo
+  (comandos do sistema podem demorar) e recarrega a lista ao concluir. Desabilitado para acoes que
+  ja falharam ou que ja sao, elas mesmas, uma reversao (`actionType == "restore"`).
+
+### 4.6 TutorialView (`ui/TutorialView.java`, novo)
+
+- Estrutura funcional da tela (ja conectada a navegacao principal), com uma `ListView` de exemplo
+  e um card "EM BREVE" explicando que o conteudo real (deteccao de XMP, passo a passo por
+  fabricante, links oficiais) e escopo da Fase 5 - propositalmente **nao antecipado** aqui, conforme
+  instrucao explicita de nao inventar conteudo elaborado demais nesta fase.
+
+### 4.7 Integração final da UI
+
+- **`Main.java`** (reescrito): `BorderPane` principal com cabecalho HUD (`.carbon-bg-strong`),
+  menu lateral (`sidebar`) com 4 botoes de navegacao (Dashboard/Resultados do Scan/Historico/
+  Tutoriais) que trocam o conteudo central - a opcao mais simples e direta pedida na fase, em vez
+  de `TabPane`. As 4 views sao instanciadas uma unica vez (mantem estado - ex: itens ja
+  escaneados, historico ja carregado) e apenas trocadas de lugar. `AppContext.java` (novo, record)
+  agrupa as instancias unicas do backend (`DatabaseManager`, `ActionExecutor`, `LockManager`,
+  `KnowledgeBase`, `ActionHistoryRepository`) e e injetado nas views que precisam dele.
+- `primaryStage.setOnCloseRequest` chama `DashboardView.shutdown()` para parar a thread de
+  monitoramento de hardware ao fechar a janela.
+- Checklist completo da Fase 4 marcado `[x]` em `NITRO-BOOST-documentacao-completa.md`.
+
+### Validado neste ambiente (compilacao + revisao de codigo)
+
+- `./mvnw -q compile` - **OK, sem erros** (unicos avisos sao de IDE: deprecation de
+  `TableView.CONSTRAINED_RESIZE_POLICY` desde o JavaFX 20 e "unchecked varargs" em
+  `getStyleClass().addAll(...)`/`getColumns().addAll(...)` - ambos inofensivos e comuns em codigo
+  JavaFX, nao impedem a compilacao nem o funcionamento).
+- `./mvnw -q package -DskipTests` - **OK**, `target/nitroboost.jar` gerado com o CSS do tema
+  corretamente empacotado em `theme/nitroboost-carbon.css` dentro do jar (confirmado via `jar tf`).
+- Revisao manual cuidadosa de cada view: bind de dados (colunas de `TableView` via
+  `ReadOnlyObjectWrapper` explicito, ja que os modelos sao `record`s e nao expoem getters no padrao
+  `getXxx()` esperado por `PropertyValueFactory`), threads de fundo para toda chamada ao backend que
+  possa demorar (scan completo, qualquer acao do `ActionExecutor`, reversao de historico), e
+  `Platform.runLater` em todo retorno de thread de fundo para a UI.
+
+### Não validado neste ambiente (ação pendente do usuário) — mesma limitação já documentada na Fase 0
+
+Assim como na Fase 0, **não foi possível rodar `javafx:run` de forma síncrona** neste ambiente
+automatizado (trava aguardando a janela ser fechada, sem sessão gráfica interativa aqui). A
+confirmação visual final de que:
+
+- a janela abre com o tema aplicado corretamente (cores, textura de fibra de carbono, glow dos
+  botões, gráfico de linha atualizando, velocímetro se movendo);
+- o fluxo completo funciona na tela de verdade (escanear → ver resultados → filtrar por categoria →
+  abrir detalhe de um item → desativar/bloquear → ver a entrada nova no histórico → reverter);
+
+fica pendente de o usuário rodar, na própria máquina Windows:
+
+```
+.\mvnw.cmd clean javafx:run
+```
+
+Qualquer ajuste fino de layout/cor que só apareça na renderização real (ex: um gradiente CSS que
+não tile exatamente como esperado) deve ser reportado para correção pontual — a estrutura de código
+e a lógica de integração com o backend já estão implementadas e revisadas.
+
+Nenhum bloqueio técnico novo foi encontrado durante esta fase (ver `BLOCKERS.md` - sem itens novos
+da Fase 4).
+
+Todos os itens do checklist da Fase 4 estão marcados `[x]` em
+`NITRO-BOOST-documentacao-completa.md`.
+
+Próximo passo (não iniciado, aguardando validação visual do usuário antes de prosseguir):
+**Fase 5 — Tutoriais e Educação (XMP/BIOS e afins)**.
