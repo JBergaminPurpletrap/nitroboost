@@ -45,6 +45,9 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
     /** Nome fixo do item de hibernacao - mesmo valor usado por {@link com.nitroboost.actions.ActionExecutor}. */
     private static final String HIBERNATION_ITEM_NAME = "Arquivo de Hibernacao";
 
+    /** Nome fixo do item de Armazenamento Reservado - mesmo valor usado por {@link com.nitroboost.actions.ActionExecutor}. */
+    private static final String RESERVED_STORAGE_ITEM_NAME = "Armazenamento Reservado (Reserved Storage)";
+
     // ponytail: limite pratico para nao empilhar centenas de processos irrelevantes
     // na tabela - os processos mais pesados (RAM) sao os que mais importam para o
     // objetivo do app ("otimizar performance"). Suba este numero se fizer falta.
@@ -162,6 +165,12 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
                 ? "Nao foi possivel verificar"
                 : (hibernation.fileExists() ? "Ativado (arquivo presente)" : "Desativado (arquivo ausente)");
         result.add(build(CATEGORY_PERFORMANCE, "hibernation", HIBERNATION_ITEM_NAME, hibernationState, hibernation));
+
+        PerformanceScanner.ReservedStorageStatus reservedStorage = new PerformanceScanner().checkReservedStorageState();
+        String reservedStorageState = !reservedStorage.supported()
+                ? "Nao suportado nesta versao do Windows"
+                : (reservedStorage.checkFailed() ? "Nao foi possivel verificar" : "Estado atual: " + reservedStorage.state());
+        result.add(build(CATEGORY_PERFORMANCE, "reservedstorage", RESERVED_STORAGE_ITEM_NAME, reservedStorageState, reservedStorage));
         return result;
     }
 

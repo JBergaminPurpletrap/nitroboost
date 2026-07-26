@@ -73,6 +73,9 @@ public final class ItemActionDispatcher {
                 // O arquivo de hibernacao so tem sentido como um "toggle": a acao principal desativa
                 // (caso comum de liberar espaco em disco) - se ja estiver desativado, e um no-op seguro.
                 case "hibernation" -> executor.setHibernationEnabled(false);
+                // Mesmo raciocinio do item de hibernacao acima: a acao principal desativa o
+                // Armazenamento Reservado (caso de uso do documento - liberar espaco em disco).
+                case "reservedstorage" -> executor.setReservedStorageEnabled(false);
                 case "ai" -> {
                     var definition = (AiFeatureScanner.AiFeatureKeyDefinition) item.source();
                     yield executor.setAiFeatureValue(definition, definition.recommendedValue());
