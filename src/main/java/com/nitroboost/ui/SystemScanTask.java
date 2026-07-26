@@ -21,13 +21,18 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * Roda os 9 scanners do backend em uma thread de fundo (nunca na UI thread do
+ * Roda os 11 scanners do backend em uma thread de fundo (nunca na UI thread do
  * JavaFX - regra do guia de skills tecnicas) e devolve uma lista unica de
  * {@link ScannedItem}, cada um ja classificado pela {@link KnowledgeBase}.
  *
  * Cada scanner roda isolado dentro de seu proprio try/catch: uma falha em um
  * scanner (ex: comando indisponivel) nunca impede os demais de rodar, mesma
  * filosofia defensiva ja usada no backend desde a Fase 1.
+ *
+ * Implementa a ponte de progresso da Fase 12 Parte C: para cada categoria, traduz o {@link
+ * ScanProgressListener} do scanner em {@link #updateProgress(double, double)}/{@link
+ * #updateMessage(String)} nativos do {@link Task} (progresso geral entre as 11 categorias +
+ * mensagem codificando tambem o sub-progresso da categoria atual).
  */
 public class SystemScanTask extends Task<List<ScannedItem>> {
 
