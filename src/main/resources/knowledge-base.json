@@ -644,7 +644,7 @@
       "nome": "Windows Copilot (Usuario Atual)",
       "tipo": "ai",
       "classificacao": "seguro",
-      "descricao": "Assistente de Inteligencia Artificial integrado ao Windows 11, acessivel pela barra de tarefas. Se voce nao usa IA no dia a dia, e seguro desativar.",
+      "descricao": "Assistente de Inteligencia Artificial integrado ao Windows 11, acessivel pela barra de tarefas. Se voce nao usa IA no dia a dia, e seguro desativar. Este item suporta DUAS acoes: 'Desativar' (bloqueia o recurso via politica, reversivel a qualquer momento) e 'Desinstalar' (remove de fato o pacote instalado do Copilot desta maquina, quando ele existir separadamente - em builds mais recentes do Windows o Copilot pode estar integrado ao shell/Explorer, sem um pacote proprio para remover; nesse caso 'Desinstalar' informa que nao ha nada a remover).",
       "impacto_desativar": "O Copilot deixa de responder/abrir para o seu usuario. Nenhuma outra funcao do Windows e afetada.",
       "impacto_manter": "Fica disponivel na barra de tarefas, pronto para uso a qualquer momento - sem custo perceptivel de desempenho quando nao esta em uso.",
       "valor_recomendado": "1"
@@ -653,7 +653,7 @@
       "nome": "Windows Copilot (Todos os Usuarios)",
       "tipo": "ai",
       "classificacao": "seguro",
-      "descricao": "Mesma politica do Windows Copilot acima, mas aplicada a todos os usuarios cadastrados neste PC (chave em HKLM - normalmente exige rodar o NITRO BOOST como Administrador para alterar).",
+      "descricao": "Mesma politica do Windows Copilot acima, mas aplicada a todos os usuarios cadastrados neste PC (chave em HKLM - normalmente exige rodar o NITRO BOOST como Administrador para alterar). Assim como o item anterior, suporta 'Desativar' (via politica) e 'Desinstalar' (remove o pacote do Copilot para todos os usuarios, quando existir separadamente - tambem exige Administrador).",
       "impacto_desativar": "O Copilot deixa de responder/abrir para qualquer usuario deste PC, nao so o atual.",
       "impacto_manter": "Fica disponivel para todos os usuarios do PC que quiserem usar.",
       "valor_recomendado": "1"
@@ -671,7 +671,7 @@
       "nome": "Windows Recall (Retomar)",
       "tipo": "ai",
       "classificacao": "depende",
-      "descricao": "Recurso de IA (Copilot+ PCs, Windows 11 24H2 em diante) que tira 'fotos' periodicas da sua tela e as indexa por IA, para voce depois buscar algo que viu antes. ATENCAO A PRIVACIDADE: essas capturas ficam guardadas no seu PC e podem incluir senhas, conversas ou qualquer coisa que apareceu na tela - avalie com cuidado antes de manter ativado. Se a chave de politica nao existir na sua maquina, o Recall pode nao estar disponivel na sua edicao do Windows, ou so pode ser desativado manualmente (ver tutorial 'Desativando o Recall pelas Configuracoes' na aba Tutoriais).",
+      "descricao": "Recurso de IA (Copilot+ PCs, Windows 11 24H2 em diante) que tira 'fotos' periodicas da sua tela e as indexa por IA, para voce depois buscar algo que viu antes. ATENCAO A PRIVACIDADE: essas capturas ficam guardadas no seu PC e podem incluir senhas, conversas ou qualquer coisa que apareceu na tela - avalie com cuidado antes de manter ativado. Se a chave de politica nao existir na sua maquina, o Recall pode nao estar disponivel na sua edicao do Windows, ou so pode ser desativado manualmente (ver tutorial 'Desativando o Recall pelas Configuracoes' na aba Tutoriais). Este item suporta DUAS acoes: 'Desativar' (bloqueia via politica de registro, reversivel) e 'Desinstalar' (remove o recurso opcional do Windows por completo via DISM - mais definitivo, tambem reversivel, mas so funciona em Copilot+ PCs onde o Recall existe como recurso opcional instalavel; na grande maioria dos PCs, que nao sao Copilot+ PCs, essa opcao informa que o recurso nao existe nesta maquina).",
       "impacto_desativar": "O Windows para de capturar e indexar instantaneos periodicos da tela - reduz o uso de disco/CPU em segundo plano e elimina o risco de privacidade de ter um historico visual detalhado guardado no PC.",
       "impacto_manter": "Voce ganha a capacidade de buscar por IA algo que viu na tela antigamente, mas o Windows fica continuamente tirando e guardando capturas de tela em segundo plano, com implicacao real de privacidade caso outra pessoa tenha acesso ao seu usuario no PC.",
       "valor_recomendado": "1"
@@ -680,7 +680,7 @@
       "nome": "Click to Do",
       "tipo": "ai",
       "classificacao": "depende",
-      "descricao": "Recurso de IA que sugere acoes contextuais (copiar texto, resumir, abrir link) sobre o conteudo que esta na tela no momento.",
+      "descricao": "Recurso de IA que sugere acoes contextuais (copiar texto, resumir, abrir link) sobre o conteudo que esta na tela no momento. Este item so suporta a acao 'Desativar' (via politica de registro) - nao existe um mecanismo tecnico de desinstalacao separado para o Click to Do (nao e um pacote/app isolado nem um recurso opcional do Windows, so uma politica que liga/desliga o comportamento).",
       "impacto_desativar": "Voce perde as sugestoes automaticas de acao sobre o conteudo da tela - continua podendo fazer tudo manualmente (copiar, abrir, etc).",
       "impacto_manter": "Fica disponivel para agilizar tarefas repetitivas com sugestoes de IA sobre o que esta na tela; alguns usuarios acham a sugestao constante um pouco intrusiva.",
       "valor_recomendado": "1"
@@ -689,7 +689,7 @@
       "nome": "Cocreator / Criacao de Imagem por IA (Paint e Fotos)",
       "tipo": "ai",
       "classificacao": "depende",
-      "descricao": "Recurso de geracao de imagens por IA (Cocreator) disponivel nos apps Paint e Fotos do Windows 11. NOTA DE TRANSPARENCIA: a Microsoft nao disponibiliza uma chave exclusiva so para o Cocreator - desativar este item tambem desativa o 'Windows Recall' (e vice-versa), porque os dois compartilham a mesma politica por baixo.",
+      "descricao": "Recurso de geracao de imagens por IA (Cocreator) disponivel nos apps Paint e Fotos do Windows 11. NOTA DE TRANSPARENCIA: a Microsoft nao disponibiliza uma chave exclusiva so para o Cocreator - desativar este item tambem desativa o 'Windows Recall' (e vice-versa), porque os dois compartilham a mesma politica por baixo. Este item so suporta a acao 'Desativar' - o Cocreator e um recurso embutido dentro dos apps Paint e Fotos, sem um pacote proprio ou recurso opcional separado para desinstalar (desinstalar o Paint/Fotos removeria os apps inteiros, nao so o recurso de IA).",
       "impacto_desativar": "Os apps Paint e Fotos deixam de oferecer a geracao/edicao de imagem por IA. Como consequencia (mesma chave), o Windows Recall tambem e desativado junto.",
       "impacto_manter": "Voce pode gerar/editar imagens com IA direto no Paint e no Fotos; como consequencia (mesma chave), o Windows Recall tambem continua disponivel.",
       "valor_recomendado": "1"
@@ -698,7 +698,7 @@
       "nome": "Copilot no Microsoft Edge (Barra Lateral)",
       "tipo": "ai",
       "classificacao": "seguro",
-      "descricao": "Barra lateral de IA (Copilot/Bing Chat) integrada ao navegador Microsoft Edge.",
+      "descricao": "Barra lateral de IA (Copilot/Bing Chat) integrada ao navegador Microsoft Edge. Este item so suporta a acao 'Desativar' (via politica do Edge) - o Copilot no Edge e uma funcao interna do navegador, sem um pacote separado para desinstalar (desinstalar o Edge inteiro nao e uma opcao segura, ja que varias partes do Windows dependem dele).",
       "impacto_desativar": "A barra lateral de IA some do Edge; a navegacao normal nao e afetada.",
       "impacto_manter": "Fica disponivel como atalho de IA dentro do proprio navegador.",
       "valor_recomendado": "0"
