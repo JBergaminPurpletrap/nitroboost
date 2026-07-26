@@ -126,6 +126,25 @@ public class PerformanceScanner {
                             + "consumindo banda de upload. Restringir a 'so PCs da minha rede local' (ou desativar) "
                             + "economiza banda.",
                     "1"
+            ),
+            // ---- Fase 12 Parte A: bloquear atualizacao de driver de video via Windows Update ----
+            new PerformanceKeyDefinition(
+                    "block_driver_update_search",
+                    "Bloquear Atualizacao de Driver de Video pelo Windows Update (Busca)",
+                    "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\DriverSearching",
+                    "DontSearchWindowsUpdate",
+                    "Impede que o Windows Update procure sozinho por drivers (inclusive de video/GPU) e instale "
+                            + "uma versao diferente da que voce escolheu manualmente - reclamacao comum de gamers.",
+                    "1"
+            ),
+            new PerformanceKeyDefinition(
+                    "block_driver_update_prompt",
+                    "Bloquear Atualizacao de Driver de Video pelo Windows Update (Aviso)",
+                    "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\DriverSearching",
+                    "DontPromptForWindowsUpdate",
+                    "Complementa a chave de busca acima: impede que o Windows Update nem chegue a avisar/perguntar "
+                            + "sobre uma atualizacao de driver disponivel (inclusive de video/GPU).",
+                    "1"
             )
     );
 

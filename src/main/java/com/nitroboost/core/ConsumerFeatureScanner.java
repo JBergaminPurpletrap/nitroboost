@@ -165,6 +165,25 @@ public class ConsumerFeatureScanner {
                     "Start_IrisRecommendations",
                     "Remove a secao de arquivos/apps 'recomendados' que ocupa boa parte do Menu Iniciar no Windows 11.",
                     "0"
+            ),
+            // ---- Secao 5 (Fase 12 Parte A): Edge em segundo plano (Startup Boost) ----
+            new ConsumerFeatureKeyDefinition(
+                    "edge_startup_boost",
+                    "Edge - Pre-carregamento em Segundo Plano (Startup Boost)",
+                    "HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge",
+                    "StartupBoostEnabled",
+                    "O Edge mantem processos rodando em segundo plano mesmo 'fechado', para abrir mais rapido - "
+                            + "consome RAM a toa se voce nao usa o Edge como navegador principal.",
+                    "0"
+            ),
+            new ConsumerFeatureKeyDefinition(
+                    "edge_background_mode",
+                    "Edge - Apps em Segundo Plano (Background Mode)",
+                    "HKLM\\SOFTWARE\\Policies\\Microsoft\\Edge",
+                    "BackgroundModeEnabled",
+                    "Permite que o Edge e extensoes continuem rodando em segundo plano mesmo depois que todas as "
+                            + "janelas do navegador sao fechadas.",
+                    "0"
             )
     );
 
