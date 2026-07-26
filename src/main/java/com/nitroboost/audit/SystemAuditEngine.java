@@ -2,6 +2,7 @@ package com.nitroboost.audit;
 
 import com.nitroboost.core.AiFeatureScanner;
 import com.nitroboost.core.ConsumerFeatureScanner;
+import com.nitroboost.core.DisplayScanner;
 import com.nitroboost.core.GamingScanner;
 import com.nitroboost.core.PerformanceScanner;
 import com.nitroboost.core.ScanProgressListener;
@@ -32,12 +33,16 @@ import java.util.Optional;
  */
 public class SystemAuditEngine {
 
+    /** Nome fixo do item de taxa de atualizacao da tela (Fase 14 Parte 2) - mesmo valor usado por {@code ui.SystemScanTask}. */
+    private static final String DISPLAY_ITEM_NAME = "Taxa de Atualizacao da Tela";
+
     private final KnowledgeBase knowledgeBase;
     private final TelemetryScanner telemetryScanner = new TelemetryScanner();
     private final PerformanceScanner performanceScanner = new PerformanceScanner();
     private final GamingScanner gamingScanner = new GamingScanner();
     private final AiFeatureScanner aiFeatureScanner = new AiFeatureScanner();
     private final ConsumerFeatureScanner consumerFeatureScanner = new ConsumerFeatureScanner();
+    private final DisplayScanner displayScanner = new DisplayScanner();
 
     public SystemAuditEngine(KnowledgeBase knowledgeBase) {
         this.knowledgeBase = knowledgeBase;
@@ -51,6 +56,7 @@ public class SystemAuditEngine {
         auditSafely(findings, "jogos", this::auditGaming);
         auditSafely(findings, "IA", this::auditAi);
         auditSafely(findings, "recursos de consumidor", this::auditConsumer);
+        auditSafely(findings, "tela", this::auditDisplay);
         return new AuditReport(findings);
     }
 
@@ -80,7 +86,8 @@ public class SystemAuditEngine {
                 new AuditCategoryDef("performance", SystemScanTask.CATEGORY_PERFORMANCE, this::auditPerformance),
                 new AuditCategoryDef("jogos", SystemScanTask.CATEGORY_GAMING, this::auditGaming),
                 new AuditCategoryDef("IA", SystemScanTask.CATEGORY_AI, this::auditAi),
-                new AuditCategoryDef("recursos de consumidor", SystemScanTask.CATEGORY_CONSUMER, this::auditConsumer)
+                new AuditCategoryDef("recursos de consumidor", SystemScanTask.CATEGORY_CONSUMER, this::auditConsumer),
+                new AuditCategoryDef("tela", SystemScanTask.CATEGORY_DISPLAY, this::auditDisplay)
         );
         int totalCategories = categories.size();
         for (int i = 0; i < totalCategories; i++) {
@@ -165,6 +172,49 @@ public class SystemAuditEngine {
             out.add(evaluate(SystemScanTask.CATEGORY_CONSUMER, "consumer", info.definition().friendlyName(),
                     info.exists() ? info.currentValue() : null, info.definition()));
         }
+    }
+
+    private void auditDisplay(List<AuditFinding> out) {
+        auditDisplay(out, null);
+    }
+
+    /**
+     * Excecao deliberada ao padrao de {@link #evaluate}: este item NAO tem um {@code
+     * valor_recomendado} FIXO na base de conhecimento (ver nota tecnica no proprio
+     * {@code knowledge-base.json}) - a "recomendacao" e relativa (taxa atual configurada vs a taxa
+     * MAXIMA suportada pelo monitor conectado no momento da varredura), entao a comparacao e feita
+     * aqui diretamente contra o resultado do {@link DisplayScanner}, em vez de contra uma string do
+     * catalogo (Fase 14 Parte 2).
+     */
+    private void auditDisplay(List<AuditFinding> out, ScanProgressListener listener) {
+        if (listener != null) {
+            listener.onProgress(SystemScanTask.CATEGORY_DISPLAY, 0, 1, "Verificando taxa de atualizacao da tela...");
+        }
+        Optional<Integer> current = displayScanner.getCurrentRefreshRate();
+        List<Integer> available = displayScanner.getAvailableRefreshRates();
+        Optional<Integer> max = available.isEmpty() ? Optional.empty() : Optional.of(available.get(available.size() - 1));
+
+        AuditFinding.Status status = resolveDisplayStatus(current, max);
+        out.add(new AuditFinding(DISPLAY_ITEM_NAME, "display", SystemScanTask.CATEGORY_DISPLAY, status,
+                current.map(v -> v + " Hz").orElse(null), max.map(v -> v + " Hz (maxima suportada)").orElse(null), null));
+
+        if (listener != null) {
+            listener.onProgress(SystemScanTask.CATEGORY_DISPLAY, 1, 1, "Verificacao concluida.");
+        }
+    }
+
+    /**
+     * Compara a taxa atual com a taxa maxima detectada - {@code NAO_APLICAVEL} se qualquer uma das
+     * duas nao pode ser lida (sem fonte confiavel para comparar), {@code SUGESTAO} se a atual for
+     * menor que a maxima, {@code JA_OTIMIZADO} caso contrario. Extraido como metodo estatico de
+     * pacote para ser testavel isoladamente sem depender de hardware real (ver
+     * {@code SystemAuditEngineTest}).
+     */
+    static AuditFinding.Status resolveDisplayStatus(Optional<Integer> current, Optional<Integer> max) {
+        if (current.isEmpty() || max.isEmpty()) {
+            return AuditFinding.Status.NAO_APLICAVEL;
+        }
+        return current.get() < max.get() ? AuditFinding.Status.SUGESTAO : AuditFinding.Status.JA_OTIMIZADO;
     }
 
     /**

@@ -2,13 +2,18 @@ package com.nitroboost.audit;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Testa {@link SystemAuditEngine#dwordValuesEqual(String, String)} (visibilidade de pacote,
- * ja existente desde a Fase 9) isoladamente - comparacao numerica de valores DWORD de registro
- * (hex vs decimal), com casos de formato inesperado que nao devem lancar excecao.
+ * Testa {@link SystemAuditEngine#dwordValuesEqual(String, String)} e {@link
+ * SystemAuditEngine#resolveDisplayStatus(Optional, Optional)} (ambos com visibilidade de pacote)
+ * isoladamente - comparacao numerica de valores DWORD de registro (hex vs decimal) e a comparacao
+ * dinamica (atual vs maxima) da taxa de atualizacao da tela (Fase 14 Parte 2) - com valores fixos,
+ * sem depender de hardware real nem chamar o {@code DisplayScanner}.
  */
 class SystemAuditEngineTest {
 
@@ -42,5 +47,44 @@ class SystemAuditEngineTest {
     void formatoNaoNumerico_naoLancaExcecao_caiParaComparacaoDeTexto() {
         assertTrue(SystemAuditEngine.dwordValuesEqual("abc", "ABC"));
         assertFalse(SystemAuditEngine.dwordValuesEqual("abc", "0"));
+    }
+
+    @Test
+    void taxaAtual_menorQueMaxima_geraSugestao() {
+        assertEquals(AuditFinding.Status.SUGESTAO,
+                SystemAuditEngine.resolveDisplayStatus(Optional.of(60), Optional.of(144)));
+    }
+
+    @Test
+    void taxaAtual_igualMaxima_jaOtimizado() {
+        assertEquals(AuditFinding.Status.JA_OTIMIZADO,
+                SystemAuditEngine.resolveDisplayStatus(Optional.of(60), Optional.of(60)));
+    }
+
+    @Test
+    void taxaAtual_maiorQueMaxima_jaOtimizado() {
+        // Nao deveria acontecer na pratica (a maxima e sempre >= a atual), mas o metodo nao deve
+        // gerar uma "sugestao" enganosa (baixar a taxa) nesse caso hipotetico - so SUGESTAO quando
+        // atual < maxima, estritamente.
+        assertEquals(AuditFinding.Status.JA_OTIMIZADO,
+                SystemAuditEngine.resolveDisplayStatus(Optional.of(144), Optional.of(60)));
+    }
+
+    @Test
+    void taxaAtualAusente_naoAplicavel() {
+        assertEquals(AuditFinding.Status.NAO_APLICAVEL,
+                SystemAuditEngine.resolveDisplayStatus(Optional.empty(), Optional.of(144)));
+    }
+
+    @Test
+    void taxaMaximaAusente_naoAplicavel() {
+        assertEquals(AuditFinding.Status.NAO_APLICAVEL,
+                SystemAuditEngine.resolveDisplayStatus(Optional.of(60), Optional.empty()));
+    }
+
+    @Test
+    void ambasAusentes_naoAplicavel() {
+        assertEquals(AuditFinding.Status.NAO_APLICAVEL,
+                SystemAuditEngine.resolveDisplayStatus(Optional.empty(), Optional.empty()));
     }
 }
