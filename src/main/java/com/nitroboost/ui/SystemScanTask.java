@@ -7,6 +7,7 @@ import com.nitroboost.core.GamingScanner;
 import com.nitroboost.core.PerformanceScanner;
 import com.nitroboost.core.PowerPlanScanner;
 import com.nitroboost.core.ProcessScanner;
+import com.nitroboost.core.ScanProgressListener;
 import com.nitroboost.core.ServiceScanner;
 import com.nitroboost.core.StartupScanner;
 import com.nitroboost.core.TaskSchedulerScanner;
@@ -16,6 +17,7 @@ import com.nitroboost.knowledge.KnowledgeBase;
 import javafx.concurrent.Task;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -65,35 +67,82 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
     @Override
     protected List<ScannedItem> call() {
         List<ScannedItem> items = new ArrayList<>();
-        scanSafely(items, "processos", this::scanProcesses);
-        scanSafely(items, "servicos", this::scanServices);
-        scanSafely(items, "startup", this::scanStartup);
-        scanSafely(items, "tarefas agendadas", this::scanTasks);
-        scanSafely(items, "planos de energia", this::scanPowerPlans);
-        scanSafely(items, "telemetria", this::scanTelemetry);
-        scanSafely(items, "bloatware", this::scanBloatware);
-        scanSafely(items, "performance", this::scanPerformance);
-        scanSafely(items, "jogos", this::scanGaming);
-        scanSafely(items, "IA", this::scanAiFeatures);
-        scanSafely(items, "recursos de consumidor", this::scanConsumerFeatures);
+        List<CategoryDef> categories = List.of(
+                new CategoryDef("processos", CATEGORY_PROCESS, this::scanProcesses),
+                new CategoryDef("servicos", CATEGORY_SERVICE, this::scanServices),
+                new CategoryDef("startup", CATEGORY_STARTUP, this::scanStartup),
+                new CategoryDef("tarefas agendadas", CATEGORY_TASK, this::scanTasks),
+                new CategoryDef("planos de energia", CATEGORY_POWERPLAN, this::scanPowerPlans),
+                new CategoryDef("telemetria", CATEGORY_TELEMETRY, this::scanTelemetry),
+                new CategoryDef("bloatware", CATEGORY_BLOATWARE, this::scanBloatware),
+                new CategoryDef("performance", CATEGORY_PERFORMANCE, this::scanPerformance),
+                new CategoryDef("jogos", CATEGORY_GAMING, this::scanGaming),
+                new CategoryDef("IA", CATEGORY_AI, this::scanAiFeatures),
+                new CategoryDef("recursos de consumidor", CATEGORY_CONSUMER, this::scanConsumerFeatures)
+        );
+        int totalCategories = categories.size();
+        for (int i = 0; i < totalCategories; i++) {
+            CategoryDef def = categories.get(i);
+            int categoryIndex = i;
+            updateProgress(categoryIndex, totalCategories, 0.0);
+            updateMessage(formatProgressMessage(categoryIndex, totalCategories, def.category(), 0, 0, "Iniciando..."));
+            ScanProgressListener uiListener = (category, current, total, message) -> {
+                updateProgress(categoryIndex, totalCategories, total > 0 ? (double) current / total : 1.0);
+                updateMessage(formatProgressMessage(categoryIndex, totalCategories, def.category(), current, total, message));
+            };
+            scanSafely(items, def.label(), () -> def.step().run(uiListener));
+        }
+        updateProgress(totalCategories, totalCategories);
+        updateMessage("Varredura concluida.");
         return items;
     }
 
-    private interface ScanStep {
-        List<ScannedItem> run();
+    /** Um passo de varredura (categoria) que aceita um {@link ScanProgressListener} opcional. */
+    private interface CategoryScanStep {
+        List<ScannedItem> run(ScanProgressListener listener);
     }
 
-    private void scanSafely(List<ScannedItem> items, String label, ScanStep step) {
+    /** Amarra o rotulo de log, o nome de categoria exibido ao usuario e o passo de varredura em si. */
+    private record CategoryDef(String label, String category, CategoryScanStep step) {
+    }
+
+    /**
+     * Traduz o progresso de UMA categoria (current/total locais) em progresso GERAL da Task (0.0 a
+     * 1.0, entre todas as {@code totalCategories}) via {@link javafx.concurrent.Task#updateProgress}
+     * - assim a barra de progresso na UI avanca suavemente item a item dentro da categoria atual, em
+     * vez de pular de categoria em categoria.
+     */
+    private void updateProgress(int categoryIndex, int totalCategories, double localFraction) {
+        double overall = (categoryIndex + Math.max(0, Math.min(1, localFraction))) / totalCategories;
+        updateProgress(overall, 1.0);
+    }
+
+    /**
+     * Monta uma unica mensagem de texto codificando os dois niveis de progresso pedidos pela Fase 12
+     * Parte C: geral ("Categoria 3 de 11: Servicos") e da categoria atual ("67 de 130 processados").
+     */
+    private String formatProgressMessage(int categoryIndex, int totalCategories, String categoryLabel,
+                                          int current, int total, String message) {
+        String detail = total > 0 ? String.format(" (%d/%d)", current, total) : "";
+        return String.format("Categoria %d de %d: %s — %s%s",
+                categoryIndex + 1, totalCategories, categoryLabel, message, detail);
+    }
+
+    private void scanSafely(List<ScannedItem> items, String label, java.util.function.Supplier<List<ScannedItem>> step) {
         try {
-            items.addAll(step.run());
+            items.addAll(step.get());
         } catch (Exception e) {
             System.err.println("[NITRO BOOST] Erro ao escanear " + label + " para a interface: " + e.getMessage());
         }
     }
 
-    private List<ScannedItem> scanProcesses() {
+    private List<ScannedItem> scanProcesses(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
-        for (ProcessScanner.ProcessInfo p : new ProcessScanner().topByRam(MAX_PROCESSES_SHOWN)) {
+        List<ProcessScanner.ProcessInfo> topProcesses = new ProcessScanner().scan(listener).stream()
+                .sorted(Comparator.comparingLong(ProcessScanner.ProcessInfo::ramBytes).reversed())
+                .limit(MAX_PROCESSES_SHOWN)
+                .toList();
+        for (ProcessScanner.ProcessInfo p : topProcesses) {
             String state = String.format("PID %d | %.0f MB RAM | %.1f%% CPU",
                     p.pid(), p.ramBytes() / 1024.0 / 1024.0, p.cpuPercent());
             result.add(build(CATEGORY_PROCESS, "process", p.name(), state, p));
@@ -101,42 +150,42 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
         return result;
     }
 
-    private List<ScannedItem> scanServices() {
+    private List<ScannedItem> scanServices(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
-        for (ServiceScanner.ServiceInfo s : new ServiceScanner().scan()) {
+        for (ServiceScanner.ServiceInfo s : new ServiceScanner().scan(listener)) {
             String state = s.state() + " / " + s.startMode();
             result.add(build(CATEGORY_SERVICE, "service", s.name(), state, s));
         }
         return result;
     }
 
-    private List<ScannedItem> scanStartup() {
+    private List<ScannedItem> scanStartup(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
-        for (StartupScanner.StartupItemInfo item : new StartupScanner().scan()) {
+        for (StartupScanner.StartupItemInfo item : new StartupScanner().scan(listener)) {
             result.add(build(CATEGORY_STARTUP, "startup", item.name(), item.source().name(), item));
         }
         return result;
     }
 
-    private List<ScannedItem> scanTasks() {
+    private List<ScannedItem> scanTasks(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
-        for (TaskSchedulerScanner.TaskInfo t : new TaskSchedulerScanner().scan()) {
+        for (TaskSchedulerScanner.TaskInfo t : new TaskSchedulerScanner().scan(listener)) {
             result.add(build(CATEGORY_TASK, "task", t.name(), t.status(), t));
         }
         return result;
     }
 
-    private List<ScannedItem> scanPowerPlans() {
+    private List<ScannedItem> scanPowerPlans(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
-        for (PowerPlanScanner.PowerPlanInfo p : new PowerPlanScanner().scan()) {
+        for (PowerPlanScanner.PowerPlanInfo p : new PowerPlanScanner().scan(listener)) {
             result.add(build(CATEGORY_POWERPLAN, "powerplan", p.name(), p.active() ? "Ativo" : "Inativo", p));
         }
         return result;
     }
 
-    private List<ScannedItem> scanTelemetry() {
+    private List<ScannedItem> scanTelemetry(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
-        for (TelemetryScanner.TelemetryKeyInfo info : new TelemetryScanner().scan()) {
+        for (TelemetryScanner.TelemetryKeyInfo info : new TelemetryScanner().scan(listener)) {
             String state = info.exists() ? "Valor atual: " + info.currentValue() : "Nao definido (padrao do Windows)";
             // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setTelemetryValue espera.
             result.add(build(CATEGORY_TELEMETRY, "telemetry", info.definition().friendlyName(), state, info.definition()));
@@ -144,21 +193,21 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
         return result;
     }
 
-    private List<ScannedItem> scanBloatware() {
+    private List<ScannedItem> scanBloatware(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
         // scan() traz TODOS os apps UWP instalados (nao so os ~15 reconhecidos por
         // categoria) - itens sem categoria conhecida ainda aparecem, classificados
         // via KnowledgeBase (ou como "nao catalogado", que ja e o comportamento
         // padrao de build() abaixo). Ver PROGRESS.md "Fase 8 - Correcao".
-        for (BloatwareScanner.AppxInfo app : new BloatwareScanner().scan()) {
+        for (BloatwareScanner.AppxInfo app : new BloatwareScanner().scan(listener)) {
             result.add(build(CATEGORY_BLOATWARE, "bloatware", app.name(), "Instalado (" + app.category() + ")", app));
         }
         return result;
     }
 
-    private List<ScannedItem> scanPerformance() {
+    private List<ScannedItem> scanPerformance(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
-        for (PerformanceScanner.PerformanceKeyInfo info : new PerformanceScanner().scan()) {
+        for (PerformanceScanner.PerformanceKeyInfo info : new PerformanceScanner().scan(listener)) {
             String state = info.exists() ? "Valor atual: " + info.currentValue() : "Nao definido (padrao do Windows)";
             // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setPerformanceValue espera.
             result.add(build(CATEGORY_PERFORMANCE, "performance", info.definition().friendlyName(), state, info.definition()));
@@ -177,9 +226,9 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
         return result;
     }
 
-    private List<ScannedItem> scanGaming() {
+    private List<ScannedItem> scanGaming(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
-        for (GamingScanner.GamingKeyInfo info : new GamingScanner().scan()) {
+        for (GamingScanner.GamingKeyInfo info : new GamingScanner().scan(listener)) {
             String state = info.exists() ? "Valor atual: " + info.currentValue() : "Nao definido (padrao do Windows)";
             // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setGamingValue espera.
             result.add(build(CATEGORY_GAMING, "gaming", info.definition().friendlyName(), state, info.definition()));
@@ -187,9 +236,9 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
         return result;
     }
 
-    private List<ScannedItem> scanAiFeatures() {
+    private List<ScannedItem> scanAiFeatures(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
-        for (AiFeatureScanner.AiFeatureKeyInfo info : new AiFeatureScanner().scan()) {
+        for (AiFeatureScanner.AiFeatureKeyInfo info : new AiFeatureScanner().scan(listener)) {
             String state = info.exists() ? "Valor atual: " + info.currentValue() : "Nao definido (padrao do Windows)";
             // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setAiFeatureValue espera.
             result.add(build(CATEGORY_AI, "ai", info.definition().friendlyName(), state, info.definition()));
@@ -197,9 +246,9 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
         return result;
     }
 
-    private List<ScannedItem> scanConsumerFeatures() {
+    private List<ScannedItem> scanConsumerFeatures(ScanProgressListener listener) {
         List<ScannedItem> result = new ArrayList<>();
-        for (ConsumerFeatureScanner.ConsumerFeatureKeyInfo info : new ConsumerFeatureScanner().scan()) {
+        for (ConsumerFeatureScanner.ConsumerFeatureKeyInfo info : new ConsumerFeatureScanner().scan(listener)) {
             String state = info.exists() ? "Valor atual: " + info.currentValue() : "Nao definido (padrao do Windows)";
             // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setConsumerFeatureValue espera.
             result.add(build(CATEGORY_CONSUMER, "consumer", info.definition().friendlyName(), state, info.definition()));
