@@ -810,6 +810,146 @@
       "impacto_desativar": "Nenhum impacto perceptivel no uso do teclado. Apenas a Microsoft deixa de receber esses dados de digitacao.",
       "impacto_manter": "O Windows envia dados sobre padroes de digitacao para a Microsoft em segundo plano.",
       "valor_recomendado": "0"
+    },
+    {
+      "nome": "DiagTrack",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Servico 'Connected User Experiences and Telemetry' - o principal coletor de dados de telemetria e diagnostico do Windows, enviados para a Microsoft.",
+      "impacto_desativar": "O Windows para de coletar e enviar a maior parte dos dados de telemetria/diagnostico. Nenhuma funcao essencial do sistema depende deste servico.",
+      "impacto_manter": "Roda o tempo todo em segundo plano coletando e enviando dados de uso e diagnostico para a Microsoft."
+    },
+    {
+      "nome": "dmwappushservice",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Servico 'WAP Push Message Routing Service' - servico legado usado para rotear mensagens de push de gerenciamento remoto de dispositivos, raramente necessario em PCs domesticos.",
+      "impacto_desativar": "Nenhum impacto perceptivel para a maioria dos usuarios - recurso legado sem uso comum fora de ambientes corporativos gerenciados.",
+      "impacto_manter": "Fica ocioso em segundo plano na maior parte do tempo, aguardando mensagens que praticamente nunca chegam em um PC domestico."
+    },
+    {
+      "nome": "PcaSvc",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico 'Program Compatibility Assistant' - monitora programas em execucao em busca de problemas de compatibilidade conhecidos e sugere correcoes.",
+      "impacto_desativar": "Voce deixa de receber avisos automaticos de compatibilidade ao rodar programas antigos ou problematicos - pode ser um problema se voce usa muito software legado.",
+      "impacto_manter": "Fica monitorando os programas que voce abre, consumindo um pouco de recursos, para detectar problemas de compatibilidade."
+    },
+    {
+      "nome": "RetailDemo",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Servico 'Retail Demo Service' - usado apenas em PCs de demonstracao de loja para exibir o modo vitrine. Inutil em uso pessoal.",
+      "impacto_desativar": "Nenhum impacto - esse servico so faz algo em PCs configurados no modo de demonstracao de loja.",
+      "impacto_manter": "Fica parado, sem fazer nada, em praticamente qualquer PC de uso pessoal."
+    },
+    {
+      "nome": "MapsBroker",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico 'Downloaded Maps Manager' - gerencia o download e a atualizacao de mapas offline usados pelo app Mapas do Windows.",
+      "impacto_desativar": "Se voce usa o app Mapas do Windows para navegacao offline, os mapas baixados podem parar de atualizar automaticamente.",
+      "impacto_manter": "Fica em segundo plano gerenciando atualizacoes de mapas offline, mesmo que voce nunca use o app Mapas."
+    },
+    {
+      "nome": "WerSvc",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico 'Windows Error Reporting Service' - envia relatorios automaticos de erro/travamento de programas para a Microsoft (complementa a tarefa agendada de relatorio de erros ja coberta na Telemetria).",
+      "impacto_desativar": "Voce perde o envio automatico de relatorios de erro (util para a Microsoft as vezes sugerir uma correcao apos um travamento), mas o programa que travou continua fechando normalmente.",
+      "impacto_manter": "Envia dados de diagnostico para a Microsoft sempre que um programa trava."
+    },
+    {
+      "nome": "Fax",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Servico de Fax do Windows - permite enviar/receber fax usando um modem ou adaptador de fax conectado ao PC. Praticamente ninguem usa fax em 2026.",
+      "impacto_desativar": "Nenhum impacto perceptivel, a menos que voce realmente use um modem de fax conectado ao PC (extremamente raro hoje em dia).",
+      "impacto_manter": "Fica pronto para uso de fax, um recurso praticamente extinto."
+    },
+    {
+      "nome": "TabletInputService",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico do Painel de Entrada por Toque e Caneta - habilita o teclado virtual e recursos de escrita a mao em telas touch/canetas digitais.",
+      "impacto_desativar": "Se o seu PC tem tela touch ou caneta (notebook 2 em 1, tablet), voce perde o teclado virtual e a entrada por caneta.",
+      "impacto_manter": "Fica pronto para uso de tela touch/caneta, mesmo que seu PC nao tenha esse tipo de hardware."
+    },
+    {
+      "nome": "WbioSrvc",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico 'Windows Biometric Service' - da suporte a leitores biometricos (leitor de digital, camera de reconhecimento facial) usados pelo Windows Hello.",
+      "impacto_desativar": "Se o seu PC tem leitor de digital ou camera compativel com Windows Hello, voce perde a opcao de login biometrico ate reativar o servico.",
+      "impacto_manter": "Fica pronto para uso de biometria (Windows Hello), mesmo que seu PC nao tenha esse tipo de hardware."
+    },
+    {
+      "nome": "XblAuthManager",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico 'Xbox Live Auth Manager' - gerencia a autenticacao com a sua conta Xbox/Microsoft para jogos integrados ao Xbox Live e Game Pass.",
+      "impacto_desativar": "Jogos que dependem de login no Xbox Live (conquistas, multiplayer, Game Pass) podem parar de funcionar corretamente.",
+      "impacto_manter": "Fica pronto para autenticar sua conta Xbox sempre que um jogo integrado precisar, mesmo que voce nao jogue nada do Xbox/Game Pass."
+    },
+    {
+      "nome": "XblGameSave",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico 'Xbox Live Game Save' - sincroniza saves de jogos na nuvem para jogos integrados ao Xbox Live.",
+      "impacto_desativar": "Jogos integrados ao Xbox Live podem parar de sincronizar o progresso salvo na nuvem entre dispositivos.",
+      "impacto_manter": "Fica em segundo plano pronto para sincronizar saves, mesmo que voce nao jogue nada integrado ao Xbox."
+    },
+    {
+      "nome": "XboxNetApiSvc",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico 'Xbox Live Networking Service' - da suporte a funcionalidades de rede usadas por jogos multiplayer integrados ao Xbox Live (ex: NAT, conexao entre jogadores).",
+      "impacto_desativar": "Jogos multiplayer integrados ao Xbox Live podem ter problemas de conexao entre jogadores.",
+      "impacto_manter": "Fica pronto para dar suporte de rede a jogos Xbox, mesmo que voce nao jogue nada integrado a essa plataforma."
+    },
+    {
+      "nome": "XboxGipSvc",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico 'Xbox Accessory Management Service' - gerencia acessorios Xbox conectados ao PC, como controles sem fio Xbox.",
+      "impacto_desativar": "Se voce usa um controle Xbox (com ou sem fio) no PC, ele pode parar de funcionar corretamente ate reativar o servico.",
+      "impacto_manter": "Fica pronto para gerenciar acessorios Xbox conectados, mesmo que voce nao use nenhum."
+    },
+    {
+      "nome": "Publicar Historico de Atividades",
+      "tipo": "telemetry",
+      "classificacao": "seguro",
+      "descricao": "Controla se o Windows registra seu historico de atividades (apps abertos, documentos recentes) para o recurso de Linha do Tempo (Timeline).",
+      "impacto_desativar": "O Windows para de registrar seu historico de atividades para o recurso de Timeline.",
+      "impacto_manter": "O Windows continua registrando quais apps e documentos voce usa recentemente.",
+      "valor_recomendado": "0"
+    },
+    {
+      "nome": "Enviar Historico de Atividades para a Conta Microsoft",
+      "tipo": "telemetry",
+      "classificacao": "seguro",
+      "descricao": "Controla se o historico de atividades registrado localmente e enviado para a nuvem, para sincronizar entre seus dispositivos vinculados a mesma conta Microsoft.",
+      "impacto_desativar": "Seu historico de atividades deixa de ser sincronizado com a nuvem/outros dispositivos.",
+      "impacto_manter": "Seu historico de atividades (apps, documentos) e enviado para sincronizar com sua conta Microsoft na nuvem.",
+      "valor_recomendado": "0"
+    },
+    {
+      "nome": "Rastreamento de Localizacao (Location Services)",
+      "tipo": "telemetry",
+      "classificacao": "depende",
+      "descricao": "Politica que controla, para todo o sistema, se os aplicativos podem acessar a localizacao do dispositivo.",
+      "impacto_desativar": "Apps que dependem de localizacao (mapas, clima local automatico, recursos de seguranca como 'Encontrar meu dispositivo') podem parar de funcionar corretamente.",
+      "impacto_manter": "Apps podem acessar a localizacao do seu dispositivo quando voce autorizar.",
+      "valor_recomendado": "1"
+    },
+    {
+      "nome": "Secao 'Recomendado' no Menu Iniciar",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Controla a exibicao da secao 'Recomendado' (arquivos e apps recentes/sugeridos) que ocupa boa parte do Menu Iniciar no Windows 11.",
+      "impacto_desativar": "A secao 'Recomendado' desaparece do Menu Iniciar, deixando mais espaco para os apps fixados.",
+      "impacto_manter": "O Menu Iniciar continua mostrando arquivos/apps recentes e sugeridos na secao 'Recomendado'.",
+      "valor_recomendado": "0"
     }
   ]
 }
