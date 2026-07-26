@@ -3,6 +3,8 @@ package com.nitroboost.ui;
 import com.nitroboost.core.HardwareIdentityScanner;
 import com.nitroboost.core.HardwareIdentityScanner.BoardIdentity;
 import com.nitroboost.core.HardwareIdentityScanner.DriverInfo;
+import com.nitroboost.db.DatabaseManager;
+import com.nitroboost.updates.OnlineUpdateChecker;
 import com.nitroboost.updates.VendorLinkStrategy;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectWrapper;
@@ -25,14 +27,17 @@ import java.net.URI;
 import java.util.List;
 
 /**
- * Tela "BIOS / DRIVERS" (Fase 11 - Nivel 1): mostra fabricante/modelo/versao e data da BIOS
- * detectados via {@link HardwareIdentityScanner}, a lista de drivers relevantes instalados, e
- * botoes para abrir a pagina de suporte do fabricante (deteccao automatica via
- * {@link VendorLinkStrategy#resolve(String)}), nas 3 camadas de fallback do documento da fase.
+ * Tela "BIOS / DRIVERS" (Fase 11): mostra fabricante/modelo/versao e data da BIOS detectados via
+ * {@link HardwareIdentityScanner}, a lista de drivers relevantes instalados, botoes para abrir a
+ * pagina de suporte do fabricante (Nivel 1 - deteccao automatica via
+ * {@link VendorLinkStrategy#resolve(String)}, nas 3 camadas de fallback do documento da fase, 100%
+ * confiavel) e um botao "Verificar Atualizacao Online" (Nivel 2 - melhor esforco, via
+ * {@link OnlineUpdateChecker}, so dispara quando o usuario clica, nunca automaticamente durante a
+ * deteccao inicial).
  *
- * Nenhuma acao desta tela modifica BIOS/drivers - e so deteccao + link, igual ao padrao ja usado
- * no tutorial de XMP (Fase 5). Por isso, diferente das demais telas do NITRO BOOST, esta view nao
- * usa ActionExecutor/LockManager/BackupManager (nao ha nada para bloquear ou reverter aqui).
+ * Nenhuma acao desta tela modifica BIOS/drivers - e so deteccao + link/consulta, igual ao padrao ja
+ * usado no tutorial de XMP (Fase 5). Por isso, diferente das demais telas do NITRO BOOST, esta view
+ * nao usa ActionExecutor/LockManager/BackupManager (nao ha nada para bloquear ou reverter aqui).
  */
 public class HardwareUpdateView extends BorderPane {
 
@@ -47,13 +52,18 @@ public class HardwareUpdateView extends BorderPane {
     private final Button openSupportButton = new Button("🔗 Abrir Pagina de Suporte");
     private final Button openVendorSearchButton = new Button("Buscar no Site do Fabricante");
     private final Button openExternalSearchButton = new Button("Buscar no Google");
+    private final Button checkOnlineButton = new Button("🌐 Verificar Atualizacao Online");
+    private final Label onlineCheckStatusLabel = new Label("");
 
     private final TableView<DriverInfo> driversTable = new TableView<>();
+
+    private final OnlineUpdateChecker onlineUpdateChecker;
 
     private VendorLinkStrategy resolvedStrategy;
     private String detectedModel = "";
 
-    public HardwareUpdateView() {
+    public HardwareUpdateView(DatabaseManager databaseManager) {
+        this.onlineUpdateChecker = new OnlineUpdateChecker(databaseManager);
         getStyleClass().add("carbon-bg-subtle");
         setPadding(new Insets(24));
 
@@ -135,13 +145,65 @@ public class HardwareUpdateView extends BorderPane {
         openExternalSearchButton.getStyleClass().add("btn-secondary");
         openExternalSearchButton.setOnAction(e -> openUrl(resolvedStrategy == null ? null : resolvedStrategy.externalSearchUrl(detectedModel)));
 
+        Label onlineHint = new Label("Verificacao automatica (melhor esforco): tenta ler a versao mais recente de BIOS "
+                + "direto do site do fabricante. Pode nao funcionar sempre - sites de fabricante mudam de estrutura "
+                + "com frequencia. Resultado fica em cache por 24h para nao sobrecarregar o site do fabricante.");
+        onlineHint.getStyleClass().add("text-secondary");
+        onlineHint.setWrapText(true);
+
+        checkOnlineButton.getStyleClass().add("btn-secondary");
+        checkOnlineButton.setOnAction(e -> runOnlineCheck());
+
+        onlineCheckStatusLabel.getStyleClass().add("text-secondary");
+        onlineCheckStatusLabel.setWrapText(true);
+
         VBox box = new VBox(10, cardTitle, new HBox(8, vendorCaption, vendorLabel), hint,
-                openSupportButton, openVendorSearchButton, openExternalSearchButton);
+                openSupportButton, openVendorSearchButton, openExternalSearchButton,
+                onlineHint, checkOnlineButton, onlineCheckStatusLabel);
         box.getStyleClass().add("card");
         box.setPadding(new Insets(16));
         VBox.setVgrow(box, Priority.ALWAYS);
         HBox.setHgrow(box, Priority.ALWAYS);
         return box;
+    }
+
+    /**
+     * Dispara a verificacao online (Nivel 2) em thread de fundo - so quando o usuario clica neste
+     * botao, nunca automaticamente. Requisicao HTTP real (ou cache local) pode levar alguns
+     * segundos; qualquer falha (timeout, site fora do ar, robots.txt bloqueando, parser nao
+     * implementado para este fabricante, estrutura da pagina mudou) e tratada de forma graciosa por
+     * {@link OnlineUpdateChecker} - esta view so exibe a mensagem pronta que ele devolve, nunca
+     * lanca excecao para a UI.
+     */
+    private void runOnlineCheck() {
+        checkOnlineButton.setDisable(true);
+        onlineCheckStatusLabel.getStyleClass().removeAll("text-danger", "text-success");
+        onlineCheckStatusLabel.getStyleClass().add("text-secondary");
+        onlineCheckStatusLabel.setText("Verificando no site do fabricante (pode levar alguns segundos)...");
+
+        String vendor = resolvedStrategy == null ? null : resolvedStrategy.vendorName();
+        String model = detectedModel;
+        String pageUrl = resolvedStrategy == null ? null : bestDeepUrl();
+
+        Thread thread = new Thread(() -> {
+            OnlineUpdateChecker.CheckResult result;
+            try {
+                result = onlineUpdateChecker.checkForUpdate(vendor, model, pageUrl);
+            } catch (Exception e) {
+                result = new OnlineUpdateChecker.CheckResult(false,
+                        "Nao foi possivel verificar automaticamente agora - use o link abaixo para checar manualmente.",
+                        null, false);
+            }
+            OnlineUpdateChecker.CheckResult finalResult = result;
+            Platform.runLater(() -> {
+                checkOnlineButton.setDisable(false);
+                onlineCheckStatusLabel.getStyleClass().removeAll("text-danger", "text-success", "text-secondary");
+                onlineCheckStatusLabel.getStyleClass().add(finalResult.success() ? "text-success" : "text-secondary");
+                onlineCheckStatusLabel.setText(finalResult.message());
+            });
+        }, "nitroboost-online-update-check");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     /** Camada 1 (link profundo) se existir; cai para a camada 2 (busca do fabricante) senao. */
@@ -208,6 +270,7 @@ public class HardwareUpdateView extends BorderPane {
         openSupportButton.setDisable(!enabled);
         openVendorSearchButton.setDisable(!enabled || resolvedStrategy == null || resolvedStrategy.vendorSearchUrl(detectedModel) == null);
         openExternalSearchButton.setDisable(!enabled);
+        checkOnlineButton.setDisable(!enabled);
     }
 
     /**
