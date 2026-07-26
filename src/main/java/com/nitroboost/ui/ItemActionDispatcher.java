@@ -48,6 +48,10 @@ public final class ItemActionDispatcher {
             case "process" -> "Finalizar";
             case "powerplan" -> "Ativar";
             case "bloatware", "onedrive_uninstall" -> "Desinstalar";
+            // Fase 14 Parte 2: item informativo (taxa de atualizacao da tela) - a acao principal so
+            // ABRE a tela nativa de configuracoes do Windows (Nivel 1, sempre seguro), nunca "desativa"
+            // nem altera nada sozinho - texto generico "Desativar" ficaria enganoso aqui.
+            case "display" -> "Abrir Configuracoes de Tela";
             default -> "Desativar";
         };
     }
@@ -158,6 +162,11 @@ public final class ItemActionDispatcher {
                     var definition = (ConsumerFeatureScanner.ConsumerFeatureKeyDefinition) item.source();
                     yield executor.setConsumerFeatureValue(definition, definition.recommendedValue());
                 }
+                // Item fixo de catalogo (Fase 14 Parte 2, sem "source" a fazer cast - mesmo raciocinio
+                // do item de hibernacao/armazenamento reservado): so ABRE a tela nativa de
+                // Configuracoes de Tela do Windows, nunca altera nada sozinho (Nivel 1 - ver
+                // ActionExecutor.openDisplaySettings).
+                case "display" -> executor.openDisplaySettings();
                 // Item fixo de catalogo (nao vem de um scanner - ver SystemScanTask), sem "source" a
                 // fazer cast: a acao mais drastica do projeto (Fase 12 Parte A, secao A.4), por isso
                 // SEMPRE exige confirmacao extra explicita antes de chegar aqui (ver

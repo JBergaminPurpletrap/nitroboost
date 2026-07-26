@@ -1406,6 +1406,39 @@ public class ActionExecutor {
         }
     }
 
+    /**
+     * Comando usado por {@link #openDisplaySettings()} - extraido para um metodo separado (visibilidade
+     * de pacote) para que possa ser validado por teste sem executar de verdade (Fase 14 Parte 2:
+     * regra de ouro do projeto - nunca abrir de fato uma tela de configuracoes real num teste
+     * automatizado via console).
+     */
+    public static String[] displaySettingsCommand() {
+        return new String[] {"cmd", "/c", "start", "ms-settings:display"};
+    }
+
+    /**
+     * Abre a pagina nativa de Configuracoes de Tela do Windows ({@code ms-settings:display}) - Nivel
+     * 1 da Fase 14 Parte 2 ("sempre seguro"): o usuario troca a taxa de atualizacao manualmente pela
+     * propria tela de configuracao nativa do Windows, nunca automaticamente pelo NITRO BOOST (o
+     * Nivel 2 - troca automatica via {@code ChangeDisplaySettingsEx} - foi deliberadamente NAO
+     * implementado nesta fase, pelo risco de tela preta se a taxa aplicada nao for suportada pelo
+     * monitor - ver {@code docs/PROGRESS.md}).
+     *
+     * <p>Excecao deliberada ao contrato padrao desta classe (mesmo raciocinio ja documentado em
+     * {@code core.MemoryCleaner}): NAO passa por {@link LockManager}/{@link BackupManager}/{@code
+     * actions_history} - nao ha "item"/estado do sistema sendo alterado aqui, apenas abrindo uma tela
+     * nativa do proprio Windows (nenhum registro/servico/configuracao e tocado por este metodo).
+     */
+    public ActionResult openDisplaySettings() {
+        try {
+            new ProcessBuilder(displaySettingsCommand()).start();
+            return new ActionResult(true,
+                    "Configuracoes de Tela do Windows abertas. Escolha a taxa de atualizacao desejada por la.", null);
+        } catch (Exception e) {
+            return new ActionResult(false, "Nao foi possivel abrir as Configuracoes de Tela: " + e.getMessage(), null);
+        }
+    }
+
     // ------------------------------------------------------------------
     // Utilitarios internos
     // ------------------------------------------------------------------

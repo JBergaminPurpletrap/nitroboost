@@ -172,7 +172,11 @@ public class AuditView extends BorderPane {
         row.setAlignment(Pos.CENTER_LEFT);
 
         if (finding.status() == AuditFinding.Status.SUGESTAO) {
-            Button applyButton = new Button("Aplicar");
+            // Fase 14 Parte 2: o item de taxa de atualizacao da tela nao "aplica" nada sozinho - so
+            // abre a tela nativa de Configuracoes do Windows (Nivel 1) - o texto generico "Aplicar"
+            // ficaria enganoso aqui. Demais itens continuam com o texto generico de sempre.
+            String buttonLabel = "display".equals(finding.itemType()) ? "Abrir Configuracoes de Tela" : "Aplicar";
+            Button applyButton = new Button(buttonLabel);
             applyButton.getStyleClass().add("btn-secondary");
             applyButton.setOnAction(e -> {
                 applyButton.setDisable(true);
@@ -242,8 +246,8 @@ public class AuditView extends BorderPane {
         detail.setWrapText(false);
         detail.setPrefRowCount(Math.min(12, suggestions.size()));
         VBox content = new VBox(8,
-                new Label("Cada item abaixo tera seu valor alterado para o recomendado, com backup individual "
-                        + "(itens bloqueados sao recusados automaticamente, sem interromper os demais):"),
+                new Label("Cada item abaixo tera sua acao de melhoria aplicada individualmente, com backup quando "
+                        + "aplicavel (itens bloqueados sao recusados automaticamente, sem interromper os demais):"),
                 detail);
         confirm.getDialogPane().setContent(content);
         if (confirm.showAndWait().filter(b -> b == ButtonType.OK).isEmpty()) {
