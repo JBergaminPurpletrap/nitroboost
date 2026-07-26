@@ -60,6 +60,20 @@ public class GamingScanner {
                             + "sem gravar ativamente.",
                     "0"
             ),
+            // Fase 14: politica equivalente ao GameDVR_Enabled acima, mas em HKLM - reforca o efeito
+            // e cobre todos os usuarios da maquina, em vez de so o usuario atual.
+            new GamingKeyDefinition(
+                    "game_dvr_policy",
+                    "Game DVR - Politica (Todos os Usuarios)",
+                    "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR",
+                    "AllowGameDVR",
+                    "Politica equivalente ao 'Game DVR (Gravacao em Segundo Plano)' acima, mas aplicada a todos "
+                            + "os usuarios deste PC (chave em HKLM - normalmente exige Administrador para alterar). "
+                            + "O Windows grava automaticamente o que acontece na tela em segundo plano, mesmo sem "
+                            + "gravacao manual ativa - isso consome RAM e um pouco de CPU/disco continuamente "
+                            + "enquanto voce joga. Desativar nao impede gravacoes manuais via Win+Alt+R.",
+                    "0"
+            ),
             new GamingKeyDefinition(
                     "game_mode_auto",
                     "Modo de Jogo (Game Mode) do Windows",

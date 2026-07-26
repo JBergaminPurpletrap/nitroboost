@@ -27,9 +27,24 @@ public final class ItemActionDispatcher {
         // Classe utilitaria, nao deve ser instanciada.
     }
 
-    /** Rotulo do botao de acao principal, adaptado ao tipo do item. */
-    public static String primaryActionLabel(String type) {
-        return switch (type) {
+    /** ID do unico item do projeto onde a acao principal ATIVA (nao desativa) - ver {@link #primaryActionLabel}. */
+    private static final String GAME_MODE_ITEM_ID = "game_mode_auto";
+
+    /**
+     * Rotulo do botao de acao principal, adaptado ao tipo do item.
+     *
+     * <p>Excecao especial (Fase 14): o "Modo de Jogo" e o unico item do projeto inteiro onde a
+     * sugestao de melhoria e ATIVAR (valor recomendado "1"), nao desativar como todos os outros
+     * itens do tipo {@code gaming}/{@code performance}/{@code telemetry}/etc. O texto generico
+     * "Desativar" ficaria enganoso aqui, entao este item precisa do proprio ID checado antes do
+     * {@code switch} generico por tipo.</p>
+     */
+    public static String primaryActionLabel(ScannedItem item) {
+        if ("gaming".equals(item.type()) && item.source() instanceof GamingScanner.GamingKeyDefinition definition
+                && GAME_MODE_ITEM_ID.equals(definition.id())) {
+            return "Ativar Modo de Jogo";
+        }
+        return switch (item.type()) {
             case "process" -> "Finalizar";
             case "powerplan" -> "Ativar";
             case "bloatware", "onedrive_uninstall" -> "Desinstalar";

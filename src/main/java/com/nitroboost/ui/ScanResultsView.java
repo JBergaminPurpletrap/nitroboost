@@ -348,7 +348,7 @@ public class ScanResultsView extends BorderPane {
 
             detailsButton.setOnAction(e -> openDetail(item));
 
-            primaryButton.setText(ItemActionDispatcher.primaryActionLabel(item.type()));
+            primaryButton.setText(ItemActionDispatcher.primaryActionLabel(item));
             primaryButton.getStyleClass().removeAll("btn-secondary", "btn-danger");
             primaryButton.getStyleClass().add(item.classification() == ItemClassification.ESSENCIAL ? "btn-danger" : "btn-secondary");
             primaryButton.setOnAction(e -> {

@@ -2224,3 +2224,36 @@ Todos os itens da seção C.4 e do checklist geral da Fase 12 estão marcados `[
 Isso fecha o ciclo principal de funcionalidades planejadas do NITRO BOOST. Próximas fases (não
 iniciadas) podem focar em polish visual, perfis de otimização (gaming/produtividade), ou exportação de
 configurações entre PCs, conforme a nota final do documento da Fase 12.
+
+---
+
+## 2026-07-26 — Fase 14 - Parte 1 (Ajustes em itens já existentes das Fases 8/9)
+
+Conforme `docs/NITRO-BOOST-fase14-melhorias-diagnostico.md` - só a Parte 1 (reforços em dados/UI de
+itens já existentes), sem código de scanner novo além do item complementar de Game DVR:
+
+- **Game DVR (`GamingScanner`):** `valor_recomendado` já estava `0`, confirmado sem alteração.
+  Adicionado item novo **"Game DVR - Politica (Todos os Usuarios)"** (`game_dvr_policy`,
+  `HKLM\SOFTWARE\Policies\Microsoft\Windows\GameDVR` → `AllowGameDVR`), reforçando o efeito para
+  todos os usuários do PC - mesmo padrão defensivo dos demais itens de `GamingScanner`.
+- **Modo de Jogo:** já estava com `valor_recomendado="1"` (ativado) tanto no `knowledge-base.json`
+  quanto em `GamingScanner.recommendedValue` - confirmado, sem necessidade de inverter nada (já
+  correto de uma fase anterior). Ajustado o texto do botão de ação: `ItemActionDispatcher` agora
+  tem uma checagem especial pelo `id` do item (`game_mode_auto`) que retorna **"Ativar Modo de
+  Jogo"** em vez do texto genérico "Desativar" usado por padrão para o tipo `gaming` - único item
+  do projeto inteiro com essa exceção. Usado tanto em `ScanResultsView` (tabela) quanto
+  `ItemDetailView` (modal de detalhes).
+- **Delivery Optimization (`PerformanceScanner`):** **bug real encontrado e corrigido** - o
+  `valor_recomendado` estava `1` (restringir a rede local), mas o documento pede `0` (desligado por
+  completo, nunca compartilha nem recebe de outros PCs). Corrigido em ambas as fontes (
+  `knowledge-base.json` e `PerformanceScanner.recommendedValue`, que precisam ficar sincronizadas
+  já que uma alimenta o Diagnóstico do Sistema e a outra alimenta o botão de ação rápida). Descrição
+  também ajustada para refletir a nova recomendação.
+- **Chat/Continuar (`TaskbarMn`):** confirmado que já está com `valor_recomendado="0"` desde a Fase
+  8, sem necessidade de ajuste.
+
+`./mvnw -q compile` e `./mvnw test` (40/40) confirmados após as mudanças.
+
+Parte 1 concluída. Aguardando validação do usuário antes de seguir para a Parte 2 (`DisplayScanner`
+- taxa de atualização da tela) e Parte 3 (ícones da barra de tarefas), conforme instruído em
+`docs/prompt-fase14-melhorias-diagnostico.md`.

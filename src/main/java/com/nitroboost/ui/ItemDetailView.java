@@ -87,7 +87,7 @@ public final class ItemDetailView {
 
         boolean[] locked = {context.lockManager().isLocked(item.name(), item.type())};
 
-        Button primaryButton = new Button(ItemActionDispatcher.primaryActionLabel(item.type()));
+        Button primaryButton = new Button(ItemActionDispatcher.primaryActionLabel(item));
         primaryButton.getStyleClass().add(item.classification() == ItemClassification.ESSENCIAL ? "btn-danger" : "btn-turbo");
 
         // Alguns itens de IA (Windows Copilot, Windows Recall) suportam uma SEGUNDA acao, alem de

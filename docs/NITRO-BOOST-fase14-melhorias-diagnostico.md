@@ -85,11 +85,11 @@ Marcar como 🟡 sugestão quando a taxa atual for menor que a máxima suportada
 ## Checklist de Implementação (Fase 14)
 
 ### Reforços em scanners existentes (sem código novo, só dados)
-- [ ] Confirmar/ajustar `valor_recomendado` do item Game DVR no `knowledge-base.json` para `0` (Fase 9 → `GamingScanner`)
-- [ ] Adicionar a política `AllowGameDVR` como verificação complementar no `GamingScanner`
-- [ ] **Inverter** o `valor_recomendado` do item Modo de Jogo para `1` (ativado) no `knowledge-base.json`, e garantir que o texto do botão de ação seja "Ativar", não o texto genérico usado nos itens que desativam
-- [ ] Confirmar/ajustar `valor_recomendado` do item Delivery Optimization (`DODownloadMode`) para `0` no `knowledge-base.json` (Fase 9 → `PerformanceScanner`)
-- [ ] Confirmar que o item "Chat/Continuar" (`TaskbarMn`) já está corretamente classificado desde a Fase 8
+- [x] Confirmar/ajustar `valor_recomendado` do item Game DVR no `knowledge-base.json` para `0` (Fase 9 → `GamingScanner`) — já estava `0`, confirmado
+- [x] Adicionar a política `AllowGameDVR` como verificação complementar no `GamingScanner` — novo item "Game DVR - Politica (Todos os Usuarios)" (`game_dvr_policy`, HKLM)
+- [x] **Inverter** o `valor_recomendado` do item Modo de Jogo para `1` (ativado) no `knowledge-base.json` — já estava `1` (tanto no JSON quanto em `GamingScanner.recommendedValue`), confirmado; texto do botão agora diz "Ativar Modo de Jogo" (`ItemActionDispatcher.primaryActionLabel`, checagem especial pelo `id` do item)
+- [x] Confirmar/ajustar `valor_recomendado` do item Delivery Optimization (`DODownloadMode`) para `0` no `knowledge-base.json` (Fase 9 → `PerformanceScanner`) — **estava `1` (incorreto), corrigido para `0`** em ambas as fontes (JSON e `PerformanceScanner.recommendedValue`)
+- [x] Confirmar que o item "Chat/Continuar" (`TaskbarMn`) já está corretamente classificado desde a Fase 8 — confirmado, `valor_recomendado="0"`, correto
 
 ### Recurso novo: Taxa de Atualização da Tela
 - [ ] Criar `DisplayScanner.java` (`core/`) com `getCurrentRefreshRate()` e `getAvailableRefreshRates()` via JNA (`EnumDisplaySettingsEx`)

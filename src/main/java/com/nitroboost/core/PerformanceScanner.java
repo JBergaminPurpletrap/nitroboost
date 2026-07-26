@@ -123,9 +123,9 @@ public class PerformanceScanner {
                     "HKLM\\SOFTWARE\\Microsoft\\Windows\\DeliveryOptimization\\Config",
                     "DODownloadMode",
                     "Por padrao pode compartilhar atualizacoes do Windows com outros PCs pela internet (P2P), "
-                            + "consumindo banda de upload. Restringir a 'so PCs da minha rede local' (ou desativar) "
-                            + "economiza banda.",
-                    "1"
+                            + "consumindo banda de upload sem voce perceber. Desligar (valor 0) restringe as "
+                            + "atualizacoes a virem so da Microsoft, nunca compartilhando nem recebendo de outros PCs.",
+                    "0"
             ),
             // ---- Fase 12 Parte A: bloquear atualizacao de driver de video via Windows Update ----
             new PerformanceKeyDefinition(

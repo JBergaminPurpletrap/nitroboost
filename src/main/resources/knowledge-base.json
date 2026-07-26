@@ -671,10 +671,10 @@
       "nome": "Otimizacao de Entrega do Windows Update (Delivery Optimization)",
       "tipo": "performance",
       "classificacao": "seguro",
-      "descricao": "Por padrao, o Windows pode compartilhar atualizacoes ja baixadas com outros PCs pela internet (like um P2P), consumindo banda de upload da sua conexao.",
-      "impacto_desativar": "Voce deixa de compartilhar atualizacoes com PCs de fora da sua rede (ou desativa o compartilhamento por completo) - o recebimento de atualizacoes do Windows continua funcionando normalmente, so muda a 'forma de entrega'.",
+      "descricao": "Por padrao, o Windows pode usar sua internet para enviar atualizacoes para outros PCs (seus ou de terceiros na internet), consumindo banda de upload sem que voce perceba.",
+      "impacto_desativar": "Desliga completamente o compartilhamento: as atualizacoes passam a vir so da Microsoft, nunca sendo enviadas nem recebidas de outros PCs - o recebimento de atualizacoes do Windows continua funcionando normalmente, so muda a 'forma de entrega'.",
       "impacto_manter": "Seu PC pode usar banda de upload para ajudar outros PCs (dentro ou fora da sua rede, dependendo da configuracao) a baixar atualizacoes mais rapido - util para a comunidade, mas consome sua banda.",
-      "valor_recomendado": "1"
+      "valor_recomendado": "0"
     },
     {
       "nome": "Arquivo de Hibernacao",
@@ -697,9 +697,18 @@
       "nome": "Game DVR (Gravacao em Segundo Plano)",
       "tipo": "gaming",
       "classificacao": "seguro",
-      "descricao": "Recurso do Xbox Game Bar que grava continuamente um buffer em segundo plano para permitir salvar os 'ultimos minutos' de jogo, mesmo sem estar gravando ativamente.",
+      "descricao": "O Windows grava automaticamente o que acontece na tela em segundo plano, mesmo sem gravacao manual ativa. Isso consome RAM e um pouco de CPU/disco continuamente enquanto voce joga. Desativar nao impede gravacoes manuais via Win+Alt+R.",
       "impacto_desativar": "Voce perde a funcao de salvar clipes automaticos do Xbox Game Bar; a gravacao manual (Win+Alt+R) pode continuar disponivel dependendo da configuracao.",
       "impacto_manter": "Consome CPU/GPU/disco continuamente para manter o buffer de gravacao, mesmo em jogos onde voce nunca salva um clipe.",
+      "valor_recomendado": "0"
+    },
+    {
+      "nome": "Game DVR - Politica (Todos os Usuarios)",
+      "tipo": "gaming",
+      "classificacao": "seguro",
+      "descricao": "Politica equivalente ao 'Game DVR (Gravacao em Segundo Plano)', mas aplicada a todos os usuarios deste PC (chave em HKLM - normalmente exige Administrador para alterar). Reforca o mesmo efeito de reduzir consumo de RAM/CPU/disco em segundo plano.",
+      "impacto_desativar": "Mesmo efeito do item de Game DVR do usuario atual, mas valendo para todas as contas deste PC.",
+      "impacto_manter": "Consome recursos em segundo plano para todas as contas do PC, nao so a atual.",
       "valor_recomendado": "0"
     },
     {
