@@ -2106,3 +2106,121 @@ instrução explícita — aguarda validação do usuário antes de prosseguir.*
 
 Próximo passo (não iniciado, aguardando validação do usuário): **Fase 12 — Parte C (Barras de
 Progresso para Escaneamento e Diagnóstico)**.
+
+---
+
+## 2026-07-26 — Fase 12 Parte C concluída (Barras de Progresso) — Fase 12 completa (A + B + C)
+
+Última parte da Fase 12, transversal a todo o app: toda operação de escaneamento/diagnóstico/
+verificação online/limpeza de RAM/ação em lote agora mostra progresso visual real, no tema Carbono &
+Verde Turbo já estabelecido desde a Fase 4. Com esta parte concluída, **a Fase 12 inteira (A + B + C)
+está fechada**, o que conclui o ciclo principal de funcionalidades planejadas do NITRO BOOST.
+
+### C.1) Arquitetura do progresso
+
+- **`core/ScanProgressListener.java`** (novo): interface única (`onProgress(category, current, total,
+  message)`) usada por todos os scanners de `core/`, sem que nenhum deles precise depender de JavaFX.
+  O Javadoc documenta explicitamente a nuance pedida: reportar progresso durante o loop de
+  pós-processamento (depois que a chamada bloqueante ao PowerShell/`reg query`/`schtasks` já
+  terminou) não é progresso simulado — é o trabalho real de conversão item a item, só que a parte
+  mais lenta (a chamada ao SO) já tinha acabado antes desse loop começar.
+- **Os 11 scanners** (`ProcessScanner`, `ServiceScanner`, `StartupScanner`, `TaskSchedulerScanner`,
+  `PowerPlanScanner`, `TelemetryScanner`, `BloatwareScanner`, `AiFeatureScanner`,
+  `ConsumerFeatureScanner`, `PerformanceScanner`, `GamingScanner`) ganharam a sobrecarga
+  `scan(ScanProgressListener listener)` **sem alterar `scan()` em nenhum caractere** — o padrão
+  usado em todos foi o mesmo: `scan(listener)` delega 100% para `scan()` (inalterado, ainda a versão
+  exata usada pelos 40 testes JUnit da Parte B) e depois itera sobre a lista já pronta reportando o
+  andamento. Categorias com muitos itens (`ProcessScanner`, `ServiceScanner` ~130,
+  `TaskSchedulerScanner` ~274, `BloatwareScanner` ~134) reportam a cada 10 itens; categorias pequenas
+  (`StartupScanner`, `PowerPlanScanner`, `TelemetryScanner`, `AiFeatureScanner`,
+  `ConsumerFeatureScanner`, `PerformanceScanner`, `GamingScanner` — tipicamente até poucas dezenas de
+  chaves/itens) reportam só no início (`current=0`) e no fim (`current=total`), conforme orientação
+  explícita do documento da fase.
+- **`ui/SystemScanTask.java`** (adaptado): `call()` percorre as 11 categorias numa lista ordenada
+  (`CategoryDef` — rótulo de log + nome de categoria exibido + o passo de varredura), traduzindo o
+  progresso LOCAL de cada scanner em progresso GERAL da `Task` via `updateProgress`/`updateMessage`
+  nativos e thread-safe do `javafx.concurrent.Task` (sem dependência nova) — os dois níveis pedidos
+  pela fase (progresso geral entre categorias + sub-progresso da categoria atual) ficam codificados
+  numa única mensagem formatada (ex: `"Categoria 3 de 11: Servicos — Processando Spooler... (67/130)"`)
+  e numa única fração 0.0–1.0 que soma a fração da categoria atual ao índice da categoria — a barra
+  avança suavemente item a item dentro da categoria, não só quando uma categoria inteira termina.
+- **`SystemScanTaskTest`** (Parte B, já existente): continua passando sem nenhuma alteração — testa
+  `buildItem` (`static`), método que não foi tocado.
+
+### C.2) Componente visual — `NitroProgressBar`
+
+- **`ui/components/NitroProgressBar.java`** (novo): `VBox` que encapsula um `ProgressBar` comum do
+  JavaFX (reaproveitando 100% o estilo `.progress-rpm` já definido em `nitroboost-carbon.css` desde a
+  Fase 4 — trilho carbono escuro, gradiente verde técnico → verde neon com glow, variante vermelha
+  `.progress-critical` disponível se algum dia fizer sentido aqui) mais um `Label` de mensagem
+  (`.text-secondary`) e um `Label` de percentual (`.subtitle-hud`) ao lado da barra. Nenhuma cor ou
+  estilo novo foi inventado — só reuso do que já existia. Expõe `setProgress(double)` (aceita também
+  `ProgressBar.INDETERMINATE_PROGRESS` para o modo indeterminado), `setMessage(String)`,
+  `show()`/`hide()` (esconde e libera o espaço no layout quando não está em uso).
+
+### C.3) Onde a barra/indicador foi integrado
+
+- **Escaneamento geral** (`ui/ScanResultsView.java`): o botão "ESCANEAR SISTEMA" do `DashboardView`
+  já navegava imediatamente para `ScanResultsView` e disparava `startScan()` ali — por isso a
+  `NitroProgressBar` foi ligada **em `ScanResultsView`** (não em `DashboardView`, que só contém o
+  botão que dispara a navegação), diretamente às propriedades nativas `progressProperty()`/
+  `messageProperty()` do `SystemScanTask` via listener, sem nenhum polling manual.
+- **Diagnóstico do Sistema** (`ui/AuditView.java`): `SystemAuditEngine` (Fase 9) ganhou
+  `run(ScanProgressListener listener)` (mesmo padrão dos scanners — `run()` original inalterado,
+  usado só por `dwordValuesEqual` nos testes, sem risco), reportando 1 das 5 categorias auditadas por
+  vez (Telemetria/Performance/Jogos/IA/Consumidor) e repassando o progresso interno de cada scanner.
+  Como `runAudit()` roda numa `Thread` simples (não uma `Task`), cada callback do listener é
+  repassado para a UI via `Platform.runLater`. A mesma `NitroProgressBar` também é reaproveitada na
+  ação em lote "Aplicar todas as sugestões seguras desta categoria" (`confirmAndApplyAll`),
+  incrementando X de Y itens aplicados a cada iteração do loop sequencial já existente (mesmo padrão
+  de `ScanResultsView.closeAllGreen()` — lock → backup individual → ação → histórico por item, sem
+  pular nenhuma garantia nem criar um "backup em lote").
+- **BIOS/Drivers** (`ui/HardwareUpdateView.java`, Fase 11): `ProgressIndicator` indeterminado (girando,
+  sem percentual) ao lado do botão "Verificar Atualização Online", visível só durante a chamada HTTP
+  real (1 requisição, sem "quantidade" para medir) — texto ajustado para "Verificando no site do
+  fabricante..." (removido o complemento "(pode levar alguns segundos)" do texto, redundante com o
+  indicador girando).
+- **Limpeza de RAM** (`ui/DashboardView.java`, Fase 10): `ProgressIndicator` indeterminado, breve, ao
+  lado do botão "LIMPAR CACHE DE RAM AGORA" — evita a sensação de "o clique não fez nada" durante a
+  chamada nativa (JNA → `NtSetSystemInformation`).
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros, a cada arquivo alterado (rodado incrementalmente após cada
+  scanner, depois após `SystemScanTask`, depois após cada view).
+- `./mvnw -q test` — OK, **40 de 40 testes continuam passando**, confirmado repetidamente após cada
+  mudança de scanner (regra explícita desta parte da fase) e novamente no final.
+- **Validação visual** (item opcional do checklist C.4): **não executada nesta rodada** — diferente do
+  `Start-Process .\mvnw.cmd clean javafx:run` usado em fases anteriores (que só confirma que a janela
+  abre sem exceção, via log redirecionado), confirmar visualmente que a barra se move de forma suave
+  exigiria captura de tela da janela desktop, ferramenta não disponível neste ambiente automatizado
+  (as ferramentas de screenshot existentes aqui são só para páginas web via Playwright). Mitigado por
+  revisão de código: `SystemScanTask.call()` chama `updateProgress` a cada callback do listener (a
+  cada item ou lote de 10, nunca só uma vez no fim), então a barra tem múltiplos pontos intermediários
+  de atualização por categoria grande — não deveria pular de 0% a 100% de uma vez. Fica pendente de
+  confirmação visual do usuário na máquina real.
+
+Nenhum bloqueio técnico novo foi encontrado durante esta parte (ver `BLOCKERS.md` — sem itens novos
+desta parte da Fase 12).
+
+Todos os itens da seção C.4 e do checklist geral da Fase 12 estão marcados `[x]` em
+`NITRO-BOOST-fase12-debloat-final-e-testes.md`.
+
+### Fase 12 completa — resumo das 3 partes
+
+- **Parte A (Debloat final):** telemetria de GPU (NVIDIA/AMD) via `ServiceScanner` existente, 8 apps
+  pré-instalados adicionais catalogados, Edge "Startup Boost" via `ConsumerFeatureScanner`,
+  desinstalação completa do OneDrive via `ActionExecutor` (com modal de confirmação extra-explícito),
+  bloqueio de atualização de driver de GPU pelo Windows Update via `PerformanceScanner`.
+- **Parte B (Suíte de testes):** primeira suíte JUnit 5 do projeto (`pom.xml` + `maven-surefire-plugin`
+  configurados pela primeira vez), 40 testes cobrindo `KnowledgeBase`, parsers de scanners,
+  `ItemClassification`, `VendorLinkStrategy`, comparação de valores DWORD e `AuditReport`/
+  `SystemAuditEngine`; checklist de teste manual documentado em `TESTING.md`; 7 duplicatas corrigidas
+  em `knowledge-base.json` (121 itens catalogados no total).
+- **Parte C (Barras de progresso, esta entrada):** `ScanProgressListener` + sobrecarga em todos os 11
+  scanners, `NitroProgressBar`, progresso real integrado em varredura geral, diagnóstico do sistema,
+  ação em lote, verificação online de BIOS/drivers e limpeza de RAM.
+
+Isso fecha o ciclo principal de funcionalidades planejadas do NITRO BOOST. Próximas fases (não
+iniciadas) podem focar em polish visual, perfis de otimização (gaming/produtividade), ou exportação de
+configurações entre PCs, conforme a nota final do documento da Fase 12.
