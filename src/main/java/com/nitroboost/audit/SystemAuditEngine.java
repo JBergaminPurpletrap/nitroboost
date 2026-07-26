@@ -4,6 +4,7 @@ import com.nitroboost.core.AiFeatureScanner;
 import com.nitroboost.core.ConsumerFeatureScanner;
 import com.nitroboost.core.GamingScanner;
 import com.nitroboost.core.PerformanceScanner;
+import com.nitroboost.core.ScanProgressListener;
 import com.nitroboost.core.TelemetryScanner;
 import com.nitroboost.knowledge.KnowledgeBase;
 import com.nitroboost.ui.SystemScanTask;
@@ -66,39 +67,101 @@ public class SystemAuditEngine {
         }
     }
 
+    /**
+     * Sobrecarga de {@link #run()} que reporta progresso via {@link ScanProgressListener} (Fase 12
+     * Parte C) - uma categoria auditada por vez (Telemetria/Performance/Jogos/IA/Consumidor),
+     * repassando o progresso interno de cada scanner (via {@code scan(listener)}) traduzido para o
+     * indice desta categoria dentro do total de 5. {@code run()} continua inalterado.
+     */
+    public AuditReport run(ScanProgressListener listener) {
+        List<AuditFinding> findings = new ArrayList<>();
+        List<AuditCategoryDef> categories = List.of(
+                new AuditCategoryDef("telemetria", SystemScanTask.CATEGORY_TELEMETRY, this::auditTelemetry),
+                new AuditCategoryDef("performance", SystemScanTask.CATEGORY_PERFORMANCE, this::auditPerformance),
+                new AuditCategoryDef("jogos", SystemScanTask.CATEGORY_GAMING, this::auditGaming),
+                new AuditCategoryDef("IA", SystemScanTask.CATEGORY_AI, this::auditAi),
+                new AuditCategoryDef("recursos de consumidor", SystemScanTask.CATEGORY_CONSUMER, this::auditConsumer)
+        );
+        int totalCategories = categories.size();
+        for (int i = 0; i < totalCategories; i++) {
+            AuditCategoryDef def = categories.get(i);
+            int categoryIndex = i;
+            ScanProgressListener bridged = listener == null ? null : (category, current, total, message) ->
+                    listener.onProgress(def.category(), categoryIndex, totalCategories,
+                            def.category() + ": " + message);
+            try {
+                def.step().run(findings, bridged);
+            } catch (Exception e) {
+                System.err.println("[NITRO BOOST] Erro ao rodar diagnostico de " + def.label() + ": " + e.getMessage());
+            }
+        }
+        if (listener != null) {
+            listener.onProgress("Diagnostico", totalCategories, totalCategories, "Diagnostico concluido.");
+        }
+        return new AuditReport(findings);
+    }
+
+    private interface AuditCategoryStep {
+        void run(List<AuditFinding> out, ScanProgressListener listener);
+    }
+
+    /** Amarra o rotulo de log, o nome de categoria exibido ao usuario e o passo de auditoria em si. */
+    private record AuditCategoryDef(String label, String category, AuditCategoryStep step) {
+    }
+
     private void auditTelemetry(List<AuditFinding> out) {
-        for (TelemetryScanner.TelemetryKeyInfo info : telemetryScanner.scan()) {
+        auditTelemetry(out, null);
+    }
+
+    private void auditTelemetry(List<AuditFinding> out, ScanProgressListener listener) {
+        for (TelemetryScanner.TelemetryKeyInfo info : telemetryScanner.scan(listener)) {
             out.add(evaluate(SystemScanTask.CATEGORY_TELEMETRY, "telemetry", info.definition().friendlyName(),
                     info.exists() ? info.currentValue() : null, info.definition()));
         }
     }
 
     private void auditPerformance(List<AuditFinding> out) {
+        auditPerformance(out, null);
+    }
+
+    private void auditPerformance(List<AuditFinding> out, ScanProgressListener listener) {
         // O arquivo de hibernacao (tipo "hibernation", tambem escaneado por PerformanceScanner) fica
         // FORA do diagnostico de proposito: nao tem "valor_recomendado" na base de conhecimento (o
         // proprio documento da Fase 9 trata como "depende se o usuario usa essa funcao ou nao").
-        for (PerformanceScanner.PerformanceKeyInfo info : performanceScanner.scan()) {
+        for (PerformanceScanner.PerformanceKeyInfo info : performanceScanner.scan(listener)) {
             out.add(evaluate(SystemScanTask.CATEGORY_PERFORMANCE, "performance", info.definition().friendlyName(),
                     info.exists() ? info.currentValue() : null, info.definition()));
         }
     }
 
     private void auditGaming(List<AuditFinding> out) {
-        for (GamingScanner.GamingKeyInfo info : gamingScanner.scan()) {
+        auditGaming(out, null);
+    }
+
+    private void auditGaming(List<AuditFinding> out, ScanProgressListener listener) {
+        for (GamingScanner.GamingKeyInfo info : gamingScanner.scan(listener)) {
             out.add(evaluate(SystemScanTask.CATEGORY_GAMING, "gaming", info.definition().friendlyName(),
                     info.exists() ? info.currentValue() : null, info.definition()));
         }
     }
 
     private void auditAi(List<AuditFinding> out) {
-        for (AiFeatureScanner.AiFeatureKeyInfo info : aiFeatureScanner.scan()) {
+        auditAi(out, null);
+    }
+
+    private void auditAi(List<AuditFinding> out, ScanProgressListener listener) {
+        for (AiFeatureScanner.AiFeatureKeyInfo info : aiFeatureScanner.scan(listener)) {
             out.add(evaluate(SystemScanTask.CATEGORY_AI, "ai", info.definition().friendlyName(),
                     info.exists() ? info.currentValue() : null, info.definition()));
         }
     }
 
     private void auditConsumer(List<AuditFinding> out) {
-        for (ConsumerFeatureScanner.ConsumerFeatureKeyInfo info : consumerFeatureScanner.scan()) {
+        auditConsumer(out, null);
+    }
+
+    private void auditConsumer(List<AuditFinding> out, ScanProgressListener listener) {
+        for (ConsumerFeatureScanner.ConsumerFeatureKeyInfo info : consumerFeatureScanner.scan(listener)) {
             out.add(evaluate(SystemScanTask.CATEGORY_CONSUMER, "consumer", info.definition().friendlyName(),
                     info.exists() ? info.currentValue() : null, info.definition()));
         }

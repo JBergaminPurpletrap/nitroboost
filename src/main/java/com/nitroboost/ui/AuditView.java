@@ -4,6 +4,8 @@ import com.nitroboost.actions.ActionExecutor;
 import com.nitroboost.audit.AuditFinding;
 import com.nitroboost.audit.AuditReport;
 import com.nitroboost.audit.SystemAuditEngine;
+import com.nitroboost.core.ScanProgressListener;
+import com.nitroboost.ui.components.NitroProgressBar;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -40,6 +42,7 @@ public class AuditView extends BorderPane {
     private final Label scoreLabel = new Label("Nenhum diagnostico executado ainda.");
     private final Label statusLabel = new Label();
     private final ProgressIndicator progressIndicator = new ProgressIndicator();
+    private final NitroProgressBar auditProgressBar = new NitroProgressBar();
     private final VBox resultsBox = new VBox(18);
 
     public AuditView(AppContext context) {
@@ -71,28 +74,44 @@ public class AuditView extends BorderPane {
         scrollPane.getStyleClass().add("scroll-pane");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
-        VBox root = new VBox(14, title, toolbar, scoreLabel, scrollPane, statusLabel);
+        VBox root = new VBox(14, title, toolbar, auditProgressBar, scoreLabel, scrollPane, statusLabel);
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
         setCenter(root);
     }
 
-    /** Dispara o diagnostico completo em background (le chaves de registro reais) e renderiza ao concluir. */
+    /**
+     * Dispara o diagnostico completo em background (le chaves de registro reais) e renderiza ao
+     * concluir. A barra de progresso (Fase 12 Parte C) reporta 1 das 5 categorias auditadas por vez
+     * (Telemetria/Performance/Jogos/IA/Consumidor) via {@link SystemAuditEngine#run(ScanProgressListener)}
+     * - como essa varredura roda numa {@link Thread} simples (nao um {@code javafx.concurrent.Task}),
+     * cada callback do listener e repassado para a UI via {@link Platform#runLater}.
+     */
     public void runAudit() {
         statusLabel.getStyleClass().removeAll("text-danger", "text-success");
         statusLabel.setText("Executando diagnostico...");
         progressIndicator.setVisible(true);
+        auditProgressBar.show();
+        auditProgressBar.setProgress(0);
+        auditProgressBar.setMessage("Iniciando diagnostico...");
 
         Thread thread = new Thread(() -> {
             try {
-                AuditReport report = engine.run();
+                ScanProgressListener listener = (category, current, total, message) -> Platform.runLater(() -> {
+                    double fraction = total > 0 ? (double) current / total : 0.0;
+                    auditProgressBar.setProgress(fraction);
+                    auditProgressBar.setMessage(message);
+                });
+                AuditReport report = engine.run(listener);
                 Platform.runLater(() -> {
                     progressIndicator.setVisible(false);
+                    auditProgressBar.hide();
                     statusLabel.setText("Diagnostico concluido.");
                     render(report);
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
                     progressIndicator.setVisible(false);
+                    auditProgressBar.hide();
                     statusLabel.getStyleClass().add("text-danger");
                     statusLabel.setText("Falha ao executar diagnostico: " + e.getMessage());
                 });
@@ -235,9 +254,15 @@ public class AuditView extends BorderPane {
         statusLabel.getStyleClass().removeAll("text-danger", "text-success");
         statusLabel.setText("Aplicando " + suggestions.size() + " sugestao(oes) de '" + category + "'...");
 
+        int total = suggestions.size();
+        auditProgressBar.show();
+        auditProgressBar.setProgress(0);
+        auditProgressBar.setMessage("0 de " + total + " item(ns) aplicado(s)...");
+
         Thread thread = new Thread(() -> {
             List<AuditFinding> succeeded = new ArrayList<>();
             int failed = 0;
+            int done = 0;
             for (AuditFinding f : suggestions) {
                 try {
                     ActionExecutor.ActionResult result = ItemActionDispatcher.performPrimaryAction(context.actionExecutor(), toScannedItem(f));
@@ -249,10 +274,17 @@ public class AuditView extends BorderPane {
                 } catch (Exception e) {
                     failed++;
                 }
+                done++;
+                int finalDone = done;
+                Platform.runLater(() -> {
+                    auditProgressBar.setProgress((double) finalDone / total);
+                    auditProgressBar.setMessage(finalDone + " de " + total + " item(ns) aplicado(s)...");
+                });
             }
             int finalFailed = failed;
             int finalSucceeded = succeeded.size();
             Platform.runLater(() -> {
+                auditProgressBar.hide();
                 statusLabel.getStyleClass().removeAll("text-danger", "text-success");
                 statusLabel.getStyleClass().add(finalFailed == 0 ? "text-success" : "text-danger");
                 statusLabel.setText(finalSucceeded + " item(ns) aplicado(s) com sucesso"
