@@ -88,12 +88,12 @@ Este recurso **nunca** deve ser oferecido como sugestão automática dentro do m
 - [x] Garantir que este recurso **não** apareça nas sugestões automáticas do Diagnóstico do Sistema (Fase 9)
 
 ### Debloat adicional
-- [ ] Adicionar os 10 serviços da seção 2.1 à base de conhecimento (a maioria já é lida pelo `ServiceScanner` existente — só falta classificação/descrição)
-- [ ] Criar `StorageOptimizer.java` (ou adicionar ao `PerformanceScanner` da Fase 9) para ler/alterar o estado do Armazenamento Reservado
-- [ ] Adicionar os 2 itens de privacidade (seção 2.3) ao `TelemetryScanner` existente (mesma estrutura já usada)
-- [ ] Adicionar o item de interface (seção 2.4) ao `ConsumerFeatureScanner` da Fase 8
-- [ ] Expandir `ActionExecutor` com os métodos correspondentes aos itens novos
-- [ ] Atualizar `PROGRESS.md` e marcar os itens no checklist principal
+- [x] Adicionar os 10 serviços da seção 2.1 à base de conhecimento (a maioria já é lida pelo `ServiceScanner` existente — só falta classificação/descrição)
+- [x] Criar `StorageOptimizer.java` (ou adicionar ao `PerformanceScanner` da Fase 9) para ler/alterar o estado do Armazenamento Reservado
+- [x] Adicionar os 2 itens de privacidade (seção 2.3) ao `TelemetryScanner` existente (mesma estrutura já usada)
+- [x] Adicionar o item de interface (seção 2.4) ao `ConsumerFeatureScanner` da Fase 8
+- [x] Expandir `ActionExecutor` com os métodos correspondentes aos itens novos
+- [x] Atualizar `PROGRESS.md` e marcar os itens no checklist principal
 
 **Critério de conclusão:** o app tem um botão funcional de limpeza de RAM com resultado visível (antes/depois), e a base de conhecimento cobre os itens clássicos de debloat que ainda faltavam, todos seguindo o mesmo padrão de segurança já estabelecido (exceto a limpeza de RAM, que é ação pontual sem reversão, conforme documentado).
 

@@ -1324,3 +1324,128 @@ não foi iniciada, conforme instrução explícita — aguarda validação do us
 
 Próximo passo (não iniciado, aguardando validação do usuário): **Fase 10 — Parte 2 (Debloat
 Adicional: serviços clássicos, Armazenamento Reservado, privacidade adicional, item de interface)**.
+
+---
+
+## 2026-07-26 — Fase 10 Parte 2 concluída (Debloat Adicional, fechamento de lacunas)
+
+Fecha as últimas lacunas de debloat clássico que ainda faltavam desde as Fases 3/8: serviços de
+telemetria/bloat, Armazenamento Reservado, privacidade adicional (Histórico de Atividades,
+Localização) e a seção "Recomendado" do Menu Iniciar. **Isso conclui toda a Fase 10 (Parte 1 +
+Parte 2).** Nenhum scanner novo foi criado — todo o trabalho reaproveitou os scanners/mecânicas já
+existentes (`ServiceScanner`, `PerformanceScanner`, `TelemetryScanner`, `ConsumerFeatureScanner`,
+`ActionExecutor`), conforme instruído.
+
+- **Serviços (seção 2.1):** os 10 itens do documento correspondem, na prática, a **13 serviços
+  reais do Windows** (a linha da tabela "XblAuthManager/XblGameSave/XboxNetApiSvc/XboxGipSvc" agrupa
+  4 serviços distintos) — catalogados os 13 individualmente em `knowledge-base.json` (tipo
+  `service`), decisão deliberada: como `KnowledgeBase.find()` casa pelo nome exato do serviço (o
+  mesmo valor devolvido por `Get-Service`), agrupar os 4 serviços Xbox em uma única entrada os
+  deixaria sem classificação/descrição na UI. Classificação seguida à risca conforme a tabela do
+  documento: 🟢 `seguro` para `DiagTrack`, `dmwappushservice`, `RetailDemo` e `Fax`; 🟡 `depende`
+  para `PcaSvc`, `MapsBroker`, `WerSvc`, `TabletInputService`, `WbioSrvc` e os 4 serviços Xbox.
+  **Nenhum scanner novo foi criado** — todos os 13 já eram lidos pelo `ServiceScanner` existente
+  desde a Fase 1 (que lê *todos* os serviços do Windows via `Get-CimInstance Win32_Service`, não uma
+  lista fixa); só faltava a entrada na base de conhecimento.
+- **Armazenamento Reservado (seção 2.2):** adicionado ao `PerformanceScanner.java` existente (em vez
+  de criar `StorageOptimizer.java` separado, conforme a alternativa mais simples sugerida pelo
+  próprio documento) — novo record `ReservedStorageStatus(state, supported, checkFailed)` e método
+  `checkReservedStorageState()`, que roda `Get-WindowsReservedStorageState` via PowerShell (cmdlet
+  nativo do Windows, não uma chave de registro). Tratamento defensivo em duas camadas: se a saída de
+  erro contiver "not recognized"/"não é reconhecido" (cmdlet inexistente nesta versão/edição do
+  Windows), o estado retorna `supported=false` — "não aplicável", nunca um erro; qualquer outra
+  falha (ex: exigência de elevação) retorna `supported=true, checkFailed=true` (cmdlet existe, só a
+  tentativa de leitura falhou). `ActionExecutor` ganhou um par de métodos **dedicado**
+  (`setReservedStorageEnabled`/`restoreReservedStorageState`, via
+  `Set-WindowsReservedStorageState -State Enabled|Disabled`), já que este item não é uma chave DWORD
+  simples e não se encaixa no mecanismo genérico `applyRegistryDwordChange` reaproveitado pelos
+  demais tipos — mesmo padrão de contrato de sempre (lock → backup do estado anterior → ação →
+  histórico). Item de catálogo com nome fixo (`ActivePowerPlan`-style,
+  `"Armazenamento Reservado (Reserved Storage)"`), sem `valor_recomendado` na base de conhecimento
+  (mesma decisão já tomada para o item de Hibernação na Fase 9 — não é uma das 5 categorias cobertas
+  pelo `SystemAuditEngine`, então o campo não se aplica).
+- **Privacidade adicional (seção 2.3):** 3 chaves novas adicionadas a `TelemetryScanner.KNOWN_KEYS`
+  (mesma estrutura já existente, nenhum código novo de leitura) — o item "Histórico de Atividades" do
+  documento controla **duas** chaves DWORD distintas na mesma política
+  (`HKLM\SOFTWARE\Policies\Microsoft\Windows\System`), então foi desdobrado em 2 entradas
+  (`activity_history_publish`/`PublishUserActivities` e `activity_history_upload`/
+  `UploadUserActivities`) — mesmo padrão já usado no projeto para conceitos com mais de uma chave
+  real (`allow_telemetry_policy`/`allow_telemetry` desde a Fase 3, `bing_search_policy`/
+  `bing_search_user` na Fase 8 Parte 2). O terceiro item, "Rastreamento de Localização"
+  (`HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors\DisableLocation`), entrou como uma
+  única chave. Classificação: `seguro` para os dois itens de Histórico de Atividades (baixo impacto
+  funcional); `depende` para Localização (pode afetar mapas, clima local automático e "Encontrar meu
+  dispositivo"). `ActionExecutor.setTelemetryValue`/`restoreTelemetryValue` (já existentes desde a
+  Fase 3) foram reaproveitados sem nenhuma alteração de código.
+- **Interface (seção 2.4):** 1 chave nova em `ConsumerFeatureScanner.KNOWN_KEYS`
+  (`start_menu_recommended`/`Start_IrisRecommendations`,
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced`), classificação `seguro`.
+  `ActionExecutor.setConsumerFeatureValue`/`restoreConsumerFeatureValue` (já existentes desde a Fase
+  8 Parte 2) reaproveitados sem alteração.
+- **`ActionExecutor.restoreFromHistory`:** estendido com o caso `reservedstorage` (despacha para
+  `restoreReservedStorageState`) — os tipos `telemetry`/`consumer` já despachavam corretamente desde
+  as fases anteriores, nenhuma mudança necessária ali.
+- **UI (`ui/SystemScanTask.java`, `ui/ItemActionDispatcher.java`):** o Armazenamento Reservado entrou
+  como um item a mais dentro de `scanPerformance()` (categoria já existente `CATEGORY_PERFORMANCE`,
+  mesma decisão do documento de evitar uma categoria nova só para 1 item — mesmo raciocínio já usado
+  para o item de Hibernação na Fase 9), tipo `reservedstorage`. `ItemActionDispatcher` ganhou o caso
+  `reservedstorage` (ação principal desativa, mesmo raciocínio de "toggle" já usado para
+  `hibernation`: caso de uso do documento é liberar espaço em disco, reversão fica disponível via
+  Histórico). Os itens de Telemetria/Consumidor novos aparecem automaticamente nas categorias já
+  existentes (`CATEGORY_TELEMETRY`/`CATEGORY_CONSUMER`) sem nenhuma mudança de código na UI, e os 13
+  serviços novos aparecem automaticamente em `CATEGORY_SERVICE` (o `ServiceScanner` já lê todos os
+  serviços da máquina, a classificação nova na base de conhecimento é o que muda).
+- **Base de conhecimento:** `knowledge-base.json` expandido de 96 para **113 itens** (+17: 13
+  serviços + 3 chaves de telemetria/privacidade + 1 chave de consumidor), todos com
+  descrição/impacto em português claro.
+- **`Phase10Part2ConsoleDemo`:** testado isoladamente via console antes de qualquer alteração na UI
+  (regra de ouro do projeto), cobrindo: leitura real dos 13 serviços (via `ServiceScanner.findByName`
+  já existente); leitura + tentativa de round-trip do Armazenamento Reservado; round-trip completo
+  (ler original → aplicar → confirmar → reverter → **confirmar com leitura direta pós-restore**) das
+  3 chaves de privacidade e da chave de interface do Menu Iniciar.
+
+### Resultado real dos testes, nesta máquina de desenvolvimento (sessão sem privilégio de Administrador)
+
+- **Serviços:** 11 dos 13 serviços foram encontrados e lidos com sucesso nesta máquina (`DiagTrack`
+  rodando/Auto, `PcaSvc` rodando/Auto, os demais parados com início Manual/Auto conforme o padrão de
+  fábrica do Windows). **2 não foram encontrados** (`Fax`, `TabletInputService`) — tratado
+  corretamente como "não aplicável" pelo `ServiceScanner.findByName` (retorna `Optional.empty()`,
+  não erro), esperado nesta edição/configuração específica do Windows desta máquina (esses serviços
+  podem não estar presentes dependendo da instalação).
+- **Armazenamento Reservado:** o cmdlet `Get-WindowsReservedStorageState` **existe** nesta versão do
+  Windows (`supported=true`), mas curiosamente **nem a leitura** funcionou sem elevação nesta
+  máquina/sessão — falhou com `COMException: A operação solicitada requer elevação` (diferente das
+  demais categorias desta fase, onde ler sempre funciona e só a escrita exige Administrador). O
+  `PerformanceScanner` distingue corretamente esse caso ("cmdlet existe, `checkFailed=true`") do caso
+  de cmdlet genuinamente ausente ("not recognized", `supported=false`) — confirmado no teste, que
+  seguiu para tentar a escrita mesmo assim (mesma lógica das demais chaves HKLM da fase), recebendo o
+  mesmo erro de elevação em `Set-WindowsReservedStorageState`, tratado como falha esperada/
+  documentada, sem exceção.
+- **Privacidade (3 chaves):** nenhuma das 3 chaves já existia previamente nesta máquina (todas "não
+  definido" na leitura inicial). Todas as 3 são `HKLM` e falharam ao escrever com `ERRO: Acesso
+  negado` — falha esperada e já documentada em `BLOCKERS.md` desde a Fase 9 Parte 1 (sessão sem
+  Administrador). Confirmado, em cada caso, que **nada foi alterado no registro** (leitura direta
+  pós-tentativa idêntica ao original, ainda "não definido").
+- **Interface (Menu Iniciar):** a única chave `HKCU` desta fase — round-trip **completo e bem-
+  sucedido**: valor original "não definido" → aplicado `0` (confirmado `0x0` via leitura direta) →
+  revertido → confirmado de volta a "não definido" via leitura direta pós-restore (não só o
+  `success=true` da chamada).
+- **Nenhuma chave de teste fabricada foi necessária** e nenhum resíduo ficou na máquina — a única
+  chave realmente escrita durante o teste (Menu Iniciar) foi revertida e confirmada.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros, após todas as mudanças (`PerformanceScanner`,
+  `TelemetryScanner`, `ConsumerFeatureScanner` e `ActionExecutor` expandidos,
+  `Phase10Part2ConsoleDemo` novo, `knowledge-base.json` com 17 itens novos, `SystemScanTask`/
+  `ItemActionDispatcher` com o caso `reservedstorage`).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase10Part2ConsoleDemo` — roda até o fim,
+  cobrindo a leitura dos 13 serviços, a tentativa de leitura/alteração do Armazenamento Reservado
+  (com o comportamento de elevação documentado acima), os 3 round-trips de privacidade (falha
+  esperada por falta de elevação) e o round-trip completo e confirmado do item de interface. Histórico
+  completo impresso ao final, mostrando todas as ações (inclusive as falhas esperadas) com seus ids
+  de backup vinculados.
+
+Todos os itens do checklist da Fase 10 (Limpeza de RAM + Debloat adicional) estão marcados `[x]` em
+`NITRO-BOOST-fase10-limpeza-ram-e-debloat-adicional.md`. **Isso conclui toda a Fase 10 e todo o
+escopo planejado até aqui.**
