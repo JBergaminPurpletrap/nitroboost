@@ -53,6 +53,7 @@ public class HardwareUpdateView extends BorderPane {
     private final Button openVendorSearchButton = new Button("Buscar no Site do Fabricante");
     private final Button openExternalSearchButton = new Button("Buscar no Google");
     private final Button checkOnlineButton = new Button("🌐 Verificar Atualizacao Online");
+    private final ProgressIndicator onlineCheckProgress = new ProgressIndicator();
     private final Label onlineCheckStatusLabel = new Label("");
 
     private final TableView<DriverInfo> driversTable = new TableView<>();
@@ -154,12 +155,21 @@ public class HardwareUpdateView extends BorderPane {
         checkOnlineButton.getStyleClass().add("btn-secondary");
         checkOnlineButton.setOnAction(e -> runOnlineCheck());
 
+        // Indicador indeterminado (Fase 12 Parte C): 1 unica requisicao HTTP, sem "quantidade" para
+        // medir progresso proporcional - so mostra que algo esta acontecendo enquanto espera a rede.
+        onlineCheckProgress.setPrefSize(16, 16);
+        onlineCheckProgress.setVisible(false);
+        onlineCheckProgress.setManaged(false);
+
         onlineCheckStatusLabel.getStyleClass().add("text-secondary");
         onlineCheckStatusLabel.setWrapText(true);
 
+        HBox onlineCheckRow = new HBox(8, checkOnlineButton, onlineCheckProgress);
+        onlineCheckRow.setAlignment(Pos.CENTER_LEFT);
+
         VBox box = new VBox(10, cardTitle, new HBox(8, vendorCaption, vendorLabel), hint,
                 openSupportButton, openVendorSearchButton, openExternalSearchButton,
-                onlineHint, checkOnlineButton, onlineCheckStatusLabel);
+                onlineHint, onlineCheckRow, onlineCheckStatusLabel);
         box.getStyleClass().add("card");
         box.setPadding(new Insets(16));
         VBox.setVgrow(box, Priority.ALWAYS);
@@ -177,9 +187,11 @@ public class HardwareUpdateView extends BorderPane {
      */
     private void runOnlineCheck() {
         checkOnlineButton.setDisable(true);
+        onlineCheckProgress.setVisible(true);
+        onlineCheckProgress.setManaged(true);
         onlineCheckStatusLabel.getStyleClass().removeAll("text-danger", "text-success");
         onlineCheckStatusLabel.getStyleClass().add("text-secondary");
-        onlineCheckStatusLabel.setText("Verificando no site do fabricante (pode levar alguns segundos)...");
+        onlineCheckStatusLabel.setText("Verificando no site do fabricante...");
 
         String vendor = resolvedStrategy == null ? null : resolvedStrategy.vendorName();
         String model = detectedModel;
@@ -197,6 +209,8 @@ public class HardwareUpdateView extends BorderPane {
             OnlineUpdateChecker.CheckResult finalResult = result;
             Platform.runLater(() -> {
                 checkOnlineButton.setDisable(false);
+                onlineCheckProgress.setVisible(false);
+                onlineCheckProgress.setManaged(false);
                 onlineCheckStatusLabel.getStyleClass().removeAll("text-danger", "text-success", "text-secondary");
                 onlineCheckStatusLabel.getStyleClass().add(finalResult.success() ? "text-success" : "text-secondary");
                 onlineCheckStatusLabel.setText(finalResult.message());

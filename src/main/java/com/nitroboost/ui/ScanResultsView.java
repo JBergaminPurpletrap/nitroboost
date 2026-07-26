@@ -3,6 +3,7 @@ package com.nitroboost.ui;
 import com.nitroboost.actions.ActionExecutor;
 import com.nitroboost.actions.LockManager;
 import com.nitroboost.knowledge.ItemClassification;
+import com.nitroboost.ui.components.NitroProgressBar;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.collections.FXCollections;
@@ -55,6 +56,7 @@ public class ScanResultsView extends BorderPane {
 
     private final Label statusLabel = new Label("Nenhuma varredura executada ainda.");
     private final ProgressIndicator progressIndicator = new ProgressIndicator();
+    private final NitroProgressBar scanProgressBar = new NitroProgressBar();
     private final ComboBox<String> categoryFilter = new ComboBox<>();
     private final ComboBox<String> classificationFilter = new ComboBox<>();
     private final CheckBox knownOnlyFilter = new CheckBox("Mostrar apenas itens conhecidos");
@@ -115,7 +117,7 @@ public class ScanResultsView extends BorderPane {
 
         statusLabel.getStyleClass().add("text-secondary");
 
-        VBox root = new VBox(14, title, toolbar, table, statusLabel);
+        VBox root = new VBox(14, title, toolbar, scanProgressBar, table, statusLabel);
         VBox.setVgrow(table, Priority.ALWAYS);
         setCenter(root);
     }
@@ -251,21 +253,35 @@ public class ScanResultsView extends BorderPane {
         thread.start();
     }
 
-    /** Dispara uma nova varredura completa em background e atualiza a tabela ao concluir. */
+    /**
+     * Dispara uma nova varredura completa em background e atualiza a tabela ao concluir. A barra de
+     * progresso (Fase 12 Parte C) e ligada diretamente as propriedades nativas e thread-safe de
+     * {@link javafx.concurrent.Task} ({@code progressProperty}/{@code messageProperty}, atualizadas
+     * pelo proprio {@link SystemScanTask} via {@code updateProgress}/{@code updateMessage}) - nenhum
+     * polling manual necessario, o binding se desfaz sozinho quando a Task e recriada a cada scan.
+     */
     public void startScan() {
         statusLabel.setText("Escaneando o sistema (processos, servicos, startup, tarefas, energia, telemetria, "
                 + "bloatware, performance, jogos)...");
         progressIndicator.setVisible(true);
+        scanProgressBar.show();
+        scanProgressBar.setProgress(0);
+        scanProgressBar.setMessage("Iniciando varredura...");
 
         SystemScanTask task = new SystemScanTask(context.knowledgeBase());
+        task.progressProperty().addListener((obs, oldValue, newValue) ->
+                scanProgressBar.setProgress(newValue.doubleValue()));
+        task.messageProperty().addListener((obs, oldValue, newValue) -> scanProgressBar.setMessage(newValue));
         task.setOnSucceeded(e -> {
             masterItems.setAll(task.getValue());
             applyFilter();
             progressIndicator.setVisible(false);
+            scanProgressBar.hide();
             statusLabel.setText(masterItems.size() + " itens encontrados.");
         });
         task.setOnFailed(e -> {
             progressIndicator.setVisible(false);
+            scanProgressBar.hide();
             Throwable ex = task.getException();
             statusLabel.getStyleClass().add("text-danger");
             statusLabel.setText("Falha ao escanear o sistema: " + (ex != null ? ex.getMessage() : "erro desconhecido"));

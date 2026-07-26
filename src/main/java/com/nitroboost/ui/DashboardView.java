@@ -12,6 +12,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.Group;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -69,6 +70,7 @@ public class DashboardView extends BorderPane {
     private final MemoryCleaner memoryCleaner;
     private final Button cleanRamButton = new Button("🧹 LIMPAR CACHE DE RAM AGORA");
     private final Label cleanRamResultLabel = new Label("");
+    private final ProgressIndicator cleanRamProgress = new ProgressIndicator();
 
     private ScheduledExecutorService poller;
 
@@ -139,7 +141,13 @@ public class DashboardView extends BorderPane {
 
         cleanRamResultLabel.getStyleClass().add("text-secondary");
 
-        HBox actionRow = new HBox(16, cleanRamButton, cleanRamResultLabel);
+        // Indicador indeterminado (Fase 12 Parte C): operacao e rapida, mas sem isso o clique
+        // parece "nao fez nada" por um instante enquanto a chamada nativa roda em segundo plano.
+        cleanRamProgress.setPrefSize(18, 18);
+        cleanRamProgress.setVisible(false);
+        cleanRamProgress.setManaged(false);
+
+        HBox actionRow = new HBox(16, cleanRamButton, cleanRamProgress, cleanRamResultLabel);
         actionRow.setAlignment(Pos.CENTER_LEFT);
 
         VBox box = new VBox(6, title, description, actionRow);
@@ -160,6 +168,8 @@ public class DashboardView extends BorderPane {
         }
 
         cleanRamButton.setDisable(true);
+        cleanRamProgress.setVisible(true);
+        cleanRamProgress.setManaged(true);
         cleanRamResultLabel.getStyleClass().removeAll("text-danger", "text-success");
         cleanRamResultLabel.setText("Limpando...");
 
@@ -178,6 +188,8 @@ public class DashboardView extends BorderPane {
 
     private void showCleanRamResult(MemoryCleaner.MemoryCleanupResult result, long freeBefore, long freeAfter) {
         cleanRamButton.setDisable(false);
+        cleanRamProgress.setVisible(false);
+        cleanRamProgress.setManaged(false);
         cleanRamResultLabel.getStyleClass().removeAll("text-danger", "text-success");
         cleanRamResultLabel.getStyleClass().add(result.success() ? "text-success" : "text-danger");
 
