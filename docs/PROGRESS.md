@@ -2257,3 +2257,109 @@ itens já existentes), sem código de scanner novo além do item complementar de
 Parte 1 concluída. Aguardando validação do usuário antes de seguir para a Parte 2 (`DisplayScanner`
 - taxa de atualização da tela) e Parte 3 (ícones da barra de tarefas), conforme instruído em
 `docs/prompt-fase14-melhorias-diagnostico.md`.
+
+---
+
+## 2026-07-26 — Fase 14 - Parte 2 concluída (Taxa de Atualização da Tela)
+
+Conforme `docs/NITRO-BOOST-fase14-melhorias-diagnostico.md`, seção D - recurso novo (nenhum item
+das Fases 8/9 precisava de ajuste aqui, diferente da Parte 1):
+
+- **`DisplayScanner` (`core/`, novo):** `getCurrentRefreshRate()`/`getAvailableRefreshRates()`/
+  `getMaxRefreshRate()`, todos via `EnumDisplaySettingsA` (`user32.dll`). **Decisão técnica:** o
+  `jna-platform` 5.19.1 usado neste projeto NÃO tem binding pronto para `EnumDisplaySettings`/
+  `DEVMODE` (confirmado via `javap` no jar - `User32` só expõe `EnumDisplayMonitors`), então a
+  struct `DEVMODE` foi mapeada manualmente (mesmo padrão de `Native.load` direto a uma DLL do
+  Windows já usado desde a Fase 0 em `JnaNativeTest` e na Fase 10 em `MemoryCleaner`), seguindo o
+  layout oficial `DEVMODEA` (variante ANSI - suficiente, já que só os campos numéricos
+  `dmPelsWidth`/`dmPelsHeight`/`dmDisplayFrequency` são usados; os campos de nome de
+  dispositivo/formulário nunca são lidos, e a união orientação/posição de impressora foi mapeada
+  pela variante de 8 campos `short`, que ocupa o mesmo tamanho - 16 bytes - da variante de tela,
+  preservando o layout de memória correto). Optou-se por usar JNA/EnumDisplaySettings para AMBOS os
+  dados (atual e suportadas), em vez de combinar com PowerShell/WMI para a taxa atual como o
+  documento sugeria como alternativa - um único mecanismo, reaproveitando a mesma chamada nativa
+  para os dois metodos, evita depender de duas fontes que poderiam divergir entre si e reduz o
+  código (uma só forma de leitura, mais fácil de manter). `getAvailableRefreshRates()` itera
+  `iModeNum` de 0 em diante até a API devolver `false`, coletando os valores distintos de
+  `dmDisplayFrequency` só para os modos que batem com a resolução atual (`dmPelsWidth`/
+  `dmPelsHeight`), com um limite defensivo de 4096 iterações contra um driver defeituoso que nunca
+  parasse de devolver `true`. Nunca lança exceção (try/catch com `Throwable`, mesmo padrão do
+  `MemoryCleaner`) - falha vira `Optional.empty()`/lista vazia.
+- **Teste isolado via console (`Phase14Part2ConsoleDemo`):** rodado contra a máquina real de
+  desenvolvimento - **taxa atual detectada: 60 Hz | taxas suportadas (mesma resolução): [25, 29,
+  30, 50, 59, 60] Hz | taxa máxima detectada: 60 Hz**. Como a atual já é igual à máxima nesta
+  máquina (ambiente sem monitor de alta taxa/provavelmente sessão remota), o item aparece como
+  `JA_OTIMIZADO` no diagnóstico (nenhuma sugestão) - o caminho `SUGESTAO` (atual < máxima) foi
+  validado via testes JUnit com valores fixos (ver abaixo), já que não há como forçar esse cenário
+  de hardware nesta máquina. **Ação pendente do usuário:** confirmar que "60 Hz" bate com o valor
+  mostrado em Configurações → Sistema → Tela → Exibição avançada nesta mesma máquina.
+- **Base de conhecimento:** nova entrada "Taxa de Atualização da Tela" (tipo `display`,
+  classificação `depende`) em `knowledge-base.json` - **deliberadamente SEM `valor_recomendado`**
+  (campo omitido, mesmo padrão já usado pelo item de desinstalação do OneDrive), já que a
+  "recomendação" aqui é relativa (taxa atual vs. a máxima suportada pelo monitor conectado no
+  momento, que varia de máquina para máquina), não um valor fixo comparável como os demais itens.
+- **`SystemAuditEngine` (comparação dinâmica):** novo método `auditDisplay` (registrado tanto em
+  `run()` quanto em `run(ScanProgressListener)`, ao lado das 5 categorias já existentes) que NÃO
+  usa o `evaluate()` genérico (que compara contra `valor_recomendado` do catálogo) - em vez disso,
+  chama `DisplayScanner` diretamente e compara o resultado via `resolveDisplayStatus(Optional
+  <Integer> atual, Optional<Integer> maxima)` (visibilidade de pacote, extraído como `static` para
+  ser testável isoladamente): `NAO_APLICAVEL` se qualquer um dos dois não puder ser lido,
+  `SUGESTAO` se atual < máxima, `JA_OTIMIZADO` caso contrário (inclusive no caso hipotético
+  atual > máxima, para nunca sugerir "diminuir" a taxa por engano).
+- **Botão "Abrir Configurações de Tela" (Nível 1):** `ActionExecutor.openDisplaySettings()` roda
+  `ProcessBuilder("cmd", "/c", "start", "ms-settings:display")` - **exceção deliberada ao contrato
+  padrão de `ActionExecutor`** (mesmo raciocínio já documentado em `MemoryCleaner`): não passa por
+  `LockManager`/`BackupManager`/`actions_history`, já que não há nenhum item/estado do sistema
+  sendo alterado, apenas abrindo a tela nativa de configurações do próprio Windows. O comando em si
+  foi extraído para `ActionExecutor.displaySettingsCommand()` (agora `public static`) justamente
+  para poder ser validado por teste (`ActionExecutorDisplayCommandTest`) sem executá-lo de verdade.
+  `ItemActionDispatcher` ganhou o caso `"display"` tanto em `primaryActionLabel` (retorna "Abrir
+  Configurações de Tela", não o genérico "Desativar") quanto em `performPrimaryAction` (chama
+  `executor.openDisplaySettings()`). `AuditView.buildFindingRow` também foi ajustado - o botão da
+  linha de sugestão antes usava sempre o texto genérico "Aplicar" (nem `ScanResultsView` nem
+  `ItemDetailView` tinham esse problema, já que ambos já usavam `ItemActionDispatcher
+  .primaryActionLabel`) - agora mostra "Abrir Configurações de Tela" especificamente para o item do
+  tipo `display`, mantendo "Aplicar" para os demais.
+- **Integração com a varredura geral:** nova categoria `SystemScanTask.CATEGORY_DISPLAY` ("Taxa de
+  Atualização da Tela"), adicionada tanto à lista de categorias escaneadas quanto ao filtro por
+  categoria da `ScanResultsView` - item fixo de catálogo (sem `source`, mesmo padrão do item de
+  hibernação/armazenamento reservado), já que vem de uma leitura direta via `DisplayScanner`, não
+  de uma lista de chaves de registro conhecidas.
+- **Nível 2 (troca automática de taxa via `ChangeDisplaySettingsEx`) - NÃO implementado nesta
+  fase**, conforme decisão explícita do documento da Fase 14 (risco de tela preta se a taxa
+  aplicada não for suportada pelo monitor, exigiria uma janela de confirmação com timeout e
+  reversão automática). **Fica registrado aqui como melhoria futura opcional**, a ser considerada
+  apenas se o usuário pedir explicitamente - a implementação completa exigiria: (1) confirmação
+  explícita antes de aplicar, (2) aplicar a mudança e mostrar um popup "Manter essa configuração?
+  Revertendo em 15 segundos..." com temporizador, (3) reverter automaticamente para a taxa original
+  se o usuário não confirmar dentro do prazo, seguindo a mesma lógica de segurança que o próprio
+  Windows usa ao trocar resolução/taxa manualmente.
+
+### Testes novos (Fase 12 Parte B - mesmo padrão: valores fixos, sem chamar comando/hardware real)
+
+- `SystemAuditEngineTest`: 6 casos novos para `resolveDisplayStatus` (atual < máxima → sugestão;
+  atual == máxima → já otimizado; atual > máxima hipotético → já otimizado, nunca sugestão; atual
+  ausente/máxima ausente/ambos ausentes → não aplicável).
+- `ActionExecutorDisplayCommandTest` (novo arquivo, `src/test/java/.../actions/`): confirma que
+  `displaySettingsCommand()` monta exatamente `["cmd", "/c", "start", "ms-settings:display"]`, sem
+  jamais chamar `ProcessBuilder.start()`.
+
+### Build e testes
+
+- `./mvnw -q compile` - OK, sem erros.
+- `./mvnw test` - **47/47 testes passando** (40 anteriores + 7 novos desta parte).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.core.DisplayScanner` e
+  `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase14Part2ConsoleDemo` - ambos rodados
+  isoladamente contra a máquina real antes/depois da integração, confirmando os valores acima. O
+  botão "Abrir Configurações de Tela" NUNCA foi executado de verdade nesses testes (só o comando
+  montado foi impresso/comparado) - `ActionExecutor.openDisplaySettings()` nunca foi chamado
+  durante a automação.
+
+### Checklist
+
+Itens do checklist da Fase 14 (seção "Taxa de Atualização da Tela") marcados `[x]`, exceto o
+Nível 2 (deixado `[ ]` de propósito, conforme instruído) - ver
+`docs/NITRO-BOOST-fase14-melhorias-diagnostico.md`.
+
+Parte 2 concluída. **Parada aqui, conforme instruído** - a Parte 3 (ícones da barra de tarefas)
+requer validação do usuário antes de começar.

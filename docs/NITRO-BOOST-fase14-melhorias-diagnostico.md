@@ -92,11 +92,11 @@ Marcar como 🟡 sugestão quando a taxa atual for menor que a máxima suportada
 - [x] Confirmar que o item "Chat/Continuar" (`TaskbarMn`) já está corretamente classificado desde a Fase 8 — confirmado, `valor_recomendado="0"`, correto
 
 ### Recurso novo: Taxa de Atualização da Tela
-- [ ] Criar `DisplayScanner.java` (`core/`) com `getCurrentRefreshRate()` e `getAvailableRefreshRates()` via JNA (`EnumDisplaySettingsEx`)
-- [ ] Testar isoladamente via console, confirmando que a taxa atual e a máxima detectada batem com o que aparece em Configurações → Sistema → Tela → Exibição avançada
-- [ ] Adicionar a entrada correspondente na base de conhecimento com a lógica de comparação (atual vs. máxima), não um valor fixo
-- [ ] Implementar o botão "Abrir Configurações de Tela" (Nível 1) usando `ms-settings:display`
-- [ ] **Não implementar o Nível 2 (troca automática) nesta fase** — deixar documentado como melhoria futura opcional, dado o risco de tela preta
+- [x] Criar `DisplayScanner.java` (`core/`) com `getCurrentRefreshRate()` e `getAvailableRefreshRates()` via JNA (`EnumDisplaySettingsA` — struct `DEVMODE` mapeada manualmente, layout oficial `DEVMODEA`; `jna-platform` 5.19.1 não tem binding pronto para isso, só `EnumDisplayMonitors`)
+- [x] Testar isoladamente via console (`Phase14Part2ConsoleDemo`) — nesta máquina de desenvolvimento: taxa atual = 60 Hz, taxas suportadas = [25, 29, 30, 50, 59, 60] Hz, máxima = 60 Hz (usuário deve conferir contra Configurações → Sistema → Tela → Exibição avançada na própria máquina)
+- [x] Adicionar a entrada correspondente na base de conhecimento (tipo `display`, sem `valor_recomendado` fixo) com a lógica de comparação (atual vs. máxima) implementada em `SystemAuditEngine.auditDisplay`/`resolveDisplayStatus` — comparação dinâmica, não um valor fixo
+- [x] Implementar o botão "Abrir Configurações de Tela" (Nível 1) usando `ms-settings:display` (`ActionExecutor.openDisplaySettings`, via `ProcessBuilder("cmd", "/c", "start", "ms-settings:display")`)
+- [ ] **Não implementar o Nível 2 (troca automática) nesta fase** — deixar documentado como melhoria futura opcional, dado o risco de tela preta (documentado em `docs/PROGRESS.md`, deliberadamente não implementado)
 
 ### Recurso novo: Ícones da Barra de Tarefas
 - [ ] Adicionar `SearchboxTaskbarMode`, `ShowTaskViewButton` e `TaskbarDa` como itens verificáveis no `ConsumerFeatureScanner` (Fase 8), com os valores recomendados da seção E
