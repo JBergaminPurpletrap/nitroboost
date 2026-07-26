@@ -1740,3 +1740,121 @@ de propósito — o próprio documento da fase o trata como opcional/não obriga
 visual final da UI (o botão "Verificar Atualização Online" na tela real, `.\mvnw.cmd clean
 javafx:run`) fica pendente do usuário, na mesma linha da limitação já registrada desde a Fase 0/4
 (este ambiente automatizado não sustenta uma sessão gráfica interativa síncrona).
+
+---
+
+## 2026-07-26 — Fase 8 - Ajuste: Desinstalar em itens de IA
+
+Ajuste pontual pedido no documento revisado `prompt-fase8-debloat-completo (1).md`: a Fase 8 original
+só implementou a ação "Desativar" (política de registro) para os 7 itens de IA. Para os itens que
+tecnicamente suportam uma segunda ação — "Desinstalar" de verdade, e não só desativar via política —
+essa segunda ação estava faltando. Este ajuste implementa as duas ações onde fazem sentido.
+
+### Decisão item a item (tabela de `AiFeatureScanner.KNOWN_KEYS`)
+
+| Item | Suporta "Desinstalar"? | Mecanismo |
+|---|---|---|
+| Windows Copilot (Usuário Atual) | ✅ Sim | Remoção do pacote Appx (`Remove-AppxPackage`), quando existir |
+| Windows Copilot (Todos os Usuários) | ✅ Sim | Mesmo pacote Appx, com `-AllUsers` |
+| Windows Recall (Retomar) | ✅ Sim | `DISM /Online /Disable-Feature /FeatureName:Recall` (recurso opcional) |
+| Botão do Copilot na Barra de Tarefas | ❌ Não | É só um ícone/toggle de UI — nada para desinstalar |
+| Click to Do | ❌ Não | Só política, sem pacote/recurso separado |
+| Cocreator / Criação de Imagem por IA | ❌ Não | Embutido no Paint/Fotos, sem pacote separado |
+| Copilot no Microsoft Edge | ❌ Não | Função interna do navegador, sem pacote separado |
+
+Click to Do, Cocreator e Copilot no Edge continuam com uma única ação (Desativar), exatamente como o
+documento revisado pedia — nenhuma desinstalação artificial foi inventada para eles.
+
+### `ActionExecutor` — métodos novos
+
+- `uninstallAiFeatureApp(definition, allUsers, whatIf)` / `restoreAiFeatureApp(backupId)` — Windows
+  Copilot. Reaproveita a mesma mecânica de `uninstallBloatwareApp`/`restoreBloatwareApp` (Fase 4):
+  ambos os pares foram refatorados para chamar helpers privados compartilhados
+  (`performAppxUninstall`/`performAppxRestore`), para não duplicar a chamada `Remove-AppxPackage` nem
+  a tentativa de restore via re-registro do manifesto — só muda o `itemType` (`"bloatware"` vs
+  `"ai"`). Localiza o pacote via `BloatwareScanner.scan()` filtrando `Category.AI_COPILOT` (categoria
+  que já existia desde a Fase 8 - Parte 2) — nenhuma nova consulta PowerShell foi escrita.
+- `disableRecallFeature(definition)` / `restoreRecallFeature(backupId)` — Windows Recall, via
+  `ProcessBuilder` chamando `dism.exe /Online /Disable-Feature|Enable-Feature /FeatureName:Recall
+  /NoRestart`. **Nunca passa `/Restart`** — se o efeito completo exigir reinício (código de saída
+  `3010`), a mensagem devolvida avisa o usuário claramente, sem reiniciar nada sozinho. Timeout
+  próprio de 120s (`DISM_TIMEOUT_SECONDS`), maior que o timeout padrão de 20s dos outros comandos,
+  porque DISM pode demorar bem mais.
+- Ambos os pares seguem o contrato de sempre, sem exceção: `LockManager.isLocked()` →
+  `BackupManager.snapshotBeforeAction()` → aplicar → `actions_history`.
+- **Correção de um bug pego durante a implementação, antes de commitar:** a primeira versão de
+  `disableRecallFeature` usava um nome de item inventado
+  ("Windows Recall (Retomar) - Recurso Opcional do Windows") em vez de `definition.friendlyName()`
+  ("Windows Recall (Retomar)", o mesmo nome usado por `setAiFeatureValue` e pela UI). Isso teria
+  reproduzido exatamente o bug já documentado no item 7 do `BLOCKERS.md` (lock "órfão" por
+  inconsistência de nome) — bloquear o item pela ação "Desativar" não bloquearia a ação
+  "Desinstalar", já que o `LockManager` verifica por par (nome, tipo) exato. Corrigido antes de
+  qualquer commit: `disableRecallFeature` agora recebe a `AiFeatureKeyDefinition` e usa
+  `definition.friendlyName()`, confirmado funcionando no teste de bloqueio (seção 6 do console demo,
+  abaixo).
+- `restoreFromHistory`: o `itemType` `"ai"` agora cobre três mecanismos diferentes por baixo (mesma
+  categoria na UI, para o lock valer para as duas ações de um mesmo item) — o `switch` foi ajustado
+  para discriminar pelo `actionType` da entrada de histórico: `"set"` → `restoreAiFeatureValue`,
+  `"uninstall"/"uninstall-simulado"` → `restoreAiFeatureApp`, `"uninstall-feature"` →
+  `restoreRecallFeature`. Sem essa distinção, o botão "Reverter" da tela de Histórico chamaria sempre
+  o restore de política de registro, mesmo para uma desinstalação de app ou uma feature do DISM.
+
+### UI
+
+- `ItemActionDispatcher.supportsUninstall(ScannedItem)` — novo método que decide, olhando o `id` da
+  `AiFeatureKeyDefinition` por trás do item, se ele tem a segunda ação disponível (só os 3 ids da
+  tabela acima).
+- `ItemActionDispatcher.performUninstallAction(executor, item)` — despacha para o método correto do
+  `ActionExecutor` (Copilot usuário/todos os usuários/Recall), com o mesmo contrato de nunca deixar
+  exceção escapar para a UI que `performPrimaryAction` já seguia.
+- `ItemDetailView`: quando `supportsUninstall` é verdadeiro, um segundo botão "Desinstalar" aparece
+  ao lado do botão "Desativar" (`btn-danger`, o mesmo estilo vermelho/sério já usado para itens
+  essenciais, em vez do `btn-turbo` verde da ação normal) — para os demais itens de IA, o botão fica
+  oculto (`setVisible(false)`/`setManaged(false)`, sem ocupar espaço no layout), preservando o
+  comportamento de um único botão já existente.
+
+### `knowledge-base.json`
+
+As descrições de "Windows Copilot (Usuário Atual)", "Windows Copilot (Todos os Usuários)" e "Windows
+Recall (Retomar)" agora explicam, em português claro, que o item suporta as duas ações. As
+descrições de "Click to Do", "Cocreator" e "Copilot no Microsoft Edge" agora explicam explicitamente
+por que a desinstalação não é tecnicamente possível para eles (mesmo texto de justificativa técnica
+usado nesta seção do PROGRESS.md).
+
+### Teste via console (`Phase8AiUninstallConsoleDemo`)
+
+Rodado contra o estado real desta máquina (`./mvnw -q exec:java
+-Dexec.mainClass=com.nitroboost.Phase8AiUninstallConsoleDemo`):
+
+- **Windows Copilot:** `Get-AppxPackage | Where-Object { $_.Name -like '*Copilot*' }` não retornou
+  nenhum pacote (confirmado manualmente via PowerShell antes de escrever o código, e de novo pelo
+  próprio `BloatwareScanner.scan()` dentro do teste) — dos 134 pacotes Appx do usuário atual nesta
+  máquina, nenhum tem "Copilot" no nome. **Resultado real: não há pacote para remover nesta
+  máquina** — builds recentes do Windows integraram o Copilot ao shell/Explorer sem um app UWP
+  separado. `uninstallAiFeatureApp()` tratou isso corretamente como "não aplicável" (sucesso=false,
+  sem criar backup, mensagem clara orientando a usar "Desativar"), para as duas variantes (usuário
+  atual e todos os usuários). O teste de bloqueio confirmou que travar o item pela UI ("Desativar")
+  também bloqueia corretamente a tentativa de "Desinstalar".
+- **Windows Recall:** confirmado manualmente, fora do código, que tanto `dism.exe
+  /Online /Get-FeatureInfo /FeatureName:Recall` quanto o cmdlet `Get-WindowsOptionalFeature -Online
+  -FeatureName Recall` recusam rodar sem elevação neste ambiente (código de saída `740` / mensagem "A
+  operação solicitada requer elevação") — **mesmo para CONSULTAR**, antes de qualquer tentativa de
+  alteração. `disableRecallFeature()` reproduziu exatamente esse resultado (sucesso=false, código
+  740, mensagem clara orientando rodar como Administrador) — tratado como falha esperada, não um bug.
+  Esta máquina também **não é um Copilot+ PC** (CPU Intel Core i5-1135G7, arquitetura AMD64/x64, sem
+  NPU — Dell Latitude) — o recurso quase certamente não existiria aqui mesmo com elevação, mas isso
+  não pôde ser confirmado sem rodar como Administrador (registrado em `BLOCKERS.md`). O código já
+  trata separadamente o caso "recurso não existe nesta edição" (mensagem sobre "desconhecido"/código
+  87/11) do caso "falta elevação" (código 740) — só o segundo pôde ser exercitado neste ambiente.
+  `restoreRecallFeature()` (via `/Enable-Feature`) foi testado com o mesmo resultado (falha por falta
+  de elevação, backup previamente criado permanece não-restaurado, comportamento correto). O teste de
+  bloqueio confirmou que travar "Windows Recall (Retomar)" pela UI também bloqueia corretamente a
+  tentativa de "Desinstalar" — a correção do bug de nome (ver acima) foi validada aqui.
+
+### Build
+
+`./mvnw -q compile` — OK, sem erros, após cada etapa (refatoração da Fase 4, métodos novos do
+Recall/Copilot, ajuste do `ItemActionDispatcher`/`ItemDetailView`, correção do bug de nome).
+
+Nenhum bloqueio novo além do já registrado em `BLOCKERS.md` (necessidade de Administrador para DISM,
+inclusive para consulta — mesma classe de limitação documentada desde a Fase 9/10).

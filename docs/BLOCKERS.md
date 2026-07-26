@@ -221,6 +221,64 @@ projeto (nunca pular uma tarefa silenciosamente por causa de um bloqueio).
 
 ---
 
+## Fase 8 - Ajuste (Desinstalar em itens de IA: Windows Copilot e Windows Recall)
+
+### 10. `dism.exe`/`Get-WindowsOptionalFeature` exigem Administrador mesmo só para CONSULTAR o recurso Recall
+- **Status:** Não é um bug - mesma classe de limitação já documentada nos itens 6/7/9 (escrita em
+  HKLM/chamadas nativas exigem elevação), mas aqui a exigência de Administrador é ainda mais rígida:
+  se aplica mesmo a uma consulta somente-leitura.
+- **Descrição:** confirmado manualmente nesta máquina, fora do código, antes de implementar
+  `ActionExecutor.disableRecallFeature`/`restoreRecallFeature`:
+  - `dism.exe /Online /Get-FeatureInfo /FeatureName:Recall` retorna código de saída `740` com a
+    mensagem "Permissões elevadas obrigatórias para execução do DISM."
+  - `Get-WindowsOptionalFeature -Online -FeatureName Recall` (cmdlet do PowerShell, mecanismo
+    alternativo ao `dism.exe`) retorna o mesmo erro ("A operação solicitada requer elevação.").
+  - Confirmado via `([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(...Administrator)`
+    → `False` nesta sessão de terminal.
+  Ou seja: **não é possível nem descobrir se o recurso opcional "Recall" existe nesta edição do
+  Windows sem já estar elevado** - diferente de outras chaves de registro do projeto, onde a leitura
+  sempre funciona sem elevação e só a escrita exige Administrador.
+- **Mitigação aplicada:** `disableRecallFeature`/`restoreRecallFeature` tratam o código de saída `740`
+  como um caso conhecido e distinto ("falta elevação", mensagem clara orientando rodar como
+  Administrador), separado do caso "recurso não existe nesta edição" (código `87`/`11` ou texto
+  "desconhecido"/"unknown" na saída do DISM) - ambos os casos são falhas esperadas, não erros do
+  NITRO BOOST. `Phase8AiUninstallConsoleDemo` exercitou e confirmou o caminho de código `740`; o
+  caminho "recurso não existe" não pôde ser exercitado neste ambiente (exige elevação primeiro para
+  sequer chegar lá).
+- **Contexto adicional (não é bloqueio, é evidência a favor de "não aplicável" aqui):** esta máquina
+  de desenvolvimento **não é um Copilot+ PC** - CPU `11th Gen Intel(R) Core(TM) i5-1135G7` (arquitetura
+  `AMD64`, sem NPU), `Dell Latitude`, Windows 11 Business build 26200. O Recall é exclusivo de
+  Copilot+ PCs (hardware com NPU, tipicamente Snapdragon X Elite/ARM ou Intel/AMD com NPU dedicado de
+  geração mais recente) - é bem provável que o recurso opcional simplesmente não exista aqui mesmo
+  com elevação, mas isso não pôde ser confirmado sem rodar como Administrador.
+- **Ação pendente:** o usuário deve rodar o NITRO BOOST como Administrador (mesmo fluxo de
+  `run-as-admin.bat` já usado para os demais itens que exigem elevação) e, idealmente, testar em um
+  Copilot+ PC real para confirmar o caminho de sucesso completo (`/Disable-Feature` retornando `0` ou
+  `3010`) - nenhuma máquina Copilot+ estava disponível neste ambiente de desenvolvimento.
+
+### 11. Nenhum pacote Appx do Windows Copilot encontrado nesta máquina (para a ação "Desinstalar")
+- **Status:** Resultado real e válido, não é um bug - documentado para transparência, não é uma
+  falha de implementação.
+- **Descrição:** `Get-AppxPackage | Where-Object { $_.Name -like '*Copilot*' }` (rodado manualmente
+  via PowerShell, e também pelo `BloatwareScanner.scan()` filtrando `Category.AI_COPILOT` dentro do
+  `Phase8AiUninstallConsoleDemo`) não retornou nenhum pacote nesta máquina, de um total de 134 pacotes
+  Appx instalados para o usuário atual. O item 8 (Fase 8 Parte 2) já havia notado que Recall/Click to
+  Do/Cocreator normalmente não têm pacote Appx dedicado - este item confirma que, **nesta máquina, o
+  mesmo vale hoje para o Copilot**: builds recentes do Windows integraram o Copilot ao
+  shell/Explorer, sem um app UWP separado instalável/removível por `Remove-AppxPackage`.
+- **Mitigação aplicada:** `uninstallAiFeatureApp` detecta a ausência do pacote ANTES de tentar
+  qualquer comando (`BloatwareScanner.scan()` primeiro, `Remove-AppxPackage` só se algo for
+  encontrado) e devolve uma falha "não aplicável" clara, sem criar backup nem alterar nada no
+  sistema - comportamento confirmado no `Phase8AiUninstallConsoleDemo` (seções 2 e 3).
+- **Ação pendente:** nenhuma por parte do código - se o Copilot Appx existir em outra máquina/versão
+  do Windows (o próprio código está preparado para isso, via `Category.AI_COPILOT` já existente desde
+  a Fase 8 Parte 2), a mesma ação passará a encontrar e remover o pacote normalmente. Vale
+  re-executar `Phase8AiUninstallConsoleDemo` em uma máquina onde o pacote exista, para validar o
+  caminho de sucesso de `Remove-AppxPackage` (não exercitado aqui por falta de pacote, não por
+  limitação do código).
+
+---
+
 ## Itens sem bloqueio (apenas para referência)
 
 - Repositório GitHub remoto: criado com `gh repo create nitroboost --private --source=. --remote=origin`
