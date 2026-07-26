@@ -57,6 +57,20 @@ public class PerformanceScanner {
     public record HibernationStatus(boolean fileExists, String filePath, boolean checkFailed) {
     }
 
+    /**
+     * Estado do Armazenamento Reservado (Reserved Storage), lido via o cmdlet
+     * do PowerShell {@code Get-WindowsReservedStorageState} - nao e uma chave
+     * de registro simples, e um cmdlet nativo do Windows (parte do sistema,
+     * nao requer importar modulo algum).
+     *
+     * @param state        "Enabled"/"Disabled" (texto bruto devolvido pelo cmdlet), ou {@code null} se nao foi possivel ler
+     * @param supported    se o cmdlet existe/e reconhecido nesta versao/edicao do Windows - quando {@code false},
+     *                     o recurso deve ser tratado como "nao aplicavel", nunca como erro
+     * @param checkFailed  se houve uma falha inesperada ao tentar ler (diferente de "cmdlet nao reconhecido")
+     */
+    public record ReservedStorageStatus(String state, boolean supported, boolean checkFailed) {
+    }
+
     public static final List<PerformanceKeyDefinition> KNOWN_KEYS = List.of(
             new PerformanceKeyDefinition(
                     "visual_fx_setting",
@@ -193,6 +207,54 @@ public class PerformanceScanner {
         }
     }
 
+    /**
+     * Le o estado atual do Armazenamento Reservado via {@code Get-WindowsReservedStorageState}.
+     * Nunca lanca excecao para fora: se o cmdlet nao for reconhecido (nao suportado nesta
+     * versao/edicao do Windows), retorna {@code supported=false} - um estado valido de "nao
+     * aplicavel", nao um erro. Qualquer outra falha inesperada retorna {@code checkFailed=true}.
+     */
+    public ReservedStorageStatus checkReservedStorageState() {
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                    "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "Get-WindowsReservedStorageState");
+            processBuilder.redirectErrorStream(true);
+            Process process = processBuilder.start();
+
+            String output = readStream(process.getInputStream());
+
+            boolean finished = process.waitFor(15, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                System.err.println("[NITRO BOOST] Timeout ao consultar o estado do Armazenamento Reservado.");
+                return new ReservedStorageStatus(null, false, true);
+            }
+
+            String trimmed = output.trim();
+            if (process.exitValue() != 0) {
+                String lower = trimmed.toLowerCase(java.util.Locale.ROOT);
+                if (lower.contains("not recognized") || lower.contains("nao e reconhecido")
+                        || lower.contains("nao é reconhecido") || lower.contains("commandnotfound")) {
+                    // Cmdlet inexistente nesta versao/edicao do Windows - "nao aplicavel", nao e erro.
+                    return new ReservedStorageStatus(null, false, false);
+                }
+                // O cmdlet EXISTE (ex: falhou por falta de elevacao, "COMException" pedindo
+                // administrador) - diferente de "nao reconhecido", entao supported=true aqui;
+                // so a LEITURA falhou desta vez (checkFailed=true), nao a disponibilidade do recurso.
+                System.err.println("[NITRO BOOST] Falha ao consultar o Armazenamento Reservado (cmdlet existe, leitura falhou): " + trimmed);
+                return new ReservedStorageStatus(null, true, true);
+            }
+
+            String firstLine = trimmed.isEmpty() ? null : trimmed.split("\\r?\\n")[0].trim();
+            return new ReservedStorageStatus(firstLine, true, false);
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            System.err.println("[NITRO BOOST] Erro ao verificar o Armazenamento Reservado: " + e.getMessage());
+            return new ReservedStorageStatus(null, false, true);
+        }
+    }
+
     private String readStream(java.io.InputStream inputStream) throws IOException {
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
@@ -226,5 +288,15 @@ public class PerformanceScanner {
         System.out.println();
         System.out.println("Arquivo de hibernacao (" + hibernation.filePath() + "): "
                 + (hibernation.checkFailed() ? "nao foi possivel verificar" : (hibernation.fileExists() ? "existe (habilitada)" : "nao existe (desabilitada)")));
+
+        ReservedStorageStatus reservedStorage = scanner.checkReservedStorageState();
+        System.out.println();
+        if (!reservedStorage.supported()) {
+            System.out.println("Armazenamento Reservado: cmdlet nao suportado/reconhecido nesta versao do Windows (nao aplicavel).");
+        } else if (reservedStorage.checkFailed()) {
+            System.out.println("Armazenamento Reservado: nao foi possivel verificar.");
+        } else {
+            System.out.println("Armazenamento Reservado: " + reservedStorage.state());
+        }
     }
 }

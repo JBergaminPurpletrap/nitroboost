@@ -989,6 +989,101 @@ public class ActionExecutor {
     }
 
     // ------------------------------------------------------------------
+    // Armazenamento Reservado (Reserved Storage) - Fase 10 Parte 2
+    // ------------------------------------------------------------------
+
+    /** Nome fixo de catalogo para o "conceito" de Armazenamento Reservado (so existe um estado por vez). */
+    private static final String RESERVED_STORAGE_ITEM_NAME = "Armazenamento Reservado (Reserved Storage)";
+
+    /**
+     * Habilita/desabilita o Armazenamento Reservado via {@code Set-WindowsReservedStorageState}
+     * (cmdlet, nao uma chave de registro simples - por isso ganha um metodo dedicado em vez de
+     * reaproveitar {@code applyRegistryDwordChange}), com backup do estado anterior. O efeito
+     * completo requer reinicio do Windows.
+     *
+     * Se o cmdlet nao for reconhecido nesta versao/edicao do Windows, a acao e recusada de forma
+     * graciosa (sem tentar escrever nada, sem criar backup) e registrada no historico como falha
+     * "nao suportado" - nunca tratado como excecao/erro fatal.
+     */
+    public ActionResult setReservedStorageEnabled(boolean enable) {
+        String itemType = "reservedstorage";
+        PerformanceScanner.ReservedStorageStatus before = performanceScanner.checkReservedStorageState();
+
+        if (!before.supported()) {
+            String message = "Armazenamento Reservado nao e suportado/reconhecido nesta versao do Windows "
+                    + "(cmdlet Get-WindowsReservedStorageState indisponivel) - nenhuma alteracao foi tentada.";
+            Long itemId = upsertItemQuiet(RESERVED_STORAGE_ITEM_NAME, itemType, null, "nao suportado");
+            recordHistory(itemId, RESERVED_STORAGE_ITEM_NAME, itemType, "set", "nao suportado", null, false, message, null);
+            return new ActionResult(false, message, null);
+        }
+
+        String previousState = before.state() != null ? before.state() : "desconhecido";
+        Long itemId = upsertItemQuiet(RESERVED_STORAGE_ITEM_NAME, itemType, null, previousState);
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, RESERVED_STORAGE_ITEM_NAME, itemType, "set", previousState);
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
+
+        Long backupId = null;
+        try {
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            snapshot.put("previousState", previousState);
+            backupId = backupManager.snapshotBeforeAction(itemId, RESERVED_STORAGE_ITEM_NAME, itemType, snapshot);
+        } catch (SQLException e) {
+            System.err.println("[NITRO BOOST] Falha ao criar backup antes de alterar o Armazenamento Reservado: " + e.getMessage());
+        }
+
+        try {
+            String targetState = enable ? "Enabled" : "Disabled";
+            CommandResult result = runPowerShell("Set-WindowsReservedStorageState -State " + targetState);
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Armazenamento Reservado " + (enable ? "ativado" : "desativado") + " com sucesso "
+                        + "(efeito completo requer reinicio do Windows)."
+                    : "Falha ao " + (enable ? "ativar" : "desativar") + " o Armazenamento Reservado "
+                        + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
+
+            recordHistory(itemId, RESERVED_STORAGE_ITEM_NAME, itemType, "set", previousState, success ? targetState : null, success, success ? null : message, backupId);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao alterar o Armazenamento Reservado: " + e.getMessage();
+            recordHistory(itemId, RESERVED_STORAGE_ITEM_NAME, itemType, "set", previousState, null, false, errorMessage, backupId);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    public ActionResult restoreReservedStorageState(long backupId) {
+        String itemType = "reservedstorage";
+        try {
+            Optional<BackupManager.BackupRecord> backupOpt = backupManager.findById(backupId);
+            if (backupOpt.isEmpty()) {
+                return new ActionResult(false, "Backup #" + backupId + " nao encontrado.", backupId);
+            }
+            BackupManager.BackupRecord backup = backupOpt.get();
+            Object previousStateObj = backup.stateSnapshot().get("previousState");
+            String previousState = previousStateObj == null ? "Enabled" : previousStateObj.toString();
+            boolean wasEnabled = !"Disabled".equalsIgnoreCase(previousState);
+
+            CommandResult result = runPowerShell("Set-WindowsReservedStorageState -State " + (wasEnabled ? "Enabled" : "Disabled"));
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Armazenamento Reservado restaurado ao estado anterior (" + previousState + ")."
+                    : "Falha ao restaurar o Armazenamento Reservado: " + result.output().trim();
+
+            if (success) {
+                backupManager.markRestored(backupId);
+            }
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "set", success ? previousState : null, success, success ? null : message, null);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao restaurar o Armazenamento Reservado a partir do backup #" + backupId + ": " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Utilitarios internos
     // ------------------------------------------------------------------
 
@@ -1076,6 +1171,7 @@ public class ActionExecutor {
                 case "hibernation" -> restoreHibernationState(backupId);
                 case "ai" -> restoreAiFeatureValue(backupId);
                 case "consumer" -> restoreConsumerFeatureValue(backupId);
+                case "reservedstorage" -> restoreReservedStorageState(backupId);
                 default -> new ActionResult(false,
                         "Tipo de item '" + entry.itemType() + "' nao possui reversao automatica implementada.", backupId);
             };
