@@ -1,5 +1,5 @@
 {
-  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware/performance/gaming/hibernation/ai/consumer), classificacao (seguro/essencial/depende), descricao, impacto_desativar, impacto_manter e (opcional) valor_recomendado - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura). Os campos 'version'/'updatedAt' foram adicionados na Fase 7 (Expansao Online) para permitir comparar esta base local com uma base remota - ver com.nitroboost.knowledge.RemoteKnowledgeUpdater. Os tipos performance/gaming/hibernation foram adicionados na Fase 9 Parte 1 (Novos scanners de Performance e Jogos). Os tipos ai/consumer foram adicionados na Fase 8 Parte 2 (Debloat Real Completo, incluindo IAs do Windows 11) - ver AiFeatureScanner e ConsumerFeatureScanner. O campo 'valor_recomendado' foi adicionado na Fase 9 Parte 2 (Diagnostico do Sistema) para as 36 chaves de registro com verificacao objetiva possivel (telemetry/performance/gaming/ai/consumer) - usado por com.nitroboost.audit.SystemAuditEngine para comparar com o valor atual lido da maquina. O item de hibernacao (tipo hibernation) e os demais tipos ficam sem esse campo por nao terem um valor 'certo' unico e objetivo (dependem do uso do usuario).",
+  "_comentario": "Base de conhecimento do NITRO BOOST. Cada item tem: nome, tipo (process/service/startup/task/powerplan/telemetry/bloatware/performance/gaming/hibernation/ai/consumer/reservedstorage/onedrive_uninstall), classificacao (seguro/essencial/depende), descricao, impacto_desativar, impacto_manter e (opcional) valor_recomendado - tudo em portugues claro, sem jargao tecnico, pensado para o usuario final. Carregada em runtime por com.nitroboost.knowledge.KnowledgeBase. Os tipos task/powerplan/telemetry/bloatware foram adicionados na Fase 3 (Expansao de Varredura). Os campos 'version'/'updatedAt' foram adicionados na Fase 7 (Expansao Online) para permitir comparar esta base local com uma base remota - ver com.nitroboost.knowledge.RemoteKnowledgeUpdater. Os tipos performance/gaming/hibernation foram adicionados na Fase 9 Parte 1 (Novos scanners de Performance e Jogos). Os tipos ai/consumer foram adicionados na Fase 8 Parte 2 (Debloat Real Completo, incluindo IAs do Windows 11) - ver AiFeatureScanner e ConsumerFeatureScanner. O campo 'valor_recomendado' foi adicionado na Fase 9 Parte 2 (Diagnostico do Sistema) para as 36 chaves de registro com verificacao objetiva possivel (telemetry/performance/gaming/ai/consumer) - usado por com.nitroboost.audit.SystemAuditEngine para comparar com o valor atual lido da maquina. O item de hibernacao (tipo hibernation) e os demais tipos ficam sem esse campo por nao terem um valor 'certo' unico e objetivo (dependem do uso do usuario). O tipo 'onedrive_uninstall' foi adicionado na Fase 12 Parte A (Debloat Final) para a desinstalacao COMPLETA do OneDrive (acao distinta e bem mais drastica do item 'OneDrive' de tipo 'startup', que so desativa a inicializacao automatica) - ver ActionExecutor.uninstallOneDriveCompletely.",
   "version": "1.0",
   "updatedAt": "2026-07-23",
   "items": [
@@ -71,9 +71,33 @@
       "nome": "NvTelemetryContainer",
       "tipo": "service",
       "classificacao": "seguro",
-      "descricao": "Servico da NVIDIA que envia dados de uso e desempenho da placa de video para a propria NVIDIA (telemetria). Nao afeta o funcionamento da placa de video.",
+      "descricao": "Servico de telemetria da NVIDIA que envia dados de uso e desempenho da placa de video para a propria NVIDIA - roda em segundo plano mesmo sem o GeForce Experience aberto. Nao afeta o funcionamento do driver de video. NOTA: como este servico e de terceiros (NVIDIA), o nome exato pode variar entre versoes de driver - o NITRO BOOST so classifica este item se ele existir de verdade nesta maquina.",
       "impacto_desativar": "Nenhum impacto perceptivel no uso do PC ou nos jogos. Apenas a NVIDIA deixa de receber dados sobre o uso do seu hardware.",
       "impacto_manter": "Roda ocasionalmente em segundo plano enviando informacoes de diagnostico para os servidores da NVIDIA."
+    },
+    {
+      "nome": "NVDisplay.ContainerLocalSystem",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Processo de container do driver NVIDIA - CUIDADO: parte deste servico e necessaria para funcoes do painel de controle NVIDIA. Desativar totalmente pode afetar o overlay do GeForce Experience e o G-SYNC. So desative se souber que nao usa esses recursos. NOTA: nome de servico de terceiro (NVIDIA), pode variar entre versoes de driver - so e classificado se existir de verdade nesta maquina.",
+      "impacto_desativar": "Pode desativar o overlay do painel NVIDIA e o G-SYNC, alem de outras funcoes do driver que dependem deste container. Nao recomendado para quem usa monitor com G-SYNC ou o overlay do GeForce Experience.",
+      "impacto_manter": "Consome recursos leves em segundo plano, mas mantem as funcoes avancadas do driver NVIDIA (overlay, G-SYNC, painel de controle) funcionando normalmente."
+    },
+    {
+      "nome": "AMD External Events Utility",
+      "tipo": "service",
+      "classificacao": "depende",
+      "descricao": "Servico da AMD para eventos externos do driver de video (equivalente AMD ao container da NVIDIA) - usado por recursos do painel AMD Software/Adrenalin. NOTA: nome de servico de terceiro (AMD), pode variar entre versoes de driver - so e classificado se existir de verdade nesta maquina.",
+      "impacto_desativar": "Pode afetar recursos do painel AMD Software (overlay, deteccao automatica de jogos, algumas notificacoes do driver). O driver de video basico geralmente continua funcionando.",
+      "impacto_manter": "Consome recursos leves em segundo plano para manter os recursos avancados do painel AMD funcionando."
+    },
+    {
+      "nome": "AMD Crash Defender Service",
+      "tipo": "service",
+      "classificacao": "seguro",
+      "descricao": "Servico da AMD que coleta relatorios de erro/travamento (crash) do driver de video, para diagnostico da propria AMD. NOTA: nome de servico de terceiro (AMD), pode variar entre versoes de driver - so e classificado se existir de verdade nesta maquina.",
+      "impacto_desativar": "Nenhum impacto perceptivel no uso do PC ou nos jogos - apenas a AMD deixa de receber relatorios de erro do driver.",
+      "impacto_manter": "Fica de prontidao em segundo plano para coletar relatorios de erro, caso o driver de video trave."
     },
     {
       "nome": "NVIDIA GeForce Experience",
@@ -479,11 +503,11 @@
       "impacto_manter": "Ocupa espaco em disco sem uso pratico na grande maioria dos PCs atuais."
     },
     {
-      "nome": "Solitaire Collection",
+      "nome": "MicrosoftSolitaireCollection",
       "tipo": "bloatware",
       "classificacao": "seguro",
       "descricao": "Colecao de jogos de cartas classicos (Paciencia, Copas etc.) que vem pre-instalada no Windows.",
-      "impacto_desativar": "Nenhum impacto no sistema - apenas o app de jogos de carta deixa de estar disponivel.",
+      "impacto_desativar": "Nenhum impacto no sistema - apenas o app de jogos de carta deixa de estar disponivel. Seguro desinstalar se voce nao joga.",
       "impacto_manter": "Ocupa espaco em disco; alguns modos do jogo exibem anuncios e podem iniciar componentes leves em segundo plano."
     },
     {
@@ -511,12 +535,68 @@
       "impacto_manter": "Fica disponivel como opcao padrao para tocar arquivos de audio, sem consumo relevante quando fechado."
     },
     {
-      "nome": "Zune Video (Filmes e TV)",
+      "nome": "ZuneVideo",
       "tipo": "bloatware",
-      "classificacao": "seguro",
-      "descricao": "App de video nativo do Windows (nome interno herdado do antigo Zune) - reproduz arquivos de video locais e da acesso a loja de filmes/series da Microsoft.",
+      "classificacao": "depende",
+      "descricao": "App 'Filmes e TV' (Movies & TV) - nome interno herdado do antigo Zune. Reproduz arquivos de video locais e da acesso a loja de filmes/series da Microsoft.",
       "impacto_desativar": "Nenhum impacto se voce usa outro player (VLC, streaming, etc.) para assistir video.",
       "impacto_manter": "Fica disponivel como opcao padrao para tocar arquivos de video, sem consumo relevante quando fechado."
+    },
+    {
+      "nome": "Clipchamp",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "Editor de video simples pre-instalado no Windows 11 (Clipchamp), usado para cortar/juntar clipes e adicionar legendas basicas.",
+      "impacto_desativar": "Nenhum impacto se voce nao edita video ou usa outro editor (ex: DaVinci Resolve, Premiere, CapCut).",
+      "impacto_manter": "Ocupa espaco em disco; util apenas para quem faz edicoes simples de video direto no Windows."
+    },
+    {
+      "nome": "MicrosoftStickyNotes",
+      "tipo": "bloatware",
+      "classificacao": "depende",
+      "descricao": "App de post-its digitais (Sticky Notes) para anotacoes rapidas na area de trabalho.",
+      "impacto_desativar": "Notas ja criadas deixam de ser acessiveis pelo app (mas nao sao apagadas do disco). Sem impacto se voce nao usa post-its digitais.",
+      "impacto_manter": "Util para quem usa bastante anotacoes rapidas; caso contrario, fica instalado sem uso."
+    },
+    {
+      "nome": "GetHelp",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "App 'Introducao'/'Obter Ajuda' pre-instalado no Windows, usado para suporte tecnico basico e diagnostico guiado.",
+      "impacto_desativar": "Nenhum impacto no sistema - voce ainda pode buscar ajuda pelo site de suporte da Microsoft.",
+      "impacto_manter": "Ocupa espaco em disco; raramente usado no dia a dia."
+    },
+    {
+      "nome": "Getstarted",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "App 'Dicas' (Tips) pre-instalado no Windows, com sugestoes e tutoriais basicos de uso do sistema.",
+      "impacto_desativar": "Nenhum impacto no sistema - apenas o app de dicas deixa de estar disponivel.",
+      "impacto_manter": "Ocupa espaco em disco; raramente usado apos os primeiros dias de uso do PC."
+    },
+    {
+      "nome": "PeopleExperienceHost",
+      "tipo": "bloatware",
+      "classificacao": "depende",
+      "descricao": "App de contatos (People) integrado ao Windows, usado para centralizar contatos de e-mail/redes sociais na barra de tarefas.",
+      "impacto_desativar": "Nenhum impacto se voce gerencia contatos por outro app (celular, Outlook, navegador).",
+      "impacto_manter": "Util para quem usa a integracao de contatos na barra de tarefas; caso contrario, fica instalado sem uso."
+    },
+    {
+      "nome": "YourPhone",
+      "tipo": "bloatware",
+      "classificacao": "depende",
+      "descricao": "App 'Vincular ao Celular' (Phone Link) - permite ver notificacoes, mensagens, fotos e espelhar a tela do celular Android/iPhone direto no PC.",
+      "impacto_desativar": "Voce perde a integracao com o celular (notificacoes, SMS, fotos, espelhamento de tela) enquanto o app estiver desinstalado.",
+      "impacto_manter": "Util so se voce realmente integra o celular ao PC; caso contrario, fica instalado sem uso pratico."
+    },
+    {
+      "nome": "SkypeApp",
+      "tipo": "bloatware",
+      "classificacao": "seguro",
+      "descricao": "Versao consumidor do Skype pre-instalada em algumas edicoes do Windows, para chamadas de video/voz e mensagens.",
+      "impacto_desativar": "Nenhum impacto se voce usa outro app de chamada (Teams, Discord, WhatsApp, Zoom).",
+      "impacto_manter": "Ocupa espaco em disco; util apenas para quem ainda usa o Skype para se comunicar."
     },
     {
       "nome": "Central do Office",
@@ -950,6 +1030,50 @@
       "impacto_desativar": "A secao 'Recomendado' desaparece do Menu Iniciar, deixando mais espaco para os apps fixados.",
       "impacto_manter": "O Menu Iniciar continua mostrando arquivos/apps recentes e sugeridos na secao 'Recomendado'.",
       "valor_recomendado": "0"
+    },
+    {
+      "nome": "Edge - Pre-carregamento em Segundo Plano (Startup Boost)",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "O Microsoft Edge mantem processos rodando em segundo plano mesmo 'fechado', para abrir mais rapido na proxima vez (Startup Boost). Consome RAM a toa se voce nao usa o Edge como navegador principal.",
+      "impacto_desativar": "O Edge deixa de pre-carregar processos em segundo plano - pode abrir um pouco mais devagar na primeira vez, mas libera RAM enquanto nao esta em uso.",
+      "impacto_manter": "O Edge fica com processos residentes em memoria mesmo depois de fechado, para abrir mais rapido.",
+      "valor_recomendado": "0"
+    },
+    {
+      "nome": "Edge - Apps em Segundo Plano (Background Mode)",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Permite que o Microsoft Edge e extensoes continuem rodando em segundo plano depois que todas as janelas do navegador sao fechadas (Background Mode).",
+      "impacto_desativar": "O Edge e suas extensoes param de verdade ao fechar a ultima janela, sem processos residentes depois disso.",
+      "impacto_manter": "O Edge (e extensoes) continuam rodando em segundo plano mesmo com todas as janelas fechadas, consumindo RAM.",
+      "valor_recomendado": "0"
+    },
+    {
+      "nome": "Bloquear Atualizacao de Driver de Video pelo Windows Update (Busca)",
+      "tipo": "performance",
+      "classificacao": "seguro",
+      "descricao": "Impede que o Windows Update procure sozinho por drivers (inclusive de video/GPU) e instale uma versao diferente da que voce escolheu manualmente - reclamacao comum de gamers quando o Windows Update 'reinstala' um driver de GPU mais antigo por cima do driver mais novo baixado direto da NVIDIA/AMD.",
+      "impacto_desativar": "O Windows Update para de baixar/instalar drivers automaticamente (inclusive de GPU) - voce passa a ser responsavel por atualizar drivers manualmente pelo site do fabricante.",
+      "impacto_manter": "O Windows Update pode substituir sozinho o driver de video (ou de outros dispositivos) por uma versao diferente da que voce instalou manualmente, sem avisar antes.",
+      "valor_recomendado": "1"
+    },
+    {
+      "nome": "Bloquear Atualizacao de Driver de Video pelo Windows Update (Aviso)",
+      "tipo": "performance",
+      "classificacao": "seguro",
+      "descricao": "Complementa a chave de busca acima: impede que o Windows Update nem chegue a avisar/perguntar sobre uma atualizacao de driver disponivel (inclusive de video/GPU).",
+      "impacto_desativar": "O Windows Update deixa de avisar sobre drivers disponiveis via Windows Update - drivers continuam sendo atualizados manualmente pelo site do fabricante.",
+      "impacto_manter": "O Windows Update pode avisar/oferecer uma atualizacao de driver (inclusive de GPU) a qualquer momento, mesmo que voce prefira controlar isso manualmente.",
+      "valor_recomendado": "1"
+    },
+    {
+      "nome": "OneDrive - Desinstalacao Completa",
+      "tipo": "onedrive_uninstall",
+      "classificacao": "depende",
+      "descricao": "ACAO DRASTICA: remove o OneDrive por completo deste PC (nao e so desativar a inicializacao automatica - isso ja e feito pelo item 'OneDrive' de Inicializacao). Use somente se voce tem certeza de que nao usa o OneDrive para guardar arquivos.",
+      "impacto_desativar": "O OneDrive e desinstalado do Windows. ATENCAO: arquivos que existem SOMENTE na nuvem do OneDrive (nao copiados para outra pasta do PC) podem ficar inacessiveis localmente ate voce reinstalar o OneDrive e sincronizar novamente - copie o que for importante para outra pasta ANTES de desinstalar.",
+      "impacto_manter": "O OneDrive continua instalado e disponivel para sincronizar arquivos com a nuvem Microsoft, mesmo que voce nao use ativamente."
     }
   ]
 }
