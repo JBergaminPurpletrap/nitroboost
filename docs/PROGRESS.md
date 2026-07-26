@@ -1449,3 +1449,112 @@ existentes (`ServiceScanner`, `PerformanceScanner`, `TelemetryScanner`, `Consume
 Todos os itens do checklist da Fase 10 (Limpeza de RAM + Debloat adicional) estão marcados `[x]` em
 `NITRO-BOOST-fase10-limpeza-ram-e-debloat-adicional.md`. **Isso conclui toda a Fase 10 e todo o
 escopo planejado até aqui.**
+
+---
+
+## 2026-07-26 — Fase 11 Parte 1 concluída (BIOS/Drivers — Nível 1: Detecção Local + Link Direto)
+
+Primeira fase do projeto que detecta hardware da placa-mãe (em vez de configurações do Windows) e
+que abre URLs externas em vez de ler/escrever registro — mesmo padrão de "detecção + orientação
+manual, nunca ação automática" já usado no tutorial de XMP (Fase 5). **Apenas o Nível 1 (sempre
+confiável, sem requisições HTTP) foi implementado, conforme instruído — o Nível 2 (verificação
+online/scraping do site do fabricante) não foi iniciado, aguardando validação do usuário.**
+
+- **`core/HardwareIdentityScanner.java`** (novo): lê fabricante/modelo da placa-mãe e versão/data
+  da BIOS via OSHI (`SystemInfo().getHardware().getComputerSystem().getBaseboard()`/`.getFirmware()`
+  — API confirmada com `javap` contra o jar `oshi-core-7.4.1` já usado pelo projeto antes de
+  escrever qualquer código, em vez de supor os nomes dos métodos). Valores "placeholder" comuns em
+  VMs/hardware genérico (`"To Be Filled By O.E.M."`, `"Default string"`, `"System manufacturer"`
+  etc.) são normalizados para vazio ("não detectado") em vez de exibidos como se fossem dado real.
+  Nunca lança exceção — qualquer falha de leitura devolve todos os campos vazios. O mesmo scanner
+  também lê drivers relevantes (`scanRelevantDrivers()`) via PowerShell `Get-CimInstance
+  Win32_PnPSignedDriver`, filtrando `DeviceClass` para `NET`/`MEDIA`/`DISPLAY`/`SYSTEM` já dentro da
+  própria consulta PowerShell (evita trazer centenas de drivers irrelevantes de impressora/HID/USB
+  genérico) — mesmo padrão de temp-file + UTF-8 já usado em `ServiceScanner`/`BloatwareScanner`/
+  `MemorySpeedScanner`.
+- **Pacote `updates/`** (novo): `VendorLinkStrategy` (interface) com as 3 camadas de fallback da
+  seção 1.2 do documento da fase (`deepLinkUrl`/`vendorSearchUrl`/`externalSearchUrl`, mais um
+  `resolve(manufacturerRaw)` estático que escolhe a estratégia certa por substring case-insensitive
+  — mesmo padrão já usado em `BloatwareScanner.classify()`). Implementações `AsusLinkStrategy`,
+  `MsiLinkStrategy` (reconhece também "Micro-Star", texto real do SMBIOS), `GigabyteLinkStrategy`,
+  `AsRockLinkStrategy` e `GenericLinkStrategy` (fallback final — camadas 1/2 retornam `null` por não
+  existir fabricante conhecido, só a camada 3, busca externa sem filtro de domínio, fica
+  disponível). **Nenhuma classe faz requisição HTTP** — é só montagem de URL (string), a camada 3
+  nunca falha tecnicamente por construção. Documentado no Javadoc de cada estratégia que as camadas
+  1/2 são heurísticas baseadas em padrões conhecidos dos sites dos fabricantes (podem não resolver
+  para a página exata — comportamento esperado, mesma ressalva do próprio documento da fase).
+- **`ui/HardwareUpdateView.java`** (novo): mostra fabricante/modelo/versão e data da BIOS
+  detectados (card dedicado) e a tabela de drivers relevantes, mais 3 botões de ação — "Abrir
+  Página de Suporte" (`.btn-turbo`, tenta a camada 1 e cai para a camada 2 se a camada 1 não
+  existir), "Buscar no Site do Fabricante" e "Buscar no Google" (`.btn-secondary`, expõem as
+  camadas 2/3 diretamente — decisão deliberada de dar ao usuário uma saída manual caso o link
+  profundo da camada 1 esteja quebrado, em vez de deixá-lo preso a um único botão sem alternativa
+  dentro do próprio app). Detecção roda em thread de fundo dedicada (comando PowerShell pode levar
+  alguns segundos, nunca trava a UI — mesmo padrão de `TutorialView`/`ScanResultsView`).
+  `Desktop.getDesktop().browse(URI)` (API padrão do JDK, nenhuma dependência nova) é chamado só ao
+  clicar num botão, dentro de try/catch — falha (sem navegador registrado, ambiente sem suporte a
+  Desktop) mostra um aviso com o link em texto para copiar manualmente, nunca trava a tela. Reusa o
+  tema `nitroboost-carbon.css` existente sem nenhuma classe CSS nova. Adicionada ao menu lateral em
+  `Main.java` como "🔧 BIOS / DRIVERS", entre "Diagnóstico" e "Histórico". Como este recurso é só
+  leitura + link (não há nada para desativar/reverter), a view **não** usa
+  `ActionExecutor`/`LockManager`/`BackupManager`, diferente das demais telas do projeto.
+- **`Phase11Part1ConsoleDemo.java`** (novo): testado isoladamente via console antes de conectar à
+  UI (regra de ouro do projeto) — lê a identidade real da placa-mãe e os drivers desta máquina,
+  resolve a `VendorLinkStrategy` e imprime as URLs das 3 camadas. **Nunca chama
+  `Desktop.browse()`** — só monta e imprime as URLs como texto, para conferência manual.
+
+### Resultado real do teste, nesta máquina de desenvolvimento
+
+Esta máquina de desenvolvimento é um **notebook Dell** (não uma das 4 marcas de placa-mãe
+avulsa/desktop cobertas no lançamento), o que acabou sendo um teste real e útil do caminho de
+fallback genérico:
+
+```
+Fabricante: Dell Inc.
+Modelo: 0XR9NX
+Versao da BIOS: DELL   - 2
+Data de release da BIOS: 2026-03-31
+
+Drivers relevantes (rede / audio-video / sistema): 84 encontrados (ex: "Realtek PCIe GbE Family
+Controller", "Intel(R) Wi-Fi 6 AX201 160MHz", "Intel(R) Iris(R) Xe Graphics", "Realtek Audio",
+mais drivers SYSTEM de chipset Intel — Serial IO, Management Engine, Thunderbolt, PCI Express
+Root Ports etc.)
+
+Fabricante reconhecido pela estrategia: Fabricante nao reconhecido (GenericLinkStrategy)
+[Camada 1] (nao aplicavel - fabricante nao reconhecido)
+[Camada 2] (nao aplicavel - fabricante nao reconhecido)
+[Camada 3] https://www.google.com/search?q=0XR9NX+motherboard+BIOS+driver+download
+```
+
+Fabricante/modelo lidos corretamente ("Dell Inc." / "0XR9NX" — o código de placa da Dell, não um
+nome comercial amigável, comportamento normal da Dell via SMBIOS), `GenericLinkStrategy` ativada
+corretamente (nenhuma das 4 estratégias conhecidas reconhece "Dell Inc."), camadas 1/2 corretamente
+ausentes (`null`), camada 3 gerada corretamente. Como esta máquina não valida os 4 fabricantes
+cobertos, o demo também imprime as URLs das 4 estratégias (`Asus`/`Msi`/`Gigabyte`/`AsRock`) usando
+o modelo real detectado ("0XR9NX") só para inspeção visual da qualidade dos links — ex:
+`https://www.asus.com/supportonly/0XR9NX/HelpDesk_BIOS/`,
+`https://www.msi.com/Motherboard/0XR9NX`,
+`https://www.gigabyte.com/Motherboard/0XR9NX/support#support-dl-bios`,
+`https://www.asrock.com/mb/index.asp?Model=0XR9NX` — confirmação de que a **validação com uma placa
+real de um dos 4 fabricantes cobertos fica pendente do usuário** (registrado como observação, não
+como bloqueio — a lógica de montagem de URL foi revisada manualmente e é a mesma para qualquer
+fabricante/modelo).
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros, em cada etapa (scanner, `updates/`, `ui/HardwareUpdateView`,
+  `Main.java`, demo) — compilado incrementalmente para pegar erro cedo, não só no final.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase11Part1ConsoleDemo` — roda até o fim,
+  ver saída completa acima.
+- API do OSHI (`Baseboard.getManufacturer()`/`getModel()`, `Firmware.getVersion()`/
+  `getReleaseDate()`, `ComputerSystem.getBaseboard()`/`getFirmware()`) confirmada via `javap`
+  contra `oshi-core-7.4.1.jar`/`oshi-common-7.4.1.jar` do repositório Maven local **antes** de
+  escrever o `HardwareIdentityScanner`, em vez de supor os nomes dos métodos.
+
+Todos os itens da subseção "Nível 1" do checklist da Fase 11 estão marcados `[x]` em
+`NITRO-BOOST-fase11-bios-drivers.md`. **A subseção "Nível 2" (verificação automática online) não
+foi iniciada, conforme instrução explícita — aguarda validação do usuário antes de prosseguir**, já
+que essa parte da fase envolveria requisições HTTP reais a sites de terceiros (scraping).
+
+Próximo passo (não iniciado, aguardando validação do usuário): **Fase 11 — Parte 2 (Nível 2:
+Verificação Automática Online, melhor esforço)**.

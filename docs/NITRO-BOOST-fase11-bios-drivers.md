@@ -65,12 +65,12 @@ Para cada fabricante reconhecido, mantar um mapeamento fixo (`VendorLinkStrategy
 ## 3. Checklist de Implementação (Fase 11)
 
 ### Nível 1 (prioridade, sempre entregar isso primeiro)
-- [ ] Criar `HardwareIdentityScanner.java` lendo fabricante, modelo, versão de BIOS, data de release via OSHI
-- [ ] Adicionar leitura de drivers instalados (chipset, LAN, áudio, GPU) via WMI/PowerShell
-- [ ] Criar `VendorLinkStrategy` + implementações para ASUS, MSI, Gigabyte, ASRock, e fallback genérico (camadas 1/2/3 da seção 1.2)
-- [ ] Criar `ui/HardwareUpdateView.java` exibindo os dados detectados + botão "Abrir página de suporte"
-- [ ] Testar com a placa-mãe real do usuário: confirmar que o link gerado realmente leva à página certa (ou pelo menos à busca certa)
-- [ ] Atualizar `PROGRESS.md`
+- [x] Criar `HardwareIdentityScanner.java` lendo fabricante, modelo, versão de BIOS, data de release via OSHI
+- [x] Adicionar leitura de drivers instalados (chipset, LAN, áudio, GPU) via WMI/PowerShell
+- [x] Criar `VendorLinkStrategy` + implementações para ASUS, MSI, Gigabyte, ASRock, e fallback genérico (camadas 1/2/3 da seção 1.2)
+- [x] Criar `ui/HardwareUpdateView.java` exibindo os dados detectados + botão "Abrir página de suporte"
+- [x] Testar com a placa-mãe real do usuário: confirmar que o link gerado realmente leva à página certa (ou pelo menos à busca certa)
+- [x] Atualizar `PROGRESS.md`
 
 ### Nível 2 (melhor esforço, depois do Nível 1 validado)
 - [ ] Criar `VendorPageParser` (interface) + implementação para pelo menos o fabricante da placa-mãe do usuário primeiro (validar o conceito antes de expandir para os outros 3)
