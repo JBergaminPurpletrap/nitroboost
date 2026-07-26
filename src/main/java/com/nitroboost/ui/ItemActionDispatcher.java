@@ -32,9 +32,21 @@ public final class ItemActionDispatcher {
         return switch (type) {
             case "process" -> "Finalizar";
             case "powerplan" -> "Ativar";
-            case "bloatware" -> "Desinstalar";
+            case "bloatware", "onedrive_uninstall" -> "Desinstalar";
             default -> "Desativar";
         };
+    }
+
+    /**
+     * {@code true} se a acao principal deste item exigir uma confirmacao EXTRA, mais explicita que
+     * o dialogo de confirmacao padrao ja usado em acoes em lote (Fase 12 Parte A) - hoje, apenas a
+     * desinstalacao completa do OneDrive (secao A.4), por ser a acao mais drastica/irreversivel do
+     * projeto ate aqui. Usado tanto por {@link com.nitroboost.ui.ScanResultsView} (botao de acao
+     * rapida na tabela) quanto por {@link com.nitroboost.ui.ItemDetailView} (botao do modal de
+     * detalhes), para os dois pontos de entrada exigirem o mesmo aviso extra sem duplicar a decisao.
+     */
+    public static boolean requiresExtraConfirmation(ScannedItem item) {
+        return "onedrive_uninstall".equals(item.type());
     }
 
     /**
@@ -131,6 +143,11 @@ public final class ItemActionDispatcher {
                     var definition = (ConsumerFeatureScanner.ConsumerFeatureKeyDefinition) item.source();
                     yield executor.setConsumerFeatureValue(definition, definition.recommendedValue());
                 }
+                // Item fixo de catalogo (nao vem de um scanner - ver SystemScanTask), sem "source" a
+                // fazer cast: a acao mais drastica do projeto (Fase 12 Parte A, secao A.4), por isso
+                // SEMPRE exige confirmacao extra explicita antes de chegar aqui (ver
+                // requiresExtraConfirmation, checado pela UI antes de despachar esta acao).
+                case "onedrive_uninstall" -> executor.uninstallOneDriveCompletely();
                 default -> new ActionExecutor.ActionResult(false, "Tipo de item desconhecido: " + item.type(), null);
             };
         } catch (Exception e) {

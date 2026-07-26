@@ -26,6 +26,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
+import javafx.stage.Window;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -335,6 +336,15 @@ public class ScanResultsView extends BorderPane {
             primaryButton.getStyleClass().removeAll("btn-secondary", "btn-danger");
             primaryButton.getStyleClass().add(item.classification() == ItemClassification.ESSENCIAL ? "btn-danger" : "btn-secondary");
             primaryButton.setOnAction(e -> {
+                // Acoes drasticas demais para o confirm padrao (hoje, so a desinstalacao completa do
+                // OneDrive - Fase 12 Parte A) exigem um aviso extra-explicito ANTES de chegar ao
+                // ActionExecutor - sem isso, nao e possivel clicar neste botao sem ler o risco.
+                if (ItemActionDispatcher.requiresExtraConfirmation(item)) {
+                    Window window = getScene() != null ? getScene().getWindow() : null;
+                    if (!DestructiveActionConfirmation.confirmOneDriveUninstall(window)) {
+                        return;
+                    }
+                }
                 primaryButton.setDisable(true);
                 runBackendAction(
                         () -> ItemActionDispatcher.performPrimaryAction(context.actionExecutor(), item),

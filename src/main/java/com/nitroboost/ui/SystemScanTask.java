@@ -48,6 +48,9 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
     /** Nome fixo do item de Armazenamento Reservado - mesmo valor usado por {@link com.nitroboost.actions.ActionExecutor}. */
     private static final String RESERVED_STORAGE_ITEM_NAME = "Armazenamento Reservado (Reserved Storage)";
 
+    /** Nome fixo do item de desinstalacao completa do OneDrive (Fase 12 Parte A) - mesmo valor usado por {@link com.nitroboost.actions.ActionExecutor}. */
+    private static final String ONEDRIVE_UNINSTALL_ITEM_NAME = "OneDrive - Desinstalacao Completa";
+
     // ponytail: limite pratico para nao empilhar centenas de processos irrelevantes
     // na tabela - os processos mais pesados (RAM) sao os que mais importam para o
     // objetivo do app ("otimizar performance"). Suba este numero se fizer falta.
@@ -201,6 +204,17 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
             // "source" guarda a definicao (nao o info) - e o que ActionExecutor.setConsumerFeatureValue espera.
             result.add(build(CATEGORY_CONSUMER, "consumer", info.definition().friendlyName(), state, info.definition()));
         }
+
+        // Item fixo de catalogo (Fase 12 Parte A, secao A.4) - nao vem de um scanner de registro como
+        // os demais itens deste metodo, mas reaproveita a mesma categoria (OneDrive ja tem outros
+        // itens de consumidor aqui) em vez de criar uma categoria nova so para este item (YAGNI). O
+        // "source" fica null: a acao (ActionExecutor.uninstallOneDriveCompletely) nao precisa de cast
+        // nenhum, igual aos itens fixos de hibernacao/armazenamento reservado em scanPerformance().
+        String onedriveSetupPath = com.nitroboost.actions.ActionExecutor.resolveOneDriveSetupPath();
+        String onedriveState = onedriveSetupPath != null
+                ? "OneDriveSetup.exe encontrado (" + onedriveSetupPath + ")"
+                : "OneDriveSetup.exe nao encontrado (OneDrive pode ja estar desinstalado)";
+        result.add(build(CATEGORY_CONSUMER, "onedrive_uninstall", ONEDRIVE_UNINSTALL_ITEM_NAME, onedriveState, null));
         return result;
     }
 

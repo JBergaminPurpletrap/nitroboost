@@ -114,6 +114,13 @@ public final class ItemDetailView {
         });
 
         primaryButton.setOnAction(e -> {
+            // Acoes drasticas demais para o fluxo normal (hoje, so a desinstalacao completa do
+            // OneDrive - Fase 12 Parte A) exigem um aviso extra-explicito ANTES de chegar ao
+            // ActionExecutor - sem isso, nao e possivel clicar neste botao sem ler o risco.
+            if (ItemActionDispatcher.requiresExtraConfirmation(item)
+                    && !DestructiveActionConfirmation.confirmOneDriveUninstall(stage)) {
+                return;
+            }
             primaryButton.setDisable(true);
             spinner.setVisible(true);
             runInBackground(
