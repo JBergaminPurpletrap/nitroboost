@@ -1262,6 +1262,151 @@ public class ActionExecutor {
     }
 
     // ------------------------------------------------------------------
+    // OneDrive - Desinstalacao Completa (Fase 12 Parte A, secao A.4)
+    // ------------------------------------------------------------------
+
+    /** Nome fixo de catalogo para o item de desinstalacao completa do OneDrive (distinto do item de startup "OneDrive"). */
+    private static final String ONEDRIVE_UNINSTALL_ITEM_NAME = "OneDrive - Desinstalacao Completa";
+
+    /**
+     * Resolve dinamicamente o caminho do {@code OneDriveSetup.exe} nesta maquina - verifica se
+     * existe primeiro em {@code SysWOW64} (localizacao usual em Windows 64-bit, onde o OneDrive e
+     * um instalador 32-bit) e cai para {@code System32} (versoes 32-bit do Windows), conforme regra
+     * de ouro do projeto de nunca hardcodar caminhos especificos de uma maquina. Retorna {@code null}
+     * se o instalador nao for encontrado em nenhum dos dois locais (OneDrive pode ja estar
+     * desinstalado, ou esta instalacao do Windows nunca teve o OneDrive).
+     *
+     * Metodo {@code static} e sem dependencias externas (so verifica arquivos em disco) - por isso
+     * pode ser chamado tanto pela varredura ({@link com.nitroboost.ui.SystemScanTask}, para exibir o
+     * estado atual) quanto por um teste isolado, sem precisar instanciar {@link ActionExecutor}.
+     */
+    public static String resolveOneDriveSetupPath() {
+        String systemRoot = System.getenv("SystemRoot");
+        if (systemRoot == null || systemRoot.isBlank()) {
+            systemRoot = "C:\\Windows";
+        }
+        Path sysWow64Path = Path.of(systemRoot, "SysWOW64", "OneDriveSetup.exe");
+        if (Files.exists(sysWow64Path)) {
+            return sysWow64Path.toString();
+        }
+        Path system32Path = Path.of(systemRoot, "System32", "OneDriveSetup.exe");
+        if (Files.exists(system32Path)) {
+            return system32Path.toString();
+        }
+        return null;
+    }
+
+    /**
+     * Desinstala o OneDrive POR COMPLETO desta maquina via {@code OneDriveSetup.exe /uninstall} -
+     * acao BEM MAIS DRASTICA que o item "OneDrive" de tipo {@code startup} (que so desativa a
+     * inicializacao automatica, sem remover nada). Por isso usa um {@code itemType} proprio
+     * ({@code onedrive_uninstall}) e um nome de catalogo distinto - nunca deve ser confundida com o
+     * item de startup, inclusive para fins de bloqueio (travar um NAO trava o outro).
+     *
+     * Segue o mesmo contrato de sempre (lock -> backup -> acao -> historico), mas a reversao real
+     * NAO e garantida (ver {@link #restoreOneDriveInstallation(long)}) - mesma excecao documentada
+     * ja aceita no projeto para acoes cuja plataforma nao oferece um "desfazer" 100% confiavel (ex:
+     * restore de bloatware Appx na Fase 3/4, limpeza de RAM na Fase 10). Ainda assim, um backup e
+     * sempre criado antes (regra de ouro do projeto), registrando o caminho do instalador usado, para
+     * a melhor tentativa de reinstalacao possivel.
+     */
+    public ActionResult uninstallOneDriveCompletely() {
+        String itemType = "onedrive_uninstall";
+        String itemName = ONEDRIVE_UNINSTALL_ITEM_NAME;
+        Long itemId = upsertItemQuiet(itemName, itemType, null, "instalado");
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, itemName, itemType, "uninstall", "instalado");
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
+
+        String setupPath = resolveOneDriveSetupPath();
+        if (setupPath == null) {
+            String message = "OneDriveSetup.exe nao foi encontrado nesta maquina (nem em SysWOW64, nem em System32) - "
+                    + "o OneDrive ja pode estar desinstalado, ou esta instalacao do Windows nunca teve o OneDrive.";
+            recordHistory(itemId, itemName, itemType, "uninstall", "instalado", null, false, message, null);
+            return new ActionResult(false, message, null);
+        }
+
+        Long backupId = null;
+        try {
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            snapshot.put("setupPath", setupPath);
+            backupId = backupManager.snapshotBeforeAction(itemId, itemName, itemType, snapshot);
+        } catch (SQLException e) {
+            System.err.println("[NITRO BOOST] Falha ao criar backup antes de desinstalar o OneDrive: " + e.getMessage());
+        }
+
+        try {
+            CommandResult result = runCommand(DISM_TIMEOUT_SECONDS, setupPath, "/uninstall");
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "OneDrive desinstalado por completo desta maquina. Se voce tinha arquivos que existiam "
+                        + "SOMENTE na nuvem do OneDrive (nao copiados para outra pasta), reinstale o OneDrive e "
+                        + "sincronize novamente para recupera-los."
+                    : "Falha ao desinstalar o OneDrive (comum se o app nao estiver rodando como Administrador): "
+                        + result.output().trim();
+
+            recordHistory(itemId, itemName, itemType, "uninstall", "instalado", success ? "uninstalled" : null, success, success ? null : message, backupId);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao desinstalar o OneDrive: " + e.getMessage();
+            recordHistory(itemId, itemName, itemType, "uninstall", "instalado", null, false, errorMessage, backupId);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    /**
+     * Tentativa de reversao "melhor esforco" da desinstalacao do OneDrive, reinvocando o MESMO
+     * instalador capturado no backup, sem o parametro {@code /uninstall} (o comportamento padrao do
+     * {@code OneDriveSetup.exe} sem argumentos e (re)instalar o OneDrive para o usuario atual).
+     *
+     * LIMITACAO DOCUMENTADA (regra de ouro do projeto: nunca prometer uma reversao que nao pode
+     * garantir): diferente de uma chave de registro (onde o valor antigo e recriado com certeza),
+     * reinstalar um programa nao restaura automaticamente configuracoes de sincronizacao, contas
+     * vinculadas ou arquivos que so existiam na nuvem - o usuario precisara reconfigurar o OneDrive
+     * (fazer login novamente) apos a reinstalacao. Alem disso, o instalador pode abrir uma janela
+     * propria de configuracao inicial (nao e um processo 100% silencioso) - o exit code de sucesso
+     * aqui confirma apenas que o INSTALADOR foi executado com sucesso, nao que a sincronizacao ja
+     * esta configurada como antes.
+     */
+    public ActionResult restoreOneDriveInstallation(long backupId) {
+        String itemType = "onedrive_uninstall";
+        try {
+            Optional<BackupManager.BackupRecord> backupOpt = backupManager.findById(backupId);
+            if (backupOpt.isEmpty()) {
+                return new ActionResult(false, "Backup #" + backupId + " nao encontrado.", backupId);
+            }
+            BackupManager.BackupRecord backup = backupOpt.get();
+            Object setupPathObj = backup.stateSnapshot().get("setupPath");
+            String setupPath = setupPathObj == null ? null : setupPathObj.toString();
+            if (setupPath == null || setupPath.isBlank()) {
+                String message = "Nao e possivel reinstalar: backup nao possui o caminho do instalador original.";
+                recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "uninstalled", null, false, message, null);
+                return new ActionResult(false, message, backupId);
+            }
+
+            CommandResult result = runCommand(DISM_TIMEOUT_SECONDS, setupPath);
+            boolean success = result.exitCode() == 0;
+            String message = success
+                    ? "Instalador do OneDrive executado novamente com sucesso (reinstalacao 'melhor esforco' - "
+                        + "voce pode precisar fazer login na sua conta Microsoft novamente para retomar a "
+                        + "sincronizacao, exatamente como estava antes)."
+                    : "Falha ao reinstalar o OneDrive: " + result.output().trim();
+
+            if (success) {
+                backupManager.markRestored(backupId);
+            }
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "uninstalled", success ? "reinstalled" : null, success, success ? null : message, null);
+            return new ActionResult(success, message, backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao reinstalar o OneDrive a partir do backup #" + backupId + ": " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // Utilitarios internos
     // ------------------------------------------------------------------
 
@@ -1360,6 +1505,7 @@ public class ActionExecutor {
                 };
                 case "consumer" -> restoreConsumerFeatureValue(backupId);
                 case "reservedstorage" -> restoreReservedStorageState(backupId);
+                case "onedrive_uninstall" -> restoreOneDriveInstallation(backupId);
                 default -> new ActionResult(false,
                         "Tipo de item '" + entry.itemType() + "' nao possui reversao automatica implementada.", backupId);
             };
