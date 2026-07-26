@@ -2013,3 +2013,96 @@ de prosseguir.**
 
 Próximo passo (não iniciado, aguardando validação do usuário): **Fase 12 — Parte B (Suíte de Testes
 de Validação)**.
+
+---
+
+## 2026-07-26 — Fase 12 Parte B concluída (Suíte de Testes de Validação)
+
+Primeira suíte JUnit do projeto (nunca havia dependência de teste no `pom.xml` antes desta fase) +
+checklist de teste manual documentado em `TESTING.md` (raiz do projeto, conforme pedido explícito
+do documento da Fase 12) — **apenas a seção B (Testes) foi implementada, conforme instruído**: a
+Parte C (barras de progresso) não foi iniciada, aguardando validação do usuário.
+
+### B.1) Testes automatizados (JUnit 5)
+
+- **`pom.xml`**: adicionada a dependência `org.junit.jupiter:junit-jupiter:5.11.4` (escopo `test`,
+  primeira dependência de teste do projeto) e declarado explicitamente o
+  `maven-surefire-plugin:3.5.2` (compatível com JUnit 5 — antes não havia versão nenhuma declarada,
+  o Maven usava o default antigo que não reconhece o motor Jupiter).
+- **9 classes de teste criadas** em `src/test/java/com/nitroboost/...` (estrutura Maven padrão),
+  cobrindo exatamente os 6 pontos pedidos pelo documento: `KnowledgeBase` (item existente/inexistente),
+  parsers de saída de comando (`ServiceScanner`/`TaskSchedulerScanner`/`PowerPlanScanner`, com strings
+  de exemplo fixas simulando `Get-CimInstance`/`schtasks`/`powercfg`, sem chamar comando real),
+  `ItemClassification.fromLabel()`, `VendorLinkStrategy.resolve()` (Fase 11, os 4 fabricantes +
+  fallback genérico), comparação de versão DWORD (`SystemAuditEngine.dwordValuesEqual()`, já existente
+  desde a Fase 9 — hex vs decimal, formatos inesperados sem lançar exceção) e `AuditReport`
+  (agregadores, com `AuditFinding` simulados). Bônus: `SystemScanTask.buildItem()` (o fallback "não
+  catalogado" citado no documento vive nessa camada, não em `KnowledgeBase.find()` — confirmado lendo
+  o código antes de escrever o teste).
+- **Refatoração mínima para viabilizar os testes** (sem alterar nenhum contrato público, sem quebrar
+  nada existente): `ServiceScanner.parseJson(String)` teve a visibilidade mudada de `private` para
+  pacote; `TaskSchedulerScanner`/`PowerPlanScanner` tiveram o corpo do laço de parsing (antes solto
+  dentro de `scan()`) extraído para `parseCsvOutput(String)`/`parseListOutput(String)`, também com
+  visibilidade de pacote — `scan()` continua com a mesma assinatura/comportamento, só delega para o
+  método extraído. Confirmado com `./mvnw -q compile` antes e depois que nada quebrou.
+- **Resultado: 40 testes, 100% de sucesso** (`./mvnw test` → `Tests run: 40, Failures: 0, Errors: 0`).
+- **Bug real encontrado e corrigido** (dado, não código): `knowledge-base.json` continha **7 entradas
+  duplicadas** (`DiagTrack`, `PcaSvc`, `RetailDemo`, `MapsBroker`, `Fax`, `TabletInputService`,
+  `XblAuthManager`) — na maioria só descrição reescrita (inofensivo), mas `MapsBroker` tinha
+  **classificação conflitante** entre as duas cópias (`"seguro"` vs `"depende"`). Como
+  `KnowledgeBase` usa `putIfAbsent` (primeira ocorrência vence), o comportamento real já era
+  determinístico, mas o arquivo tinha uma inconsistência de dados perigosa para manutenção futura.
+  Corrigidas as 7 duplicatas (mantida a primeira ocorrência de cada uma) — total de itens catalogados
+  caiu de 128 para **121**, sem perda de informação real.
+
+### B.2) Checklist de teste manual (`TESTING.md`)
+
+Mesma limitação de ambiente já documentada desde a Fase 0 (sem sessão gráfica interativa para
+`javafx:run` síncrono) e desde a Fase 9 (sessão de console sem Administrador nesta rodada) — cada
+item do checklist foi verificado da forma mais próxima possível via comparação direta entre o
+scanner do NITRO BOOST e o comando equivalente do Windows:
+
+- **9 itens verificados de fato via console**: Processos (`ProcessScanner.topByRam(10)` vs
+  `Get-Process` — top 10 bateram em nome/PID/RAM), Serviços (`Spooler` — `Running`/`Automatic` nos
+  dois lados), Startup (7 itens idênticos nos dois lados), Bloatware (`BloatwareScanner.scan().size()`
+  = **134**, exatamente igual a `(Get-AppxPackage | Measure-Object).Count`), BIOS/Drivers
+  (`HardwareIdentityScanner` = "Dell Inc." / "0XR9NX", idêntico a `Win32_BaseBoard`), Diagnóstico do
+  Sistema (reexecução do `Phase9Part2ConsoleDemo` já existente — placar mudou de **5 de 44** para
+  **6 de 44** ao aplicar uma sugestão real e voltou para **5 de 44** ao reverter, round-trip completo
+  confirmado), Backup/Reversão, Bloqueio e Histórico (novo `Phase12PartBConsoleDemo` — ver abaixo).
+- **`Phase12PartBConsoleDemo`** (novo, `src/main/java/com/nitroboost/`): o serviço sugerido pelo
+  documento para o teste de backup/reversão (`Fax`) **não existe nesta máquina**
+  (`Get-Service Fax` → "Cannot find any service") — documentado como "não aplicável, serviço
+  ausente" e substituído por `MapsBroker` (classificado "seguro", já parado/`Automatic` nesta
+  máquina). Testado: `lockItem` → `disableService` recusado corretamente por bloqueio → `unlockItem`
+  → `disableService` desbloqueado falha com "Acesso negado" (mesma classe de limitação já documentada
+  nos itens 6/7/9/10 de `BLOCKERS.md` — exige Administrador) → `restoreService` também falha pelo
+  mesmo motivo → confirmado via leitura direta que o serviço nunca mudou de estado em nenhum momento
+  → confirmado no histórico (`ActionHistoryRepository.findRecent`) que as 5 ações (lock/disable
+  recusado/unlock/disable falho/enable falho) aparecem com timestamp correto.
+- **2 itens bloqueados por limitação de ambiente já conhecida** (referenciados, não repetidos): IA/
+  Copilot (item 11 de `BLOCKERS.md`) e Limpeza de RAM (item 9 de `BLOCKERS.md`).
+- **Itens novos da Fase 12** (GPU/Edge/OneDrive/Driver Update): reexecutado o `Phase12PartAConsoleDemo`
+  já existente — GPU não aplicável (sem GPU dedicada nesta máquina), Edge/Driver Update falharam por
+  falta de Administrador (nada alterado, confirmado por leitura direta), OneDrive com lógica validada
+  (resolução do instalador + fluxo de bloqueio) sem executar a desinstalação real.
+- **Nenhum item falhou de verdade** (nenhum comportamento incorreto do NITRO BOOST) — todas as
+  "falhas" observadas são o Windows exigindo Administrador para escrever em HKLM/serviços, já
+  documentado. Por isso **nenhuma entrada nova foi necessária em `BLOCKERS.md`** nesta parte.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw -q test` — OK, **40 de 40 testes passando**.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase12PartBConsoleDemo` — roda até o fim, ver
+  `TESTING.md` para a saída completa.
+- Reexecutados `Phase9Part2ConsoleDemo` e `Phase12PartAConsoleDemo` (já existentes) para reconfirmar
+  os itens 9 e 12a/12b/12c do checklist nesta mesma rodada.
+
+Todos os itens da subseção "Testes" do checklist da Fase 12 estão marcados `[x]` em
+`NITRO-BOOST-fase12-debloat-final-e-testes.md`, assim como o checklist completo das seções B.1/B.2/B.3
+dentro do próprio documento da fase. **A Parte C (barras de progresso) não foi iniciada, conforme
+instrução explícita — aguarda validação do usuário antes de prosseguir.**
+
+Próximo passo (não iniciado, aguardando validação do usuário): **Fase 12 — Parte C (Barras de
+Progresso para Escaneamento e Diagnóstico)**.

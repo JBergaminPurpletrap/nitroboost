@@ -119,8 +119,12 @@ public class ServiceScanner {
      * {@code ConvertTo-Json} recebe apenas 1 objeto ele NAO retorna um array
      * (retorna o objeto solto) - um erro classico de quem assume sempre
      * array. Tratamos os dois formatos aqui.
+     *
+     * Visibilidade de pacote (nao {@code private}) de proposito: permite testar o parsing
+     * isoladamente via JUnit (Fase 12 Parte B) com strings de exemplo fixas, sem chamar o
+     * PowerShell de verdade.
      */
-    private List<ServiceInfo> parseJson(String json) {
+    List<ServiceInfo> parseJson(String json) {
         List<ServiceInfo> services = new ArrayList<>();
         if (json == null || json.isBlank()) {
             return services;

@@ -33,6 +33,7 @@
         <jna.version>5.19.1</jna.version>
         <sqlite.version>3.53.2.1</sqlite.version>
         <jackson.version>2.22.1</jackson.version>
+        <junit.version>5.11.4</junit.version>
     </properties>
 
     <dependencies>
@@ -79,6 +80,14 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>${jackson.version}</version>
+        </dependency>
+
+        <!-- JUnit 5: suite de testes automatizados (Fase 12 Parte B) - so em escopo de teste. -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -155,6 +164,17 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.6.3</version>
+            </plugin>
+
+            <!--
+                maven-surefire-plugin: versao explicita compativel com JUnit 5 (o provider padrao
+                de versoes antigas do Maven nao reconhece o motor Jupiter sem isso).
+                Uso: ./mvnw test
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.2</version>
             </plugin>
 
             <!--

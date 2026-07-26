@@ -60,35 +60,35 @@ Com 11 fases já implementadas, é essencial confirmar que nada quebrou no camin
 
 Cobre tudo que **não depende de chamar o sistema operacional de verdade** — parsers, regras de classificação, cálculos:
 
-- [ ] Testes de `KnowledgeBase`: carregar o JSON, buscar item existente, buscar item inexistente (deve cair no "não catalogado" corretamente)
-- [ ] Testes de parsers de saída de comando (ex: parser da saída do `sc query`, `schtasks /query`, `powercfg /list`) — usando **strings de exemplo fixas** simulando a saída real do Windows, sem chamar o comando de verdade
-- [ ] Testes de `ItemClassification` — dado um item com determinados atributos, confirmar que cai na categoria certa
-- [ ] Testes de `VendorLinkStrategy` (Fase 11) — confirmar que cada fabricante gera a URL esperada, e que o fallback genérico funciona para fabricante desconhecido
-- [ ] Testes de comparação de versão (BIOS/drivers) — casos com formatos variados de versão, confirmando que não trava/quebra com formato inesperado
-- [ ] Testes de `AuditReport`/`SystemAuditEngine` (Fase 9) — dado um conjunto simulado de achados, confirmar que o placar e agrupamento por categoria saem corretos
+- [x] Testes de `KnowledgeBase`: carregar o JSON, buscar item existente, buscar item inexistente (deve cair no "não catalogado" corretamente)
+- [x] Testes de parsers de saída de comando (ex: parser da saída do `sc query`, `schtasks /query`, `powercfg /list`) — usando **strings de exemplo fixas** simulando a saída real do Windows, sem chamar o comando de verdade
+- [x] Testes de `ItemClassification` — dado um item com determinados atributos, confirmar que cai na categoria certa
+- [x] Testes de `VendorLinkStrategy` (Fase 11) — confirmar que cada fabricante gera a URL esperada, e que o fallback genérico funciona para fabricante desconhecido
+- [x] Testes de comparação de versão (BIOS/drivers) — casos com formatos variados de versão, confirmando que não trava/quebra com formato inesperado
+- [x] Testes de `AuditReport`/`SystemAuditEngine` (Fase 9) — dado um conjunto simulado de achados, confirmar que o placar e agrupamento por categoria saem corretos
 
 ### B.2 Checklist de Teste Manual (smoke test) — para tudo que depende do Windows real
 
 Não dá pra automatizar 100% chamadas reais ao sistema operacional em CI, mas dá pra ter um **roteiro fixo de verificação manual**, pra rodar sempre que uma fase nova for concluída:
 
-- [ ] **Processos:** abrir o app, confirmar que a lista de processos bate com o Gerenciador de Tarefas (comparar top 5 por RAM)
-- [ ] **Serviços:** confirmar que um serviço conhecido (ex: `Spooler`) aparece com o status correto (Rodando/Parado)
-- [ ] **Startup:** confirmar que os itens batem com o que aparece no Gerenciador de Tarefas → aba Inicializar
-- [ ] **Backup/Reversão:** desativar um serviço de teste (ex: `Fax`), confirmar no `services.msc` que realmente parou, depois reverter pelo app e confirmar que voltou ao estado anterior
-- [ ] **Bloqueio (Lock):** bloquear um item, tentar desativar, confirmar que o app recusa a ação
-- [ ] **Histórico:** confirmar que a ação acima aparece corretamente no histórico com data/hora
-- [ ] **Bloatware (pós-correção Fase 8):** confirmar que a contagem de apps exibida bate com `Get-AppxPackage | Measure-Object` rodado manualmente no PowerShell
-- [ ] **IA (Fase 8):** confirmar visualmente no menu do Windows que o botão do Copilot sumiu depois de desativado pelo app
-- [ ] **Diagnóstico do Sistema (Fase 9):** confirmar que o placar geral muda corretamente depois de aplicar uma sugestão
-- [ ] **Limpeza de RAM (Fase 10):** confirmar no Gerenciador de Tarefas que a memória "em cache"/standby realmente reduz depois de clicar no botão
-- [ ] **BIOS/Drivers (Fase 11):** confirmar que o modelo/fabricante detectado bate com o que aparece na especificação real da placa-mãe (ex: manual, ou `msinfo32`)
-- [ ] **Novos itens desta fase (GPU/Edge/OneDrive/Driver Update):** testar cada um individualmente com o mesmo roteiro de backup/reversão acima
+- [x] **Processos:** abrir o app, confirmar que a lista de processos bate com o Gerenciador de Tarefas (comparar top 5 por RAM)
+- [x] **Serviços:** confirmar que um serviço conhecido (ex: `Spooler`) aparece com o status correto (Rodando/Parado)
+- [x] **Startup:** confirmar que os itens batem com o que aparece no Gerenciador de Tarefas → aba Inicializar
+- [x] **Backup/Reversão:** desativar um serviço de teste (ex: `Fax`), confirmar no `services.msc` que realmente parou, depois reverter pelo app e confirmar que voltou ao estado anterior
+- [x] **Bloqueio (Lock):** bloquear um item, tentar desativar, confirmar que o app recusa a ação
+- [x] **Histórico:** confirmar que a ação acima aparece corretamente no histórico com data/hora
+- [x] **Bloatware (pós-correção Fase 8):** confirmar que a contagem de apps exibida bate com `Get-AppxPackage | Measure-Object` rodado manualmente no PowerShell
+- [x] **IA (Fase 8):** confirmar visualmente no menu do Windows que o botão do Copilot sumiu depois de desativado pelo app
+- [x] **Diagnóstico do Sistema (Fase 9):** confirmar que o placar geral muda corretamente depois de aplicar uma sugestão
+- [x] **Limpeza de RAM (Fase 10):** confirmar no Gerenciador de Tarefas que a memória "em cache"/standby realmente reduz depois de clicar no botão
+- [x] **BIOS/Drivers (Fase 11):** confirmar que o modelo/fabricante detectado bate com o que aparece na especificação real da placa-mãe (ex: manual, ou `msinfo32`)
+- [x] **Novos itens desta fase (GPU/Edge/OneDrive/Driver Update):** testar cada um individualmente com o mesmo roteiro de backup/reversão acima
 
 ### B.3 Onde documentar os resultados
 
-- [ ] Criar `TESTING.md` na raiz do projeto com o resultado de cada item do checklist manual (data do teste, resultado, observações)
-- [ ] Rodar a suíte JUnit e confirmar 100% de sucesso antes de qualquer novo commit de fase futura
-- [ ] Qualquer item do checklist manual que falhar deve virar uma entrada em `BLOCKERS.md` com prioridade de correção antes de seguir para novas fases
+- [x] Criar `TESTING.md` na raiz do projeto com o resultado de cada item do checklist manual (data do teste, resultado, observações)
+- [x] Rodar a suíte JUnit e confirmar 100% de sucesso antes de qualquer novo commit de fase futura
+- [x] Qualquer item do checklist manual que falhar deve virar uma entrada em `BLOCKERS.md` com prioridade de correção antes de seguir para novas fases
 
 ---
 
@@ -169,9 +169,9 @@ Componente JavaFX customizado (`ui/components/NitroProgressBar.java`), reutiliza
 - [x] Adicionar o bloqueio de driver update (seção A.5) ao `PerformanceScanner` (Fase 9)
 
 ### Testes
-- [ ] Escrever os testes JUnit da seção B.1
-- [ ] Executar o checklist manual da seção B.2 e documentar em `TESTING.md`
-- [ ] Corrigir qualquer item que falhar antes de considerar a fase concluída
+- [x] Escrever os testes JUnit da seção B.1
+- [x] Executar o checklist manual da seção B.2 e documentar em `TESTING.md`
+- [x] Corrigir qualquer item que falhar antes de considerar a fase concluída
 
 ### Barras de Progresso
 - [ ] Completar o checklist da seção C.4 (ver acima)

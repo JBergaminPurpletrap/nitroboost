@@ -65,20 +65,33 @@ public class PowerPlanScanner {
                 return result;
             }
 
-            for (String line : output.split("\\r?\\n")) {
-                Matcher matcher = PLAN_LINE_PATTERN.matcher(line);
-                if (matcher.find()) {
-                    String guid = matcher.group(1);
-                    String name = matcher.group(2).trim();
-                    boolean active = matcher.group(3) != null;
-                    result.add(new PowerPlanInfo(guid, name, active));
-                }
-            }
+            result.addAll(parseListOutput(output));
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             System.err.println("[NITRO BOOST] Erro ao escanear planos de energia: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * Parseia a saida completa (multi-linha) do {@code powercfg /list}. Extraido de
+     * {@link #scan()} com visibilidade de pacote (nao {@code private}) de proposito: permite
+     * testar o parsing isoladamente via JUnit (Fase 12 Parte B) com strings de exemplo fixas
+     * (inclusive a variante em portugues, "GUID do Esquema de Energia:"), sem chamar o comando
+     * de verdade.
+     */
+    List<PowerPlanInfo> parseListOutput(String output) {
+        List<PowerPlanInfo> result = new ArrayList<>();
+        for (String line : output.split("\\r?\\n")) {
+            Matcher matcher = PLAN_LINE_PATTERN.matcher(line);
+            if (matcher.find()) {
+                String guid = matcher.group(1);
+                String name = matcher.group(2).trim();
+                boolean active = matcher.group(3) != null;
+                result.add(new PowerPlanInfo(guid, name, active));
+            }
         }
         return result;
     }

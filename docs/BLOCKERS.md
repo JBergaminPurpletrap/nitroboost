@@ -279,6 +279,33 @@ projeto (nunca pular uma tarefa silenciosamente por causa de um bloqueio).
 
 ---
 
+## Fase 12 - Parte B (Suite de Testes de Validacao)
+
+### 12. Servico "Fax" (sugerido pelo checklist B.2) nao existe nesta maquina + `Set-Service` tambem exige Administrador
+- **Status:** Nao e um bug - mesma classe de limitacao ja documentada nos itens 6/7/9/10 (escrita
+  que exige elevacao), agora confirmada tambem para `Set-Service` (acao de servico), nao so para
+  registro/DISM/`powercfg`. Registrado aqui por transparencia, conforme instrucao explicita da
+  Fase 12 de documentar honestamente o que foi verificado vs bloqueado.
+- **Descricao:** o documento da Fase 12 sugere testar o round-trip de backup/reversao contra o
+  servico `Fax`. Confirmado via `Get-Service Fax` que **esse servico nao existe nesta maquina**
+  (Windows 11 24H2/build 26200, "Cannot find any service with service name 'Fax'"). Substituido por
+  `MapsBroker` (classificado "seguro" na base de conhecimento, ja parado/`Automatic` nesta maquina -
+  impacto minimo). Ao tentar `ActionExecutor.disableService("MapsBroker")` sem elevacao, `Set-Service
+  -StartupType` falhou com "Acesso negado" - o mesmo tipo de restricao ja documentada para escrita em
+  chaves HKLM (item 6/7) e `powercfg /hibernate` (item 9), agora confirmada tambem para configuracao
+  de servicos do Windows.
+- **Mitigacao aplicada:** `Phase12PartBConsoleDemo` (novo) exercitou o caminho de falha completo -
+  backup criado corretamente antes da tentativa, comando tentado, falha tratada sem excecao,
+  confirmado via leitura direta que o servico nunca mudou de estado (`Stopped/Auto` antes e depois),
+  e a entrada correspondente gravada no historico com a mensagem de erro completa. O mecanismo de
+  bloqueio (lock) foi validado com sucesso no mesmo teste (recusa correta, sem tentar nenhum comando).
+- **Acao pendente:** nenhuma de codigo - o usuario deve rodar o NITRO BOOST como Administrador (mesmo
+  fluxo de `run-as-admin.bat` ja usado para as demais acoes que exigem elevacao) para validar o
+  caminho de sucesso completo de `disableService`/`restoreService` contra um servico real. Detalhes
+  completos da execucao em `TESTING.md` (raiz do projeto).
+
+---
+
 ## Itens sem bloqueio (apenas para referência)
 
 - Repositório GitHub remoto: criado com `gh repo create nitroboost --private --source=. --remote=origin`

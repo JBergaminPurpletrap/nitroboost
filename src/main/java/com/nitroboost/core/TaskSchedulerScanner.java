@@ -58,29 +58,41 @@ public class TaskSchedulerScanner {
                 return result;
             }
 
-            for (String line : output.split("\\r?\\n")) {
-                if (line.isBlank()) {
-                    continue;
-                }
-                List<String> columns = parseCsvLine(line);
-                if (columns.size() < 3) {
-                    continue;
-                }
-                // Nomes de tarefa reais sempre comecam com "\" (caminho da tarefa no
-                // Agendador). Isso descarta de forma robusta a linha de cabecalho
-                // ("TaskName"/"Nome da tarefa", dependendo do idioma do Windows) - o
-                // schtasks tambem repete o cabecalho a cada "pagina" interna quando ha
-                // muitas tarefas, entao nao da para assumir que so a primeira linha e cabecalho.
-                if (!columns.get(0).startsWith("\\")) {
-                    continue;
-                }
-                result.add(new TaskInfo(columns.get(0), columns.get(1), columns.get(2)));
-            }
+            result.addAll(parseCsvOutput(output));
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
             System.err.println("[NITRO BOOST] Erro ao escanear tarefas agendadas: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * Parseia a saida completa (multi-linha) do {@code schtasks /query /fo CSV}. Extraido de
+     * {@link #scan()} com visibilidade de pacote (nao {@code private}) de proposito: permite
+     * testar o parsing isoladamente via JUnit (Fase 12 Parte B) com strings de exemplo fixas
+     * simulando a saida real do Windows, sem chamar o comando de verdade.
+     */
+    List<TaskInfo> parseCsvOutput(String output) {
+        List<TaskInfo> result = new ArrayList<>();
+        for (String line : output.split("\\r?\\n")) {
+            if (line.isBlank()) {
+                continue;
+            }
+            List<String> columns = parseCsvLine(line);
+            if (columns.size() < 3) {
+                continue;
+            }
+            // Nomes de tarefa reais sempre comecam com "\" (caminho da tarefa no
+            // Agendador). Isso descarta de forma robusta a linha de cabecalho
+            // ("TaskName"/"Nome da tarefa", dependendo do idioma do Windows) - o
+            // schtasks tambem repete o cabecalho a cada "pagina" interna quando ha
+            // muitas tarefas, entao nao da para assumir que so a primeira linha e cabecalho.
+            if (!columns.get(0).startsWith("\\")) {
+                continue;
+            }
+            result.add(new TaskInfo(columns.get(0), columns.get(1), columns.get(2)));
         }
         return result;
     }
