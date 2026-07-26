@@ -65,6 +65,10 @@ public class ActionExecutor {
     private final GamingScanner gamingScanner = new GamingScanner();
     private final AiFeatureScanner aiFeatureScanner = new AiFeatureScanner();
     private final ConsumerFeatureScanner consumerFeatureScanner = new ConsumerFeatureScanner();
+    private final BloatwareScanner bloatwareScanner = new BloatwareScanner();
+
+    /** DISM pode demorar bem mais que os outros comandos (reg/schtasks/powercfg) - timeout maior e explicito. */
+    private static final int DISM_TIMEOUT_SECONDS = 120;
 
     /** Nome fixo de catalogo para o "conceito" de plano de energia ativo (so existe um por vez). */
     private static final String POWER_PLAN_ITEM_NAME = "ActivePowerPlan";
@@ -658,8 +662,17 @@ public class ActionExecutor {
      *               (ver regra de seguranca da Fase 3 no BLOCKERS.md/PROGRESS.md).
      */
     public ActionResult uninstallBloatwareApp(BloatwareScanner.AppxInfo app, boolean allUsers, boolean whatIf) {
-        String itemType = "bloatware";
-        String itemName = app.name();
+        return performAppxUninstall("bloatware", app.name(), app, allUsers, whatIf);
+    }
+
+    /**
+     * Mecanica compartilhada por {@link #uninstallBloatwareApp} e {@link #uninstallAiFeatureApp}
+     * (Fase 8 - Ajuste): as duas sao, por baixo, o mesmo {@code Remove-AppxPackage} ja validado
+     * desde a Fase 4 - extraido aqui para a acao de "Desinstalar" do Windows Copilot nao duplicar
+     * essa logica, sem alterar o comportamento ja testado de {@code uninstallBloatwareApp}.
+     */
+    private ActionResult performAppxUninstall(String itemType, String itemName, BloatwareScanner.AppxInfo app,
+                                                boolean allUsers, boolean whatIf) {
         Long itemId = upsertItemQuiet(itemName, itemType, null, "installed");
 
         Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, itemName, itemType, "uninstall", "installed");
@@ -698,7 +711,8 @@ public class ActionExecutor {
                         ? "[SIMULACAO -WhatIf] Comando de desinstalacao valido para '" + itemName + "' - nada foi alterado. " + result.output().trim()
                         : "App '" + itemName + "' desinstalado com sucesso.")
                     : "Falha ao desinstalar app '" + itemName + "' "
-                        + "(comum se o app nao estiver rodando como Administrador, quando -AllUsers e usado): " + result.output().trim();
+                        + "(comum se o app nao estiver rodando como Administrador, quando -AllUsers e usado, ou se for "
+                        + "um pacote protegido do sistema que o Windows recusa remover): " + result.output().trim();
 
             recordHistory(itemId, itemName, itemType, actionLabel, "installed",
                     success ? (whatIf ? "installed (simulado)" : "uninstalled") : null, success, success ? null : message, backupId);
@@ -718,7 +732,15 @@ public class ActionExecutor {
      * PROGRESS.md sobre a limitacao inerente da plataforma Appx aqui).
      */
     public ActionResult restoreBloatwareApp(long backupId) {
-        String itemType = "bloatware";
+        return performAppxRestore("bloatware", backupId);
+    }
+
+    /**
+     * Mecanica compartilhada por {@link #restoreBloatwareApp} e {@link #restoreAiFeatureApp}
+     * (Fase 8 - Ajuste): mesma tentativa de restauracao "melhor esforco" via re-registro do
+     * manifesto Appx, extraida para nao duplicar a logica entre as duas categorias.
+     */
+    private ActionResult performAppxRestore(String itemType, long backupId) {
         try {
             Optional<BackupManager.BackupRecord> backupOpt = backupManager.findById(backupId);
             if (backupOpt.isEmpty()) {
@@ -803,6 +825,162 @@ public class ActionExecutor {
 
     public ActionResult restoreAiFeatureValue(long backupId) {
         return restoreRegistryDwordChange("ai", backupId);
+    }
+
+    // ------------------------------------------------------------------
+    // IA - Desinstalar/remover de verdade (Fase 8 - Ajuste, alem de so desativar por politica)
+    // ------------------------------------------------------------------
+
+    /**
+     * Desinstala o pacote Appx do Windows Copilot desta maquina, quando ele existir separadamente
+     * (mesmo mecanismo de {@link #uninstallBloatwareApp} - so muda o {@code itemType} para "ai",
+     * para o bloqueio/historico ficarem sob o mesmo nome usado pela acao "Desativar" deste item).
+     *
+     * Builds recentes do Windows integraram o Copilot ao shell/Explorer sem um pacote Appx proprio
+     * (confirmado nesta maquina - ver {@code BLOCKERS.md} e {@code Phase8AiUninstallConsoleDemo}):
+     * nesse caso, a acao retorna falha "nao aplicavel" de forma graciosa, sem criar backup.
+     *
+     * @param allUsers {@code true} remove o pacote de todos os usuarios do PC (equivalente a
+     *                 "windows_copilot_allusers" - normalmente exige Administrador); {@code false}
+     *                 remove so para o usuario atual (equivalente a "windows_copilot_user").
+     */
+    public ActionResult uninstallAiFeatureApp(AiFeatureScanner.AiFeatureKeyDefinition definition, boolean allUsers, boolean whatIf) {
+        String itemType = "ai";
+        String itemName = definition.friendlyName();
+
+        Optional<BloatwareScanner.AppxInfo> appOpt = bloatwareScanner.scan().stream()
+                .filter(a -> a.category() == BloatwareScanner.Category.AI_COPILOT)
+                .findFirst();
+        if (appOpt.isEmpty()) {
+            Long itemId = upsertItemQuiet(itemName, itemType, null, "nao instalado como pacote separado");
+            String message = "Nenhum pacote Appx do Windows Copilot foi encontrado nesta maquina - "
+                    + "builds recentes do Windows integram o Copilot ao shell/Explorer sem um app separado "
+                    + "para remover, ou o pacote ja foi desinstalado antes. Nao ha nada para desinstalar; "
+                    + "use a acao 'Desativar' para remover o botao/painel via politica.";
+            recordHistory(itemId, itemName, itemType, "uninstall", "nao instalado como pacote separado", null, false, message, null);
+            return new ActionResult(false, message, null);
+        }
+
+        return performAppxUninstall(itemType, itemName, appOpt.get(), allUsers, whatIf);
+    }
+
+    public ActionResult restoreAiFeatureApp(long backupId) {
+        return performAppxRestore("ai", backupId);
+    }
+
+    /**
+     * "Desinstala" o Windows Recall desativando o recurso opcional do Windows via
+     * {@code DISM /Online /Disable-Feature /FeatureName:Recall} - mecanismo alternativo a politica
+     * de registro ja coberta por {@link #setAiFeatureValue} (chave {@code windows_recall}),
+     * documentado desde a secao 1 do documento da Fase 8 e agora implementado como acao real (antes
+     * so um tutorial manual).
+     *
+     * NUNCA passa {@code /Restart} para o DISM (regra de seguranca do projeto: a maquina do usuario
+     * nunca e reiniciada automaticamente) - se o efeito completo exigir reinicio, isso fica explicito
+     * na mensagem devolvida, para o usuario decidir quando reiniciar.
+     *
+     * Se o recurso opcional "Recall" nao existir nesta edicao/versao do Windows (esperado na grande
+     * maioria das maquinas - Recall e exclusivo de Copilot+ PCs com NPU) ou o comando falhar por
+     * falta de privilegio de Administrador (DISM exige elevacao mesmo so para consultar), a acao e
+     * recusada de forma graciosa - nenhuma das duas e tratada como erro do NITRO BOOST.
+     *
+     * @param definition a definicao {@code windows_recall} do {@link AiFeatureScanner} - usada so
+     *                    para pegar {@code friendlyName()}, que precisa ser IDENTICO ao nome usado
+     *                    por {@link #setAiFeatureValue} para este mesmo item: e por esse nome que o
+     *                    {@link LockManager} bloqueia o item, e as duas acoes ("Desativar" e
+     *                    "Desinstalar") tem que respeitar o MESMO bloqueio.
+     */
+    public ActionResult disableRecallFeature(AiFeatureScanner.AiFeatureKeyDefinition definition) {
+        String itemType = "ai";
+        String itemName = definition.friendlyName();
+        Long itemId = upsertItemQuiet(itemName, itemType, null, "desconhecido");
+
+        Optional<ActionResult> lockRefusal = refuseIfLocked(itemId, itemName, itemType, "uninstall-feature", "desconhecido");
+        if (lockRefusal.isPresent()) {
+            return lockRefusal.get();
+        }
+
+        Long backupId = null;
+        try {
+            backupId = backupManager.snapshotBeforeAction(itemId, itemName, itemType, new LinkedHashMap<>());
+        } catch (SQLException e) {
+            System.err.println("[NITRO BOOST] Falha ao criar backup antes de desativar o recurso opcional Recall: " + e.getMessage());
+        }
+
+        try {
+            CommandResult result = runDism("/Online", "/Disable-Feature", "/FeatureName:Recall", "/NoRestart");
+            ActionResult outcome = interpretDismResult(result, "desativar");
+            recordHistory(itemId, itemName, itemType, "uninstall-feature", "desconhecido",
+                    outcome.success() ? "disabled" : null, outcome.success(), outcome.success() ? null : outcome.message(), backupId);
+            return new ActionResult(outcome.success(), outcome.message(), backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao chamar o DISM para desativar o recurso Recall: " + e.getMessage();
+            recordHistory(itemId, itemName, itemType, "uninstall-feature", "desconhecido", null, false, errorMessage, backupId);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    /** Reversao do {@link #disableRecallFeature}: reativa o recurso opcional via DISM {@code /Enable-Feature}. */
+    public ActionResult restoreRecallFeature(long backupId) {
+        String itemType = "ai";
+        try {
+            Optional<BackupManager.BackupRecord> backupOpt = backupManager.findById(backupId);
+            if (backupOpt.isEmpty()) {
+                return new ActionResult(false, "Backup #" + backupId + " nao encontrado.", backupId);
+            }
+            BackupManager.BackupRecord backup = backupOpt.get();
+
+            CommandResult result = runDism("/Online", "/Enable-Feature", "/FeatureName:Recall", "/NoRestart");
+            ActionResult outcome = interpretDismResult(result, "reativar");
+
+            if (outcome.success()) {
+                backupManager.markRestored(backupId);
+            }
+            recordHistory(backup.itemId(), backup.itemName(), itemType, "restore", "disabled",
+                    outcome.success() ? "enabled" : null, outcome.success(), outcome.success() ? null : outcome.message(), null);
+            return new ActionResult(outcome.success(), outcome.message(), backupId);
+        } catch (Exception e) {
+            String errorMessage = "Erro ao chamar o DISM para reativar o recurso Recall a partir do backup #" + backupId + ": " + e.getMessage();
+            System.err.println("[NITRO BOOST] " + errorMessage);
+            return new ActionResult(false, errorMessage, backupId);
+        }
+    }
+
+    /**
+     * Interpreta o codigo de saida do DISM para uma acao de habilitar/desabilitar recurso opcional,
+     * traduzindo os casos conhecidos para uma mensagem clara em portugues:
+     *  - {@code 0}: sucesso, sem reinicio necessario;
+     *  - {@code 3010}: sucesso, MAS reinicio e necessario para concluir (nunca reiniciamos sozinhos -
+     *    avisamos o usuario e deixamos a decisao com ele);
+     *  - {@code 740}: exige elevacao (DISM recusa rodar sem Administrador, mesmo so para consultar);
+     *  - qualquer outro codigo, com "desconhecido"/"unknown" na saida: recurso nao existe nesta
+     *    edicao/versao do Windows (esperado - Recall e exclusivo de Copilot+ PCs).
+     */
+    private ActionResult interpretDismResult(CommandResult result, String acaoLabel) {
+        int code = result.exitCode();
+        String output = result.output().trim();
+        if (code == 0) {
+            return new ActionResult(true, "Recurso opcional 'Recall' " + acaoLabel + " com sucesso via DISM. "
+                    + "Pode ser necessario reiniciar o Windows para o efeito completo (o NITRO BOOST nunca reinicia "
+                    + "a maquina automaticamente - reinicie quando for conveniente).", null);
+        }
+        if (code == 3010) {
+            return new ActionResult(true, "Recurso opcional 'Recall' " + acaoLabel + " via DISM - REINICIO NECESSARIO "
+                    + "para concluir o efeito (o NITRO BOOST nunca reinicia a maquina automaticamente por seguranca - "
+                    + "reinicie o Windows quando for conveniente).", null);
+        }
+        if (code == 740) {
+            return new ActionResult(false, "Falha ao " + acaoLabel + " o recurso Recall via DISM: exige privilegios "
+                    + "de Administrador (o DISM recusa rodar, ate mesmo para consultar, sem elevacao) - execute o "
+                    + "NITRO BOOST como Administrador e tente novamente. " + output, null);
+        }
+        String lowerOutput = output.toLowerCase(java.util.Locale.ROOT);
+        if (lowerOutput.contains("desconhecido") || lowerOutput.contains("unknown") || code == 87 || code == 11) {
+            return new ActionResult(false, "O recurso opcional 'Recall' nao existe nesta edicao/versao do Windows "
+                    + "(esperado - Recall e exclusivo de Copilot+ PCs com NPU) - nao ha nada para " + acaoLabel + ". "
+                    + output, null);
+        }
+        return new ActionResult(false, "Falha ao " + acaoLabel + " o recurso Recall via DISM (codigo " + code + "): " + output, null);
     }
 
     // ------------------------------------------------------------------
@@ -1169,7 +1347,17 @@ public class ActionExecutor {
                 case "performance" -> restorePerformanceValue(backupId);
                 case "gaming" -> restoreGamingValue(backupId);
                 case "hibernation" -> restoreHibernationState(backupId);
-                case "ai" -> restoreAiFeatureValue(backupId);
+                // itemType "ai" cobre TRES mecanismos diferentes por baixo (mesma categoria exibida na UI,
+                // para o bloqueio funcionar igual para as duas acoes de um mesmo item - ver Fase 8 Ajuste):
+                // "set" e a alteracao de politica de registro (Copilot/Recall/Click to Do/Cocreator/Edge),
+                // "uninstall"/"uninstall-simulado" e a remocao do pacote Appx do Copilot, e
+                // "uninstall-feature" e a desativacao do recurso opcional Recall via DISM - cada um precisa
+                // do seu proprio restore, senao a reversao tentaria o mecanismo errado.
+                case "ai" -> switch (entry.actionType()) {
+                    case "uninstall", "uninstall-simulado" -> restoreAiFeatureApp(backupId);
+                    case "uninstall-feature" -> restoreRecallFeature(backupId);
+                    default -> restoreAiFeatureValue(backupId);
+                };
                 case "consumer" -> restoreConsumerFeatureValue(backupId);
                 case "reservedstorage" -> restoreReservedStorageState(backupId);
                 default -> new ActionResult(false,
@@ -1191,15 +1379,27 @@ public class ActionExecutor {
     }
 
     private CommandResult runCommand(String... command) throws IOException, InterruptedException {
+        return runCommand(COMMAND_TIMEOUT_SECONDS, command);
+    }
+
+    /** {@code dism.exe} pode demorar bem mais que reg/schtasks/powercfg - timeout proprio, mais generoso. */
+    private CommandResult runDism(String... args) throws IOException, InterruptedException {
+        String[] command = new String[args.length + 1];
+        command[0] = "dism.exe";
+        System.arraycopy(args, 0, command, 1, args.length);
+        return runCommand(DISM_TIMEOUT_SECONDS, command);
+    }
+
+    private CommandResult runCommand(int timeoutSeconds, String... command) throws IOException, InterruptedException {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
         Process process = processBuilder.start();
 
         String output = readStream(process.getInputStream());
-        boolean finished = process.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
         if (!finished) {
             process.destroyForcibly();
-            return new CommandResult(-1, "Timeout apos " + COMMAND_TIMEOUT_SECONDS + "s executando: " + String.join(" ", command));
+            return new CommandResult(-1, "Timeout apos " + timeoutSeconds + "s executando: " + String.join(" ", command));
         }
         return new CommandResult(process.exitValue(), output);
     }
