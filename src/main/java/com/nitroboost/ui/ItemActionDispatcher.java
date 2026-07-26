@@ -38,6 +38,53 @@ public final class ItemActionDispatcher {
     }
 
     /**
+     * IDs de {@link AiFeatureScanner.AiFeatureKeyDefinition} que, alem da desativacao via politica
+     * de registro (acao principal, sempre disponivel), tambem tem um mecanismo de "desinstalar"
+     * tecnicamente viavel e distinto (Fase 8 - Ajuste):
+     *  - Windows Copilot (usuario/todos os usuarios): remocao do pacote Appx, quando existir nesta
+     *    maquina (ver {@link com.nitroboost.actions.ActionExecutor#uninstallAiFeatureApp});
+     *  - Windows Recall: desativacao do recurso opcional do Windows via DISM, quando disponivel
+     *    nesta edicao/versao (ver {@link com.nitroboost.actions.ActionExecutor#disableRecallFeature}).
+     * Click to Do, Cocreator e Copilot no Edge NAO entram aqui de proposito: nao tem um mecanismo de
+     * remocao separado da politica (mesma conclusao do documento da Fase 8) - continuam com um unico
+     * botao ("Desativar").
+     */
+    private static final java.util.Set<String> AI_IDS_WITH_UNINSTALL = java.util.Set.of(
+            "windows_copilot_user", "windows_copilot_allusers", "windows_recall");
+
+    /** {@code true} se este item tiver, alem de "Desativar", uma segunda acao real de "Desinstalar". */
+    public static boolean supportsUninstall(ScannedItem item) {
+        return "ai".equals(item.type())
+                && item.source() instanceof AiFeatureScanner.AiFeatureKeyDefinition definition
+                && AI_IDS_WITH_UNINSTALL.contains(definition.id());
+    }
+
+    /**
+     * Executa a acao de "Desinstalar" (segunda acao, mais permanente) para os itens de IA que a
+     * suportam - so deve ser chamada quando {@link #supportsUninstall} ja confirmou que o item tem
+     * essa segunda acao. Segue o mesmo contrato de nunca deixar excecao escapar para a UI.
+     */
+    public static ActionExecutor.ActionResult performUninstallAction(ActionExecutor executor, ScannedItem item) {
+        try {
+            if (!(item.source() instanceof AiFeatureScanner.AiFeatureKeyDefinition definition)) {
+                return new ActionExecutor.ActionResult(false, "Este item nao suporta desinstalacao.", null);
+            }
+            return switch (definition.id()) {
+                // allUsers=false/true espelha exatamente a distincao ja usada pelas duas entradas de
+                // Windows Copilot (usuario atual vs todos os usuarios) - mesma logica de
+                // uninstallBloatwareApp, so que sob o itemType "ai" (para o bloqueio valer para as duas
+                // acoes do mesmo item). whatIf=false: acao real, mesma decisao pragmatica da Fase 4.
+                case "windows_copilot_user" -> executor.uninstallAiFeatureApp(definition, false, false);
+                case "windows_copilot_allusers" -> executor.uninstallAiFeatureApp(definition, true, false);
+                case "windows_recall" -> executor.disableRecallFeature(definition);
+                default -> new ActionExecutor.ActionResult(false, "Este item nao suporta desinstalacao.", null);
+            };
+        } catch (Exception e) {
+            return new ActionExecutor.ActionResult(false, "Erro inesperado ao executar a desinstalacao: " + e.getMessage(), null);
+        }
+    }
+
+    /**
      * Executa a acao principal do item chamando o metodo correto do {@link
      * ActionExecutor} (com backup + historico + checagem de lock, tudo ja
      * garantido pelo backend). Nunca deixa uma excecao escapar para a UI -

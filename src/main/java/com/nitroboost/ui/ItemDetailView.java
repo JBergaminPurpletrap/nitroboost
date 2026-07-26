@@ -90,6 +90,17 @@ public final class ItemDetailView {
         Button primaryButton = new Button(ItemActionDispatcher.primaryActionLabel(item.type()));
         primaryButton.getStyleClass().add(item.classification() == ItemClassification.ESSENCIAL ? "btn-danger" : "btn-turbo");
 
+        // Alguns itens de IA (Windows Copilot, Windows Recall) suportam uma SEGUNDA acao, alem de
+        // "Desativar": remover/desinstalar de fato (pacote Appx ou recurso opcional via DISM) - ver
+        // ItemActionDispatcher.supportsUninstall (Fase 8 - Ajuste). Botao so aparece quando a segunda
+        // acao existe de verdade para este item; "btn-danger" o diferencia visualmente do "Desativar"
+        // (btn-turbo) por ser uma acao mais permanente/seria.
+        boolean hasUninstallAction = ItemActionDispatcher.supportsUninstall(item);
+        Button uninstallButton = new Button("Desinstalar");
+        uninstallButton.getStyleClass().add("btn-danger");
+        uninstallButton.setManaged(hasUninstallAction);
+        uninstallButton.setVisible(hasUninstallAction);
+
         Button lockButton = new Button(locked[0] ? "Desbloquear" : "Bloquear");
         lockButton.getStyleClass().add("btn-secondary");
 
@@ -122,6 +133,29 @@ public final class ItemDetailView {
                     });
         });
 
+        if (hasUninstallAction) {
+            uninstallButton.setOnAction(e -> {
+                uninstallButton.setDisable(true);
+                spinner.setVisible(true);
+                runInBackground(
+                        () -> ItemActionDispatcher.performUninstallAction(context.actionExecutor(), item),
+                        result -> {
+                            spinner.setVisible(false);
+                            uninstallButton.setDisable(false);
+                            statusMessage.getStyleClass().removeAll("text-danger", "text-success");
+                            statusMessage.getStyleClass().add(result.success() ? "text-success" : "text-danger");
+                            statusMessage.setText(result.message());
+                            if (result.success()) {
+                                primaryButton.setDisable(true);
+                                uninstallButton.setDisable(true);
+                                if (onActionPerformed != null) {
+                                    onActionPerformed.run();
+                                }
+                            }
+                        });
+            });
+        }
+
         lockButton.setOnAction(e -> {
             lockButton.setDisable(true);
             spinner.setVisible(true);
@@ -148,7 +182,7 @@ public final class ItemDetailView {
                     });
         });
 
-        HBox buttonRow = new HBox(10, primaryButton, lockButton, tutorialButton, spinner);
+        HBox buttonRow = new HBox(10, primaryButton, uninstallButton, lockButton, tutorialButton, spinner);
         buttonRow.setAlignment(Pos.CENTER_LEFT);
 
         VBox root = new VBox(10, nameLabel, headerRow, descriptionTitle, descriptionLabel,
