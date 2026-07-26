@@ -3,6 +3,7 @@ package com.nitroboost;
 import com.nitroboost.ui.AppContext;
 import com.nitroboost.ui.AuditView;
 import com.nitroboost.ui.DashboardView;
+import com.nitroboost.ui.HardwareUpdateView;
 import com.nitroboost.ui.HistoryView;
 import com.nitroboost.ui.ScanResultsView;
 import com.nitroboost.ui.Theme;
@@ -62,6 +63,7 @@ public class Main extends Application {
         Runnable[] navigateToTutorial = new Runnable[1];
         ScanResultsView scanResultsView = new ScanResultsView(context, () -> navigateToTutorial[0].run());
         AuditView auditView = new AuditView(context);
+        HardwareUpdateView hardwareUpdateView = new HardwareUpdateView();
         dashboardView = new DashboardView(context, () -> {
             switchTo(root, views, "Resultados do Scan");
             scanResultsView.startScan();
@@ -70,6 +72,7 @@ public class Main extends Application {
         views.put("Dashboard", dashboardView);
         views.put("Resultados do Scan", scanResultsView);
         views.put("Diagnostico", auditView);
+        views.put("BIOS / Drivers", hardwareUpdateView);
         views.put("Historico", historyView);
         views.put("Tutoriais", tutorialView);
         navigateToTutorial[0] = () -> switchTo(root, views, "Tutoriais");
@@ -106,8 +109,8 @@ public class Main extends Application {
         VBox sidebar = new VBox();
         sidebar.getStyleClass().add("sidebar");
 
-        String[] labels = {"Dashboard", "Resultados do Scan", "Diagnostico", "Historico", "Tutoriais"};
-        String[] icons = {"🏠", "📋", "🩺", "🕒", "📖"};
+        String[] labels = {"Dashboard", "Resultados do Scan", "Diagnostico", "BIOS / Drivers", "Historico", "Tutoriais"};
+        String[] icons = {"🏠", "📋", "🩺", "🔧", "🕒", "📖"};
         for (int i = 0; i < labels.length; i++) {
             String viewName = labels[i];
             Button navButton = new Button(icons[i] + "  " + viewName.toUpperCase());
