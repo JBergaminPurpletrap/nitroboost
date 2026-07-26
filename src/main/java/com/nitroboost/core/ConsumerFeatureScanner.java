@@ -156,6 +156,15 @@ public class ConsumerFeatureScanner {
                     "Desativa a coleta de dados de digitacao usada pela Microsoft para 'melhorar sugestoes' de "
                             + "texto e teclado.",
                     "0"
+            ),
+            // ---- Secao 4 (Fase 10 Parte 2): interface do Windows 11 ----
+            new ConsumerFeatureKeyDefinition(
+                    "start_menu_recommended",
+                    "Secao 'Recomendado' no Menu Iniciar",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+                    "Start_IrisRecommendations",
+                    "Remove a secao de arquivos/apps 'recomendados' que ocupa boa parte do Menu Iniciar no Windows 11.",
+                    "0"
             )
     );
 

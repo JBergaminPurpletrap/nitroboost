@@ -102,6 +102,30 @@ public class TelemetryScanner {
                     "Start_TrackProgs",
                     "Controla se o Windows rastreia quais programas voce mais abre, para personalizar sugestoes no "
                             + "menu Iniciar e na busca."
+            ),
+            new TelemetryKeyDefinition(
+                    "activity_history_publish",
+                    "Publicar Historico de Atividades",
+                    "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+                    "PublishUserActivities",
+                    "Controla se o Windows registra seu historico de atividades (apps abertos, documentos recentes) "
+                            + "para o recurso de Linha do Tempo (Timeline)."
+            ),
+            new TelemetryKeyDefinition(
+                    "activity_history_upload",
+                    "Enviar Historico de Atividades para a Conta Microsoft",
+                    "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+                    "UploadUserActivities",
+                    "Controla se o historico de atividades registrado localmente e enviado para a nuvem, para "
+                            + "sincronizar entre seus dispositivos vinculados a mesma conta Microsoft."
+            ),
+            new TelemetryKeyDefinition(
+                    "location_tracking",
+                    "Rastreamento de Localizacao (Location Services)",
+                    "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\LocationAndSensors",
+                    "DisableLocation",
+                    "Politica que controla, para todo o sistema, se os aplicativos podem acessar a localizacao do "
+                            + "dispositivo (valor 1 desativa o acesso a localizacao para todos os apps)."
             )
     );
 
