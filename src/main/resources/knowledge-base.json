@@ -1027,6 +1027,14 @@
       "descricao": "ACAO DRASTICA: remove o OneDrive por completo deste PC (nao e so desativar a inicializacao automatica - isso ja e feito pelo item 'OneDrive' de Inicializacao). Use somente se voce tem certeza de que nao usa o OneDrive para guardar arquivos.",
       "impacto_desativar": "O OneDrive e desinstalado do Windows. ATENCAO: arquivos que existem SOMENTE na nuvem do OneDrive (nao copiados para outra pasta do PC) podem ficar inacessiveis localmente ate voce reinstalar o OneDrive e sincronizar novamente - copie o que for importante para outra pasta ANTES de desinstalar.",
       "impacto_manter": "O OneDrive continua instalado e disponivel para sincronizar arquivos com a nuvem Microsoft, mesmo que voce nao use ativamente."
+    },
+    {
+      "nome": "Taxa de Atualizacao da Tela",
+      "tipo": "display",
+      "classificacao": "depende",
+      "descricao": "Quantas vezes por segundo a imagem da tela e atualizada (medida em Hz). Taxas mais altas deixam o movimento mais fluido, principalmente em jogos - mas o valor ideal depende do monitor conectado (varia bastante de modelo para modelo). NOTA TECNICA: este item NAO tem um 'valor_recomendado' fixo aqui na base de conhecimento - a comparacao e feita de forma dinamica pelo SystemAuditEngine (taxa atual configurada vs a taxa maxima suportada pelo monitor detectado no momento da varredura), ja que esse numero muda de maquina para maquina.",
+      "impacto_desativar": "Nao ha uma acao de 'desativar' aqui - a sugestao (quando aplicavel) apenas abre a tela nativa de Configuracoes do Windows para voce escolher manualmente a taxa mais alta suportada pelo seu monitor.",
+      "impacto_manter": "Se a tela ja estiver configurada para a taxa maxima suportada pelo monitor conectado, nao ha nada a melhorar aqui."
     }
   ]
 }
