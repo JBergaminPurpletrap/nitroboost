@@ -73,13 +73,13 @@ Para cada fabricante reconhecido, mantar um mapeamento fixo (`VendorLinkStrategy
 - [x] Atualizar `PROGRESS.md`
 
 ### Nível 2 (melhor esforço, depois do Nível 1 validado)
-- [ ] Criar `VendorPageParser` (interface) + implementação para pelo menos o fabricante da placa-mãe do usuário primeiro (validar o conceito antes de expandir para os outros 3)
-- [ ] Criar `UpdateCheckCache.java` (cache SQLite de 24h)
-- [ ] Adicionar botão "Verificar atualização online" na `HardwareUpdateView`, chamando o parser sob demanda
-- [ ] Implementar tratamento de falha gracioso (nunca travar a tela; sempre cair de volta pro Nível 1 com mensagem clara)
-- [ ] Testar o cenário de falha de propósito (ex: mudar a URL para uma inválida) para confirmar que o fallback funciona
-- [ ] Expandir os parsers para os outros fabricantes, se fizer sentido (não obrigatório no lançamento — pode ficar só com o fabricante do usuário por enquanto)
-- [ ] Documentar em `PROGRESS.md` quais fabricantes têm parser funcional e quais ainda não (transparência sobre o estado real do recurso)
+- [x] Criar `VendorPageParser` (interface) + implementação para pelo menos o fabricante da placa-mãe do usuário primeiro (validar o conceito antes de expandir para os outros 3) — implementado para **ASUS** (`AsusPageParser`), não para Dell (a máquina de teste real é um notebook, fora do escopo desta fase — ver decisão documentada em `PROGRESS.md`)
+- [x] Criar `UpdateCheckCache.java` (cache SQLite de 24h)
+- [x] Adicionar botão "Verificar atualização online" na `HardwareUpdateView`, chamando o parser sob demanda
+- [x] Implementar tratamento de falha gracioso (nunca travar a tela; sempre cair de volta pro Nível 1 com mensagem clara)
+- [x] Testar o cenário de falha de propósito (ex: mudar a URL para uma inválida) para confirmar que o fallback funciona
+- [ ] Expandir os parsers para os outros fabricantes, se fizer sentido (não obrigatório no lançamento — pode ficar só com o fabricante do usuário por enquanto) — MSI/Gigabyte/ASRock ainda não têm parser de Nível 2 (ver `PROGRESS.md`)
+- [x] Documentar em `PROGRESS.md` quais fabricantes têm parser funcional e quais ainda não (transparência sobre o estado real do recurso)
 
 **Critério de conclusão:** o usuário consegue ver a versão atual da sua BIOS/drivers e, com um clique, chegar à página certa do fabricante — com ou sem a informação automática de "qual é a versão mais nova", que é tratada como bônus e não como garantia.
 

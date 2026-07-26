@@ -1558,3 +1558,185 @@ que essa parte da fase envolveria requisições HTTP reais a sites de terceiros 
 
 Próximo passo (não iniciado, aguardando validação do usuário): **Fase 11 — Parte 2 (Nível 2:
 Verificação Automática Online, melhor esforço)**.
+
+---
+
+## 2026-07-26 — Fase 11 Nível 2 concluída (BIOS/Drivers — Verificação Automática Online, melhor esforço)
+
+Última peça planejada do roadmap: o NITRO BOOST agora tenta, sob demanda, ler a versão mais recente
+de BIOS anunciada no site do fabricante, com cache de 24h e queda graciosa para o Nível 1 sempre que
+qualquer etapa falhar. **Isso conclui toda a Fase 11 (Nível 1 + Nível 2) e todo o roadmap planejado
+até agora.**
+
+### Decisão de escopo: por que ASUS, e não o fabricante da máquina de teste
+
+O documento da fase pedia para implementar o parser de Nível 2 "primeiro só para o fabricante da
+placa-mãe detectada na Parte 1". Só que a máquina de teste real deste ambiente é um **notebook Dell**
+("Dell Inc." / modelo "0XR9NX", conforme já registrado na Parte 1) — que não é nenhum dos 4
+fabricantes de placa-mãe avulsa cobertos pelo Nível 1 (ASUS/MSI/Gigabyte/ASRock). A Fase 11 inteira
+foi desenhada pensando em placas-mãe de desktop, não em notebooks OEM: a Dell tem seu próprio
+mecanismo de atualização de BIOS (Dell Support/Dell Command Update), completamente fora do escopo
+deste documento (que fala em "buscar a versão mais recente de BIOS na página de suporte do
+fabricante" no formato usado por fabricantes de placa avulsa).
+
+Diante dessa discrepância, a interpretação mais fiel à intenção original (validar o **conceito** de
+Nível 2 contra um fabricante real, coberto pelo Nível 1) foi implementar o parser para **ASUS**
+primeiro — o mais documentado/estável dos 4, e testável contra uma página de suporte pública real
+usando um modelo conhecido (`ROG STRIX B650-A GAMING WIFI`), já que a máquina de teste não tem uma
+placa ASUS de verdade para servir de referência. Os outros 3 fabricantes (MSI/Gigabyte/ASRock)
+continuam só com Nível 1 (link direto) por enquanto — não é uma limitação permanente, podem ganhar
+parser de Nível 2 depois seguindo exatamente o mesmo padrão de `AsusPageParser`.
+
+### O que foi feito
+
+- **`updates/VendorPageParser.java`** (novo, interface): `Optional<String>
+  extractLatestBiosVersion(String htmlContent)` — uma implementação por fabricante, isolada (mesmo
+  espírito de `VendorLinkStrategy`), para que a quebra de uma nunca afete as outras.
+- **`updates/AsusPageParser.java`** (novo, única implementação por enquanto): extrai a versão de
+  BIOS da página de suporte real da ASUS (renderizada via Nuxt/SSR) com um regex pragmático — NÃO um
+  parser HTML completo, nenhuma biblioteca nova foi adicionada (YAGNI, o caso real observado não
+  precisa disso). Estratégia: localiza o título de seção cujo conteúdo é exatamente "BIOS" (evitando
+  casar com a aba "BIOS &amp; FIRMWARE", que aparece antes na mesma página), e dentro de uma janela
+  de caracteres logo depois procura o primeiro "Version XXXX" — o primeiro arquivo listado na seção
+  BIOS é sempre o mais recente, confirmado inspecionando manualmente a página real
+  (`https://www.asus.com/supportonly/rog%20strix%20b650-a%20gaming%20wifi/helpdesk_bios/`) durante o
+  desenvolvimento. O regex depende só do texto visível ("BIOS"/"Version"), nunca dos sufixos de hash
+  das classes CSS geradas pelo webpack da ASUS (esses mudam a cada deploy do site).
+- **`updates/RobotsTxtChecker.java`** (novo): checagem pragmática e defensiva de `robots.txt` antes
+  de qualquer requisição a um domínio de fabricante (item 2 do Nível 2) — busca
+  `https://<domínio>/robots.txt` via `HttpClient`, verifica se o caminho pretendido bate com algum
+  `Disallow` sob `User-agent: *` (comparação simples com coringa `*`, não é um parser RFC completo).
+  **Fail-open documentado**: se o robots.txt não puder ser lido ou o parsing falhar por qualquer
+  motivo, o resultado é "permitido, mas prossiga com cautela" — nunca trava o app por causa disso.
+  Testado contra o robots.txt real da ASUS (permite o caminho usado) e contra um domínio inexistente
+  (também retorna "permitido", confirmando o fail-open).
+- **`updates/UpdateCheckCache.java`** (novo): cache local em SQLite reaproveitando o
+  `DatabaseManager`/banco já existente — tabela nova `update_check_cache` (`vendor`, `model`,
+  `checked_at`, `result_version`, `success`, `UNIQUE(vendor, model)`) adicionada a `db/schema.sql`.
+  Validade de 24h (`Duration.between(checkedAt, now) < 24h`); antes de qualquer requisição HTTP nova,
+  sempre checa se já existe um resultado fresco em cache para o mesmo fabricante+modelo.
+- **`updates/OnlineUpdateChecker.java`** (novo, orquestrador): liga tudo — cache → robots.txt →
+  requisição HTTP (`HttpClient` nativo, timeout de 15s) → `VendorPageParser` do fabricante → grava
+  resultado no cache → devolve um `CheckResult` (sucesso/mensagem pronta em português/versão
+  encontrada/veio do cache) pronto para a UI exibir. **Qualquer falha em qualquer etapa** (timeout,
+  domínio inválido, HTML mudou de estrutura, robots.txt bloqueando, fabricante sem parser
+  implementado) é capturada e devolve a mesma mensagem de fallback do documento da fase: "Não foi
+  possível verificar automaticamente agora — use o link abaixo para checar manualmente." — nunca
+  lança exceção para fora.
+- **`ui/HardwareUpdateView.java`** (expandida): novo botão "🌐 Verificar Atualização Online" no card
+  de suporte, ao lado dos 3 botões do Nível 1. **Só dispara a checagem quando clicado** — a
+  detecção automática (`loadInBackground()`, já existente desde a Parte 1) continua sem nenhuma
+  chamada de rede, confirmado revisando o código: `OnlineUpdateChecker` só é referenciado dentro do
+  handler do novo botão. Roda em thread de fundo dedicada (`nitroboost-online-update-check`, daemon),
+  nunca na JavaFX Application Thread — mesmo padrão de `loadInBackground()`. O resultado (mensagem
+  pronta do `CheckResult`) é exibido num label dedicado, sem qualquer `Alert`/exceção — mesmo em
+  caso de falha, a tela nunca trava. `HardwareUpdateView` passou a receber `DatabaseManager` no
+  construtor (antes não tinha dependências) para poder criar seu `OnlineUpdateChecker`; `Main.java`
+  atualizado para `new HardwareUpdateView(context.databaseManager())`.
+- **`Phase11Nivel2ConsoleDemo.java`** (novo): roteiro completo via console — robots.txt real,
+  sucesso real contra a ASUS, cache de 24h (mede o tempo da segunda chamada para evidenciar que não
+  houve requisição de rede), falha proposital (domínio inválido) e um fabricante sem parser (MSI) —
+  todos com o fallback gracioso confirmado.
+
+### Bug real encontrado e corrigido durante o teste (Nível 1, não Nível 2)
+
+Testando o Nível 2 contra a URL real da camada 1 da ASUS (`AsusLinkStrategy.deepLinkUrl`), a
+requisição HTTP falhava sempre, mesmo com a página existindo e retornando 200 via `curl`. Causa
+raiz: a ASUS canoniza essa URL para minúsculas — qualquer variação de maiúsculas (ex: o
+`HelpDesk_BIOS` que o código gerava) recebe um redirect 301, e o cabeçalho `Location` desse redirect
+vem com espaços **literais, não url-encoded** (ex:
+`Location: https://www.asus.com/supportonly/rog strix b650-a gaming wifi/helpdesk_bios/`) — uma URI
+tecnicamente inválida. Navegadores reais toleram isso sem problema (por isso o Nível 1, testado só
+via `Desktop.browse()`, nunca acusou o problema), mas o `java.net.http.HttpClient` (estrito sobre
+sintaxe de URI) recusa a seguir esse redirect e lança `IllegalArgumentException`. Corrigido em
+`AsusLinkStrategy.deepLinkUrl`: a URL agora é montada diretamente em minúsculas (modelo + sufixo
+`/helpdesk_bios/`), evitando o redirect por completo — também um ganho para o Nível 1 (uma requisição
+a menos ao abrir o link no navegador). `Phase11Part1ConsoleDemo` reexecutado após a correção,
+confirmando que a URL impressa para ASUS agora é `https://www.asus.com/supportonly/0xr9nx/helpdesk_bios/`
+(minúsculas) e continua correta para os demais fabricantes (não afetados, usam query string, não path).
+
+### Resultado real dos testes
+
+```
+===== Teste 1/4 - Checagem de robots.txt (requisicao HTTP real ao dominio da ASUS) =====
+URL a verificar: https://www.asus.com/supportonly/rog%20strix%20b650-a%20gaming%20wifi/helpdesk_bios/
+Permitido pelo robots.txt da ASUS: true (nenhum 'Disallow' relevante encontrado)
+
+===== Teste 2/4 - Cenario de SUCESSO real (requisicao HTTP + parser contra a pagina real da ASUS) =====
+sucesso=true | fromCache=false | versaoEncontrada=3886
+Mensagem exibida ao usuario: Versao mais recente encontrada no site do fabricante: 3886. Confira
+visualmente se e mais nova que a sua versao atual antes de atualizar (o formato de versao varia
+entre fabricantes).
+
+===== Teste 3/4 - Cache de 24h (mesma consulta de novo - NAO deve bater na rede outra vez) =====
+sucesso=true | fromCache=true | versaoEncontrada=3886 | tempo=23ms
+[OK] Segunda chamada veio do cache (fromCache=true), nenhuma requisicao HTTP nova foi feita.
+
+===== Teste 4/4 - Cenario de FALHA proposital (dominio inexistente, para provar o fallback gracioso) =====
+sucesso=false | fromCache=false | versaoEncontrada=null
+Mensagem exibida ao usuario: Nao foi possivel verificar automaticamente agora - use o link abaixo
+para checar manualmente.
+[OK] Falha tratada de forma graciosa: nenhuma excecao propagou, mensagem clara devolvida.
+
+===== Teste extra - vendor sem parser implementado (MSI/Gigabyte/ASRock ainda nao tem Nivel 2) =====
+sucesso=false | Nao foi possivel verificar automaticamente agora - use o link abaixo para checar manualmente.
+[OK] Fabricante sem parser cai direto no fallback do Nivel 1, sem tentar rede.
+```
+
+A versão extraída da página real da ASUS (3886) foi conferida manualmente contra o HTML bruto
+(`curl` + inspeção do trecho `<div>Version 3886</div>` logo após o título de seção "BIOS", antes da
+seção "Firmware") — bate exatamente com o primeiro arquivo listado na página real no momento do
+teste. O tempo de 23ms na segunda chamada (contra uma primeira chamada que envolveu download de
+~570KB de HTML pela rede) é evidência adicional de que o cache realmente evitou uma nova requisição,
+além do campo `fromCache=true` já confirmar isso diretamente pelo código (o cache é checado *antes*
+de qualquer construção de `HttpRequest`).
+
+### Estado atual dos parsers de Nível 2 por fabricante (transparência)
+
+| Fabricante | Nível 1 (link direto) | Nível 2 (verificação automática) |
+|---|---|---|
+| ASUS | ✅ funcional | ✅ funcional (`AsusPageParser`) |
+| MSI | ✅ funcional | ❌ não implementado ainda |
+| Gigabyte | ✅ funcional | ❌ não implementado ainda |
+| ASRock | ✅ funcional | ❌ não implementado ainda |
+| Outro/desconhecido | ✅ funcional (busca externa genérica) | ❌ não aplicável (sem site de fabricante conhecido) |
+
+Isso é o estado **atual**, não uma garantia permanente — MSI/Gigabyte/ASRock podem ganhar parser de
+Nível 2 no futuro seguindo exatamente o mesmo padrão de `AsusPageParser` (implementar
+`VendorPageParser`, registrar no mapa `OnlineUpdateChecker.PARSERS`). Independentemente do estado do
+parser, o Nível 1 (link direto) sempre funciona para os 4 fabricantes — é o que garante o valor real
+do recurso a longo prazo, conforme a seção 4 do documento da fase já avisava.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros, em cada etapa (cada classe nova compilada isoladamente antes
+  de integrar, mesmo padrão das fases anteriores).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.updates.AsusPageParser` — teste isolado com
+  HTML de exemplo (sem rede), confirmando a extração da versão e os casos de HTML vazio/sem seção
+  BIOS devolvendo vazio corretamente.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.updates.UpdateCheckCache` — teste isolado
+  (grava e lê do banco local, sem rede).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.updates.RobotsTxtChecker` — teste isolado com
+  requisição HTTP real (robots.txt da ASUS + domínio inexistente).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.updates.OnlineUpdateChecker` — teste isolado
+  ponta a ponta contra a ASUS real.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase11Nivel2ConsoleDemo` — roda até o fim,
+  ver saída completa acima; nenhuma exceção não tratada em nenhum dos 5 cenários testados.
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase11Part1ConsoleDemo` — reexecutado após a
+  correção do bug de encoding da URL da ASUS, para confirmar que o Nível 1 continua funcionando (URL
+  agora em minúsculas, sem quebrar nada para os outros 3 fabricantes).
+- Linhas de cache de teste (`MODELO-TESTE-*`) removidas do banco local ao final dos testes via
+  `sqlite3`; só ficou a entrada real (`ASUS` / `ROG STRIX B650-A GAMING WIFI` / versão `3886`),
+  equivalente ao que um uso real do botão na UI deixaria no cache.
+
+Nenhum bloqueio técnico foi encontrado durante esta parte (ver `BLOCKERS.md` — sem itens novos da
+Fase 11 Nível 2).
+
+Todos os itens aplicáveis da subseção "Nível 2" do checklist da Fase 11 estão marcados `[x]` em
+`NITRO-BOOST-fase11-bios-drivers.md` (o item de expandir para os outros 3 fabricantes continua `[ ]`
+de propósito — o próprio documento da fase o trata como opcional/não obrigatório no lançamento).
+
+**Isso conclui toda a Fase 11 (Nível 1 + Nível 2) e todo o roadmap planejado até agora.** Validação
+visual final da UI (o botão "Verificar Atualização Online" na tela real, `.\mvnw.cmd clean
+javafx:run`) fica pendente do usuário, na mesma linha da limitação já registrada desde a Fase 0/4
+(este ambiente automatizado não sustenta uma sessão gráfica interativa síncrona).
