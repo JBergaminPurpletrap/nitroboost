@@ -78,6 +78,21 @@ CREATE TABLE IF NOT EXISTS backups (
 CREATE INDEX IF NOT EXISTS idx_backups_item_id ON backups (item_id);
 
 -- ----------------------------------------------------------------------------
+-- update_check_cache: cache de 24h do resultado da verificacao online de BIOS
+-- (Fase 11 - Nivel 2). Evita bater no site do fabricante a cada clique repetido
+-- em pouco tempo - ainda mais importante pensando em varios usuarios do app.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS update_check_cache (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendor              TEXT    NOT NULL,                 -- ex: 'ASUS'
+    model               TEXT    NOT NULL,                 -- modelo da placa-mae detectado
+    checked_at          TEXT    NOT NULL DEFAULT (datetime('now')),
+    result_version      TEXT,                              -- versao de BIOS extraida, ou NULL se falhou
+    success             INTEGER NOT NULL DEFAULT 0,        -- 1 = conseguiu extrair, 0 = falhou/nao suportado
+    UNIQUE (vendor, model)
+);
+
+-- ----------------------------------------------------------------------------
 -- locks: itens marcados como "protegidos" pelo usuario
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS locks (
