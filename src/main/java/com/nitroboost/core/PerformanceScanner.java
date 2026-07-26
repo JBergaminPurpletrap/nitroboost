@@ -205,6 +205,24 @@ public class PerformanceScanner {
     }
 
     /**
+     * Sobrecarga de {@link #scan()} que reporta progresso via {@link ScanProgressListener} (Fase 12
+     * Parte C) - categoria com poucos itens (as chaves listadas em {@link #KNOWN_KEYS}), entao
+     * reporta progresso apenas no inicio e no fim, conforme a orientacao da Fase 12 Parte C para
+     * categorias pequenas. Nao cobre {@link #checkHibernationFile()}/{@link
+     * #checkReservedStorageState()} (verificacoes separadas, feitas a parte pelo chamador).
+     * {@code scan()} continua inalterado, usado pelos testes JUnit da Fase 12 Parte B.
+     */
+    public List<PerformanceKeyInfo> scan(ScanProgressListener listener) {
+        List<PerformanceKeyInfo> result = scan();
+        if (listener != null) {
+            int total = result.size();
+            listener.onProgress("Performance e Energia", 0, total, "Verificando chaves de performance...");
+            listener.onProgress("Performance e Energia", total, total, "Verificacao concluida.");
+        }
+        return result;
+    }
+
+    /**
      * Verifica se o arquivo de hibernacao existe no disco, resolvendo a
      * unidade do sistema dinamicamente via a variavel de ambiente {@code
      * SystemDrive} (nunca hardcoded "C:") - forma simples e independente de

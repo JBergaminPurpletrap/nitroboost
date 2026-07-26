@@ -67,6 +67,23 @@ public class StartupScanner {
     }
 
     /**
+     * Sobrecarga de {@link #scan()} que reporta progresso via {@link ScanProgressListener} (Fase 12
+     * Parte C) - categoria com poucos itens (tipicamente poucas dezenas de entradas de registro/
+     * pastas de startup), entao reporta progresso apenas no inicio e no fim, conforme a orientacao
+     * da Fase 12 Parte C para categorias pequenas. {@code scan()} continua inalterado, usado pelos
+     * testes JUnit da Fase 12 Parte B.
+     */
+    public List<StartupItemInfo> scan(ScanProgressListener listener) {
+        List<StartupItemInfo> result = scan();
+        if (listener != null) {
+            int total = result.size();
+            listener.onProgress("Itens de Inicializacao", 0, total, "Lendo itens de inicializacao...");
+            listener.onProgress("Itens de Inicializacao", total, total, "Leitura concluida.");
+        }
+        return result;
+    }
+
+    /**
      * Resolve a pasta de Startup do usuario atual dinamicamente via a
      * variavel de ambiente %APPDATA% (equivalente a abrir "shell:startup") -
      * nunca hardcoda "C:\Users\<nome>\...".

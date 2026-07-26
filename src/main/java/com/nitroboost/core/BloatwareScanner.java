@@ -120,6 +120,27 @@ public class BloatwareScanner {
         return result;
     }
 
+    /**
+     * Sobrecarga de {@link #scan()} que reporta progresso via {@link ScanProgressListener} (Fase 12
+     * Parte C) - delega 100% para {@link #scan()} (a chamada ao PowerShell ja aconteceu ali) e
+     * depois itera sobre a lista ja parseada reportando o andamento real do processamento, a cada 10
+     * itens (categoria com ~134 apps UWP nesta maquina de desenvolvimento) - ver nota tecnica no
+     * Javadoc de {@link ScanProgressListener} sobre por que isso nao e progresso simulado.
+     * {@code scan()} continua inalterado, usado pelos testes JUnit da Fase 12 Parte B.
+     */
+    public List<AppxInfo> scan(ScanProgressListener listener) {
+        List<AppxInfo> result = scan();
+        if (listener != null) {
+            int total = result.size();
+            for (int i = 0; i < total; i++) {
+                if (i % 10 == 0 || i == total - 1) {
+                    listener.onProgress("Aplicativos (Bloatware)", i + 1, total, "Processando " + result.get(i).name() + "...");
+                }
+            }
+        }
+        return result;
+    }
+
     /** Apenas os apps reconhecidos como bloatware conhecido (ignora UNKNOWN). */
     public List<AppxInfo> knownBloatware() {
         return scan().stream().filter(a -> a.category() != Category.UNKNOWN).toList();

@@ -96,6 +96,22 @@ public class PowerPlanScanner {
         return result;
     }
 
+    /**
+     * Sobrecarga de {@link #scan()} que reporta progresso via {@link ScanProgressListener} (Fase 12
+     * Parte C) - categoria com poucos itens (normalmente 1 a 8 planos de energia), entao reporta
+     * progresso apenas no inicio e no fim, conforme a orientacao da Fase 12 Parte C para categorias
+     * pequenas. {@code scan()} continua inalterado, usado pelos testes JUnit da Fase 12 Parte B.
+     */
+    public List<PowerPlanInfo> scan(ScanProgressListener listener) {
+        List<PowerPlanInfo> result = scan();
+        if (listener != null) {
+            int total = result.size();
+            listener.onProgress("Planos de Energia", 0, total, "Consultando planos de energia...");
+            listener.onProgress("Planos de Energia", total, total, "Consulta concluida.");
+        }
+        return result;
+    }
+
     public Optional<PowerPlanInfo> findActive() {
         return scan().stream().filter(PowerPlanInfo::active).findFirst();
     }

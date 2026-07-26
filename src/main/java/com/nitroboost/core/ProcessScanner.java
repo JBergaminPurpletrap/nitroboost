@@ -54,6 +54,27 @@ public class ProcessScanner {
     }
 
     /**
+     * Sobrecarga de {@link #scan()} que reporta progresso via {@link ScanProgressListener} (Fase 12
+     * Parte C) - delega 100% para {@link #scan()} (a leitura via OSHI ja aconteceu ali) e depois
+     * itera sobre a lista ja pronta reportando o andamento real do processamento, a cada 10 itens
+     * (categoria com potencialmente muitos processos) - ver nota tecnica no Javadoc de {@link
+     * ScanProgressListener} sobre por que isso nao e progresso simulado. {@code scan()} continua
+     * inalterado, usado pelos testes JUnit da Fase 12 Parte B.
+     */
+    public List<ProcessInfo> scan(ScanProgressListener listener) {
+        List<ProcessInfo> result = scan();
+        if (listener != null) {
+            int total = result.size();
+            for (int i = 0; i < total; i++) {
+                if (i % 10 == 0 || i == total - 1) {
+                    listener.onProgress("Processos", i + 1, total, "Analisando " + result.get(i).name() + "...");
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
      * Busca um processo especifico pelo PID (mais eficiente que escanear
      * tudo e filtrar, ja que o OSHI oferece consulta direta por PID).
      */

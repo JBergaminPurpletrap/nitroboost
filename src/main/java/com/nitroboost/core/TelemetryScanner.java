@@ -142,6 +142,23 @@ public class TelemetryScanner {
     }
 
     /**
+     * Sobrecarga de {@link #scan()} que reporta progresso via {@link ScanProgressListener} (Fase 12
+     * Parte C) - categoria com poucos itens (as chaves listadas em {@link #KNOWN_KEYS}), entao
+     * reporta progresso apenas no inicio e no fim, conforme a orientacao da Fase 12 Parte C para
+     * categorias pequenas.
+     * {@code scan()} continua inalterado, usado pelos testes JUnit da Fase 12 Parte B.
+     */
+    public List<TelemetryKeyInfo> scan(ScanProgressListener listener) {
+        List<TelemetryKeyInfo> result = scan();
+        if (listener != null) {
+            int total = result.size();
+            listener.onProgress("Telemetria", 0, total, "Verificando chaves de telemetria...");
+            listener.onProgress("Telemetria", total, total, "Verificacao concluida.");
+        }
+        return result;
+    }
+
+    /**
      * Le o valor atual de uma unica chave/valor de registro. Nunca lanca
      * excecao para fora: se a chave ou o valor nao existirem (comum - muitas
      * dessas chaves so existem se o usuario ou uma politica ja mexeu nelas

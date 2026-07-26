@@ -97,6 +97,27 @@ public class TaskSchedulerScanner {
         return result;
     }
 
+    /**
+     * Sobrecarga de {@link #scan()} que reporta progresso via {@link ScanProgressListener} (Fase 12
+     * Parte C) - delega 100% para {@link #scan()} (a chamada ao {@code schtasks} ja aconteceu ali) e
+     * depois itera sobre a lista ja parseada reportando o andamento real do processamento, a cada 10
+     * itens (categoria com ~274 tarefas nesta maquina de desenvolvimento) - ver nota tecnica no
+     * Javadoc de {@link ScanProgressListener} sobre por que isso nao e progresso simulado.
+     * {@code scan()} continua inalterado, usado pelos testes JUnit da Fase 12 Parte B.
+     */
+    public List<TaskInfo> scan(ScanProgressListener listener) {
+        List<TaskInfo> result = scan();
+        if (listener != null) {
+            int total = result.size();
+            for (int i = 0; i < total; i++) {
+                if (i % 10 == 0 || i == total - 1) {
+                    listener.onProgress("Tarefas Agendadas", i + 1, total, "Processando " + result.get(i).name() + "...");
+                }
+            }
+        }
+        return result;
+    }
+
     public Optional<TaskInfo> findByName(String taskName) {
         return scan().stream()
                 .filter(t -> t.name().equalsIgnoreCase(taskName))

@@ -148,6 +148,23 @@ public class GamingScanner {
     }
 
     /**
+     * Sobrecarga de {@link #scan()} que reporta progresso via {@link ScanProgressListener} (Fase 12
+     * Parte C) - categoria com poucos itens (as chaves listadas em {@link #KNOWN_KEYS}), entao
+     * reporta progresso apenas no inicio e no fim, conforme a orientacao da Fase 12 Parte C para
+     * categorias pequenas. {@code scan()} continua inalterado, usado pelos testes JUnit da Fase 12
+     * Parte B.
+     */
+    public List<GamingKeyInfo> scan(ScanProgressListener listener) {
+        List<GamingKeyInfo> result = scan();
+        if (listener != null) {
+            int total = result.size();
+            listener.onProgress("Otimizacoes para Jogos", 0, total, "Verificando otimizacoes para jogos...");
+            listener.onProgress("Otimizacoes para Jogos", total, total, "Verificacao concluida.");
+        }
+        return result;
+    }
+
+    /**
      * Permite testar isoladamente via console:
      *   ./mvnw exec:java -Dexec.mainClass=com.nitroboost.core.GamingScanner
      */
