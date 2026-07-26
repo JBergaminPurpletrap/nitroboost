@@ -3,6 +3,7 @@ package com.nitroboost.ui;
 import com.nitroboost.core.AiFeatureScanner;
 import com.nitroboost.core.BloatwareScanner;
 import com.nitroboost.core.ConsumerFeatureScanner;
+import com.nitroboost.core.DisplayScanner;
 import com.nitroboost.core.GamingScanner;
 import com.nitroboost.core.PerformanceScanner;
 import com.nitroboost.core.PowerPlanScanner;
@@ -19,9 +20,10 @@ import javafx.concurrent.Task;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * Roda os 11 scanners do backend em uma thread de fundo (nunca na UI thread do
+ * Roda os 12 scanners do backend em uma thread de fundo (nunca na UI thread do
  * JavaFX - regra do guia de skills tecnicas) e devolve uma lista unica de
  * {@link ScannedItem}, cada um ja classificado pela {@link KnowledgeBase}.
  *
@@ -48,6 +50,7 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
     public static final String CATEGORY_GAMING = "Otimizacoes para Jogos";
     public static final String CATEGORY_AI = "IA / Inteligencia Artificial";
     public static final String CATEGORY_CONSUMER = "Recursos de Consumidor e Segundo Plano";
+    public static final String CATEGORY_DISPLAY = "Taxa de Atualizacao da Tela";
 
     /** Nome fixo do item de hibernacao - mesmo valor usado por {@link com.nitroboost.actions.ActionExecutor}. */
     private static final String HIBERNATION_ITEM_NAME = "Arquivo de Hibernacao";
@@ -83,7 +86,8 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
                 new CategoryDef("performance", CATEGORY_PERFORMANCE, this::scanPerformance),
                 new CategoryDef("jogos", CATEGORY_GAMING, this::scanGaming),
                 new CategoryDef("IA", CATEGORY_AI, this::scanAiFeatures),
-                new CategoryDef("recursos de consumidor", CATEGORY_CONSUMER, this::scanConsumerFeatures)
+                new CategoryDef("recursos de consumidor", CATEGORY_CONSUMER, this::scanConsumerFeatures),
+                new CategoryDef("taxa de atualizacao da tela", CATEGORY_DISPLAY, this::scanDisplay)
         );
         int totalCategories = categories.size();
         for (int i = 0; i < totalCategories; i++) {
@@ -269,6 +273,34 @@ public class SystemScanTask extends Task<List<ScannedItem>> {
                 ? "OneDriveSetup.exe encontrado (" + onedriveSetupPath + ")"
                 : "OneDriveSetup.exe nao encontrado (OneDrive pode ja estar desinstalado)";
         result.add(build(CATEGORY_CONSUMER, "onedrive_uninstall", ONEDRIVE_UNINSTALL_ITEM_NAME, onedriveState, null));
+        return result;
+    }
+
+    /**
+     * Item fixo de catalogo (Fase 14 Parte 2) - assim como hibernacao/armazenamento reservado, nao
+     * vem de uma lista de chaves conhecidas ({@code KNOWN_KEYS}) como os demais itens de registro,
+     * mas de uma leitura direta via {@link DisplayScanner} (JNA, sem chave de registro envolvida).
+     * "source" fica null: a acao principal (abrir Configuracoes de Tela) nao precisa de cast nenhum,
+     * mesmo raciocinio do item de desinstalacao do OneDrive acima.
+     */
+    private List<ScannedItem> scanDisplay(ScanProgressListener listener) {
+        if (listener != null) {
+            listener.onProgress(CATEGORY_DISPLAY, 0, 1, "Verificando taxa de atualizacao da tela...");
+        }
+        DisplayScanner scanner = new DisplayScanner();
+        Optional<Integer> current = scanner.getCurrentRefreshRate();
+        List<Integer> available = scanner.getAvailableRefreshRates();
+        Optional<Integer> max = available.isEmpty() ? Optional.empty() : Optional.of(available.get(available.size() - 1));
+
+        String state = current.map(v -> v + " Hz atual").orElse("Taxa atual nao detectada")
+                + " / maxima suportada: " + max.map(v -> v + " Hz").orElse("nao detectada")
+                + (available.isEmpty() ? "" : " (taxas suportadas: " + available + " Hz)");
+
+        List<ScannedItem> result = new ArrayList<>();
+        result.add(build(CATEGORY_DISPLAY, "display", "Taxa de Atualizacao da Tela", state, null));
+        if (listener != null) {
+            listener.onProgress(CATEGORY_DISPLAY, 1, 1, "Verificacao concluida.");
+        }
         return result;
     }
 
