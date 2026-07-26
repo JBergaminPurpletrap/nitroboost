@@ -1858,3 +1858,158 @@ Recall/Copilot, ajuste do `ItemActionDispatcher`/`ItemDetailView`, correção do
 
 Nenhum bloqueio novo além do já registrado em `BLOCKERS.md` (necessidade de Administrador para DISM,
 inclusive para consulta — mesma classe de limitação documentada desde a Fase 9/10).
+
+---
+
+## 2026-07-26 — Fase 12 Parte A concluída (Últimos Itens de Debloat)
+
+Última leva de itens de debloat do roadmap (foco em GPU, por ser o público gamer do app), conforme
+`NITRO-BOOST-fase12-debloat-final-e-testes.md` — **apenas a seção A (Debloat) foi implementada,
+conforme instruído**: a Parte B (suíte de testes JUnit/checklist manual/`TESTING.md`) e a Parte C
+(barras de progresso) não foram iniciadas, aguardando validação do usuário entre cada parte.
+
+### A.1) Telemetria de fabricantes de GPU
+
+Nenhum scanner novo — `ServiceScanner` (já existente desde a Fase 1) já lê todos os serviços do
+Windows, incluindo os de terceiros (NVIDIA/AMD) quando instalados. Só faltava classificar 4 serviços
+na `knowledge-base.json` (tipo `service`): `NvTelemetryContainer` (já existia desde a Fase 3 —
+descrição reforçada com a nota de que roda mesmo sem o GeForce Experience aberto e que nomes de
+serviço de terceiro variam entre versões de driver), `NVDisplay.ContainerLocalSystem` (novo,
+classificação 🟡 **depende** — descrição deixa explícito que desativar pode afetar o overlay do
+GeForce Experience e o G-SYNC), `AMD External Events Utility` (novo, 🟡 depende) e `AMD Crash
+Defender Service` (novo, 🟢 seguro). As 4 descrições repetem a mesma nota de variação de nome entre
+versões de driver, conforme pedido no documento.
+
+### A.2) Apps pré-instalados adicionais (bloatware)
+
+Nenhum scanner novo — `BloatwareScanner.scan()` (corrigido na Fase 8) já traz todos os apps UWP
+instalados. **Achado importante durante a implementação**: 2 entradas de bloatware que já existiam
+na base ("Solitaire Collection", "Zune Video (Filmes e TV)") tinham o campo `nome` com um texto
+"bonito" (com espaços/parênteses) que **nunca batia** com o nome real do pacote Appx retornado pelo
+scanner (`Microsoft.MicrosoftSolitaireCollection`, `Microsoft.ZuneVideo`) — o algoritmo de correspondência
+por substring do `KnowledgeBase.find()` (usado com o nome bruto do pacote, não um nome de exibição)
+não conseguia casar nenhuma das duas strings em nenhuma direção. Corrigido renomeando os dois campos
+`nome` para `MicrosoftSolitaireCollection`/`ZuneVideo` (substrings que realmente aparecem dentro do
+nome real do pacote) — confirmado via teste isolado com `jshell` que a busca passou a encontrar
+essas entradas. Os outros 6 itens da seção A.2 foram adicionados como entradas novas, usando o mesmo
+princípio (o campo `nome` funciona como CHAVE DE BUSCA fuzzy contra o nome bruto do pacote, nunca é
+exibido diretamente ao usuário nos itens de bloatware — quem aparece na tela é sempre o nome bruto
+do scanner): `Clipchamp` (🟢 seguro), `MicrosoftStickyNotes` (🟡 depende), `GetHelp` (🟢 seguro),
+`Getstarted`/Tips (🟢 seguro), `PeopleExperienceHost` (🟡 depende), `YourPhone`/Phone Link (🟡 depende)
+e `SkypeApp` (🟢 seguro). Confirmado por leitura real do `BloatwareScanner` nesta máquina (notebook
+Dell): `Microsoft.Windows.PeopleExperienceHost` e `Microsoft.GetHelp` estão instalados (agora
+corretamente classificados); Clipchamp, Sticky Notes, Movies & TV, Phone Link e Skype não estão
+presentes nesta instalação específica (esperado — variam por edição/OEM do Windows).
+
+### A.3) Edge — Startup Boost / Background Mode
+
+Duas chaves novas adicionadas ao `ConsumerFeatureScanner` já existente (`edge_startup_boost` /
+`edge_background_mode`, ambas em `HKLM\SOFTWARE\Policies\Microsoft\Edge`, valores
+`StartupBoostEnabled`/`BackgroundModeEnabled`), reaproveitando `ActionExecutor.setConsumerFeatureValue`/
+`restoreConsumerFeatureValue` (nenhum método novo necessário — mesmo mecanismo genérico de DWORD já
+usado desde a Fase 8 Parte 2) + 2 entradas novas na base de conhecimento.
+
+### A.4) OneDrive — Desinstalação Completa (o item mais delicado desta fase)
+
+Implementado como uma ação **distinta e claramente separada** do item "OneDrive" (tipo `startup`)
+que já existia desde a Fase 1 (que só desativa a inicialização automática) — novo tipo de item
+`onedrive_uninstall`, para nunca confundir bloqueio/histórico dos dois:
+
+- **`ActionExecutor.resolveOneDriveSetupPath()`** (novo, `static`, sem dependências — só verifica
+  arquivos em disco): resolve dinamicamente `%SystemRoot%\SysWOW64\OneDriveSetup.exe`, com fallback
+  para `%SystemRoot%\System32\OneDriveSetup.exe` (nunca hardcoded `C:\Windows`), retornando `null` se
+  nenhum existir. Sendo `static`, é reaproveitado também por `SystemScanTask` (para exibir o estado
+  atual na varredura) sem precisar instanciar `ActionExecutor`.
+- **`ActionExecutor.uninstallOneDriveCompletely()`** (novo): segue o contrato padrão do projeto
+  (lock → backup → ação → histórico) e executa `"<caminho>" /uninstall` via `ProcessBuilder` (mesmo
+  padrão de `runCommand`/timeout do DISM, já que pode demorar). O backup grava o caminho do
+  instalador usado, para a melhor tentativa de reversão possível.
+- **`ActionExecutor.restoreOneDriveInstallation(backupId)`** (novo): reversão "melhor esforço" —
+  reexecuta o MESMO instalador capturado no backup, sem `/uninstall` (comportamento padrão do
+  `OneDriveSetup.exe` sem argumentos é reinstalar). **Limitação documentada explicitamente no
+  Javadoc** (mesmo espírito da exceção já aceita no projeto para o restore "melhor esforço" de Appx
+  desde a Fase 3/4, e para a limpeza de RAM da Fase 10): reinstalar o programa não restaura contas
+  vinculadas nem a configuração de sincronização anterior — o usuário precisa fazer login novamente.
+- **`ItemActionDispatcher`**: novo caso `onedrive_uninstall` → `uninstallOneDriveCompletely()`;
+  `primaryActionLabel` devolve "Desinstalar" para este tipo; novo método
+  `requiresExtraConfirmation(ScannedItem)` (hoje só `true` para `onedrive_uninstall`) usado pelos
+  dois pontos de entrada da UI antes de despachar a ação.
+- **`ui/DestructiveActionConfirmation.java`** (novo, pequeno e compartilhado): modal de confirmação
+  **diferente** do `Alert` de confirmação simples já usado em ações em lote (`ScanResultsView.
+  closeAllGreen`) — `Alert.AlertType.WARNING`, texto de aviso longo e explícito (risco concreto de
+  arquivos que só existem na nuvem do OneDrive, orientação para copiá-los antes), e os dois
+  `ButtonType` são customizados com texto que já repete o risco ("Cancelar" / "Sim, entendi os
+  riscos - desinstalar o OneDrive") em vez de "OK"/"Cancelar" genéricos — não é possível prosseguir
+  sem clicar em um botão cujo próprio texto já avisa. Reaproveitado por `ScanResultsView` (botão de
+  ação rápida da linha) e `ItemDetailView` (botão do modal de detalhes), os dois únicos pontos de
+  entrada para a ação principal de um item.
+- **`SystemScanTask.scanConsumerFeatures()`**: ganhou um item fixo de catálogo (mesmo padrão já
+  usado para hibernação/Armazenamento Reservado em `scanPerformance()`) mostrando se
+  `OneDriveSetup.exe` foi encontrado nesta máquina, reaproveitando a categoria "Recursos de
+  Consumidor" já existente (nenhuma categoria nova).
+- **`knowledge-base.json`**: novo item "OneDrive - Desinstalação Completa" (tipo `onedrive_uninstall`,
+  classificação 🟡 depende), com descrição explícita sobre o risco de arquivos que só existem na
+  nuvem.
+
+### A.5) Bloqueio de atualização de driver de GPU via Windows Update
+
+Duas chaves novas adicionadas ao `PerformanceScanner` já existente (`block_driver_update_search` /
+`block_driver_update_prompt`, ambas em `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\DriverSearching`,
+valores `DontSearchWindowsUpdate`/`DontPromptForWindowsUpdate`, valor recomendado `1` para bloquear),
+reaproveitando `ActionExecutor.setPerformanceValue`/`restorePerformanceValue` (mesmo mecanismo
+genérico de DWORD, nenhum método novo) + 2 entradas novas na base de conhecimento, descrevendo o
+problema real que resolve (Windows Update "downgradando" o driver de vídeo por cima da versão
+instalada manualmente).
+
+### Teste via console (`Phase12PartAConsoleDemo`)
+
+Rodado contra o estado real desta máquina (notebook Dell, sem GPU dedicada):
+
+- **A.1 (GPU):** os 4 serviços foram procurados via `ServiceScanner.findByName` — **nenhum dos 4 foi
+  encontrado nesta máquina** (0 de 4), resultado esperado e documentado (esta máquina de
+  desenvolvimento não tem GPU dedicada NVIDIA/AMD — só uma Intel Iris Xe integrada). Tratado
+  corretamente como "não aplicável", não como falha.
+- **A.3 (Edge) e A.5 (Driver Update):** round-trip completo (ler original → aplicar → confirmar →
+  reverter → confirmar leitura pós-restore) tentado para as 4 chaves novas — todas `HKLM`, todas
+  falharam ao escrever com `ERRO: Acesso negado` (sessão sem Administrador, mesma limitação já
+  documentada em `BLOCKERS.md` desde a Fase 9 Parte 1). Confirmado em cada caso, via leitura direta
+  pós-tentativa, que **nada foi alterado no registro** (as 4 chaves continuam "não definido").
+- **A.4 (OneDrive) — validado SEM executar a desinstalação de verdade:**
+  1. `resolveOneDriveSetupPath()` **encontrou de verdade** `C:\Windows\System32\OneDriveSetup.exe`
+     nesta máquina (confirmado também manualmente via `Test-Path` no PowerShell) — o comando que
+     seria executado foi impresso como texto (`"<caminho>" /uninstall`), nunca rodado.
+  2. Fluxo de bloqueio testado chamando o método **real** `uninstallOneDriveCompletely()` com o item
+     travado de propósito (seguro por construção, já que o `LockManager` é checado antes de qualquer
+     resolução de caminho/execução dentro do método) — confirmado que a ação foi recusada
+     corretamente, sem nenhum comando de desinstalação executado.
+  3. **A chamada real e desbloqueada de `uninstallOneDriveCompletely()` nunca foi feita neste
+     teste** — documentado explicitamente no próprio console de saída do demo. O modal de
+     confirmação extra-explícito (`DestructiveActionConfirmation`) é código só de UI (JavaFX `Alert`),
+     não pôde ser exercitado via console (mesma limitação de sessão gráfica síncrona já documentada
+     desde a Fase 0/4) — revisado manualmente linha a linha.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros, em cada etapa (scanners, `ActionExecutor`,
+  `ItemActionDispatcher`, `SystemScanTask`, `ScanResultsView`, `ItemDetailView`,
+  `DestructiveActionConfirmation` novo, `knowledge-base.json` com 20 itens novos + 2 renomeados,
+  `Phase12PartAConsoleDemo` novo).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase12PartAConsoleDemo` — roda até o fim, ver
+  saída completa acima; nenhuma exceção não tratada em nenhum dos cenários testados.
+- Verificado com `jshell` (carregando `KnowledgeBase` do classpath compilado) que as 9 entradas de
+  bloatware novas/corrigidas realmente casam, via `KnowledgeBase.find()`, com os nomes reais de
+  pacote Appx esperados (`Clipchamp.Clipchamp`, `Microsoft.MicrosoftStickyNotes`, `Microsoft.GetHelp`,
+  `Microsoft.Getstarted`, `Microsoft.ZuneVideo`, `Microsoft.MicrosoftSolitaireCollection`,
+  `Microsoft.Windows.PeopleExperienceHost`, `Microsoft.YourPhone`, `Microsoft.SkypeApp`).
+
+Nenhum bloqueio técnico novo foi encontrado durante esta parte (ver `BLOCKERS.md` — sem itens novos
+da Fase 12 Parte A; as falhas de escrita em `HKLM` sem Administrador já são uma limitação conhecida e
+documentada desde a Fase 9 Parte 1).
+
+Todos os itens da subseção "Debloat" do checklist da Fase 12 estão marcados `[x]` em
+`NITRO-BOOST-fase12-debloat-final-e-testes.md`. **A Parte B (suíte de testes) e a Parte C (barras de
+progresso) não foram iniciadas, conforme instrução explícita — aguardam validação do usuário antes
+de prosseguir.**
+
+Próximo passo (não iniciado, aguardando validação do usuário): **Fase 12 — Parte B (Suíte de Testes
+de Validação)**.

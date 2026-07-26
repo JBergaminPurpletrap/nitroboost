@@ -162,11 +162,11 @@ Componente JavaFX customizado (`ui/components/NitroProgressBar.java`), reutiliza
 ## Checklist de Implementação (Fase 12)
 
 ### Debloat
-- [ ] Adicionar os itens de GPU (seção A.1) à base de conhecimento, já cobertos pelo `ServiceScanner` existente
-- [ ] Adicionar os itens de apps pré-instalados (seção A.2) à base de conhecimento (já cobertos pelo `BloatwareScanner.scan()` desde a correção da Fase 8)
-- [ ] Adicionar o item de Edge (seção A.3) ao `ConsumerFeatureScanner` (Fase 8)
-- [ ] Implementar a desinstalação completa do OneDrive (seção A.4) no `ActionExecutor`, com confirmação extra na UI (modal de aviso específico, diferente do padrão, por ser mais impactante)
-- [ ] Adicionar o bloqueio de driver update (seção A.5) ao `PerformanceScanner` (Fase 9)
+- [x] Adicionar os itens de GPU (seção A.1) à base de conhecimento, já cobertos pelo `ServiceScanner` existente
+- [x] Adicionar os itens de apps pré-instalados (seção A.2) à base de conhecimento (já cobertos pelo `BloatwareScanner.scan()` desde a correção da Fase 8)
+- [x] Adicionar o item de Edge (seção A.3) ao `ConsumerFeatureScanner` (Fase 8)
+- [x] Implementar a desinstalação completa do OneDrive (seção A.4) no `ActionExecutor`, com confirmação extra na UI (modal de aviso específico, diferente do padrão, por ser mais impactante)
+- [x] Adicionar o bloqueio de driver update (seção A.5) ao `PerformanceScanner` (Fase 9)
 
 ### Testes
 - [ ] Escrever os testes JUnit da seção B.1
