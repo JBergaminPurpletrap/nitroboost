@@ -1003,6 +1003,33 @@
       "valor_recomendado": "0"
     },
     {
+      "nome": "Caixa de Pesquisa na Barra de Tarefas",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Controla como a caixa/icone de pesquisa aparece na barra de tarefas do Windows 11 (Configuracoes > Personalizacao > Barra de tarefas).",
+      "impacto_desativar": "A caixa de pesquisa fica oculta na barra de tarefas, deixando mais espaco livre - a pesquisa continua acessivel pelo atalho Win+S.",
+      "impacto_manter": "A caixa de pesquisa (ou o icone) ocupa espaco visual na barra de tarefas.",
+      "valor_recomendado": "0"
+    },
+    {
+      "nome": "Botao Visao de Tarefas na Barra de Tarefas",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Botao 'Visao de Tarefas' na barra de tarefas, usado para ver janelas abertas e trocar entre areas de trabalho virtuais.",
+      "impacto_desativar": "O botao some da barra de tarefas - a Visao de Tarefas continua acessivel pelo atalho Win+Tab.",
+      "impacto_manter": "O botao fica visivel na barra de tarefas, ocupando um pequeno espaco visual.",
+      "valor_recomendado": "0"
+    },
+    {
+      "nome": "Icone de Widgets na Barra de Tarefas",
+      "tipo": "consumer",
+      "classificacao": "seguro",
+      "descricao": "Icone de Widgets (noticias, clima, informacoes rapidas) exibido na barra de tarefas do Windows 11. NOTA: isso so esconde o icone da barra - a desinstalacao completa do app Widgets ja e feita separadamente pelo item 'Widgets (App)' (Debloat).",
+      "impacto_desativar": "O icone de Widgets some da barra de tarefas, deixando ela mais limpa. O app Widgets continua instalado (use o item 'Widgets (App)' em Debloat para desinstalar de vez).",
+      "impacto_manter": "O icone fica visivel na barra de tarefas, pronto para abrir o painel de Widgets.",
+      "valor_recomendado": "0"
+    },
+    {
       "nome": "Bloquear Atualizacao de Driver de Video pelo Windows Update (Busca)",
       "tipo": "performance",
       "classificacao": "seguro",

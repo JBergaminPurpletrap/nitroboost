@@ -184,6 +184,34 @@ public class ConsumerFeatureScanner {
                     "Permite que o Edge e extensoes continuem rodando em segundo plano mesmo depois que todas as "
                             + "janelas do navegador sao fechadas.",
                     "0"
+            ),
+            // ---- Secao 6 (Fase 14 Parte 3): limpeza de icones da barra de tarefas ----
+            new ConsumerFeatureKeyDefinition(
+                    "taskbar_search_box",
+                    "Caixa de Pesquisa na Barra de Tarefas",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Search",
+                    "SearchboxTaskbarMode",
+                    "Controla como a caixa de pesquisa aparece na barra de tarefas (0 = oculta, 1 = so o icone, "
+                            + "2 = caixa de pesquisa completa).",
+                    "0"
+            ),
+            new ConsumerFeatureKeyDefinition(
+                    "taskbar_task_view_button",
+                    "Botao Visao de Tarefas na Barra de Tarefas",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+                    "ShowTaskViewButton",
+                    "Remove o botao de 'Visao de Tarefas' (janelas/areas de trabalho virtuais) da barra de tarefas.",
+                    "0"
+            ),
+            new ConsumerFeatureKeyDefinition(
+                    "taskbar_widgets_icon",
+                    "Icone de Widgets na Barra de Tarefas",
+                    "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+                    "TaskbarDa",
+                    "Esconde o icone de Widgets da barra de tarefas. NOTA: isso so esconde o icone - a "
+                            + "desinstalacao completa do app Widgets ja e feita separadamente pelo item 'Widgets (App)' "
+                            + "(tipo bloatware, desde as Fases 3/8).",
+                    "0"
             )
     );
 
