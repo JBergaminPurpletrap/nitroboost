@@ -99,12 +99,12 @@ Marcar como 🟡 sugestão quando a taxa atual for menor que a máxima suportada
 - [ ] **Não implementar o Nível 2 (troca automática) nesta fase** — deixar documentado como melhoria futura opcional, dado o risco de tela preta (documentado em `docs/PROGRESS.md`, deliberadamente não implementado)
 
 ### Recurso novo: Ícones da Barra de Tarefas
-- [ ] Adicionar `SearchboxTaskbarMode`, `ShowTaskViewButton` e `TaskbarDa` como itens verificáveis no `ConsumerFeatureScanner` (Fase 8), com os valores recomendados da seção E
-- [ ] Expandir `ActionExecutor` com os métodos correspondentes, seguindo o contrato de sempre (lock → backup → ação → histórico)
-- [ ] Confirmar visualmente que os 4 itens aparecem agrupados como "Limpeza da Barra de Tarefas" na `AuditView` (Fase 9), com opção de ação em lote
+- [x] Adicionar `SearchboxTaskbarMode`, `ShowTaskViewButton` e `TaskbarDa` como itens verificáveis no `ConsumerFeatureScanner` (Fase 8), com os valores recomendados da seção E — 3 entradas novas em `KNOWN_KEYS` (ids `taskbar_search_box`, `taskbar_task_view_button`, `taskbar_widgets_icon`), mesmo padrão das chaves já existentes; entradas correspondentes adicionadas em `knowledge-base.json` (tipo `consumer`, `valor_recomendado="0"`); confirmado que `TaskbarMn` (Chat, Fase 8) já tinha `valor_recomendado="0"` correto — nenhuma duplicata criada
+- [x] Expandir `ActionExecutor` com os métodos correspondentes, seguindo o contrato de sempre (lock → backup → ação → histórico) — nenhum método novo necessário: as 3 chaves reaproveitam `setConsumerFeatureValue`/`restoreConsumerFeatureValue` já existentes (mesmo mecanismo genérico `applyRegistryDwordChange`/`restoreRegistryDwordChange` usado por todas as chaves DWORD de registro desde a Fase 9)
+- [x] Confirmar visualmente que os 4 itens aparecem agrupados como "Limpeza da Barra de Tarefas" na `AuditView` (Fase 9), com opção de ação em lote — `SystemAuditEngine.auditConsumer` agora atribui a categoria de EXIBIÇÃO "Limpeza da Barra de Tarefas" a esses 4 itens especificamente (por nome, via `TASKBAR_CLEANUP_ITEM_NAMES`), categoria independente de `SystemScanTask.CATEGORY_CONSUMER` (usada normalmente pela tabela de varredura geral, onde os mesmos 4 itens continuam aparecendo em "Recursos de Consumidor e Segundo Plano" sem duplicação); validado via `Phase14Part3ConsoleDemo` — `AuditView` não precisou de nenhum código novo, o agrupamento por `category`/ação em lote já era genérico o suficiente
 
 ### Fechamento
-- [ ] Atualizar `PROGRESS.md` com o resumo da Fase 14
+- [x] Atualizar `PROGRESS.md` com o resumo da Fase 14
 
 **Critério de conclusão:** o Diagnóstico do Sistema mostra corretamente as sugestões para Game DVR (desativar), Modo de Jogo (ativar — direção invertida, testar com atenção), Delivery Optimization (desligar), taxa de atualização da tela (informar + botão pra configurações nativas), e os 4 itens de barra de tarefas — todos com o texto de ação correto na UI (alguns dizem "ativar", outros "desativar", conforme o caso).
 

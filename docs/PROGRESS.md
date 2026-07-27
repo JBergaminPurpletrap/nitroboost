@@ -2363,3 +2363,96 @@ Nível 2 (deixado `[ ]` de propósito, conforme instruído) - ver
 
 Parte 2 concluída. **Parada aqui, conforme instruído** - a Parte 3 (ícones da barra de tarefas)
 requer validação do usuário antes de começar.
+
+---
+
+## 2026-07-26/27 — Fase 14 - Parte 3 concluída (Ícones e Itens da Barra de Tarefas) — FASE 14 INTEIRA CONCLUÍDA
+
+Conforme `docs/NITRO-BOOST-fase14-melhorias-diagnostico.md`, seção E - última parte da Fase 14.
+Nenhum código de scanner totalmente novo: as 3 chaves reaproveitam 100% o mecanismo já existente do
+`ConsumerFeatureScanner`/`ActionExecutor` (Fase 8), e a categorização nova no Diagnóstico é uma
+camada fina por cima do `SystemAuditEngine` já existente (Fase 9/14 Parte 2):
+
+- **`ConsumerFeatureScanner` (`core/`, 3 entradas novas em `KNOWN_KEYS`):**
+  - `taskbar_search_box` — "Caixa de Pesquisa na Barra de Tarefas" (`HKCU\Software\Microsoft\Windows\CurrentVersion\Search` → `SearchboxTaskbarMode`, recomendado `0` = oculta).
+  - `taskbar_task_view_button` — "Botao Visao de Tarefas na Barra de Tarefas" (`HKCU\...\Explorer\Advanced` → `ShowTaskViewButton`, recomendado `0`).
+  - `taskbar_widgets_icon` — "Icone de Widgets na Barra de Tarefas" (`HKCU\...\Explorer\Advanced` → `TaskbarDa`, recomendado `0`) — descrição explícita de que isso só esconde o ícone; a desinstalação completa do app Widgets continua sendo o item separado "Widgets (App)" (tipo `bloatware`, Fases 3/8), sem sobreposição/duplicata entre os dois.
+  - Todas seguem exatamente o mesmo padrão das chaves já existentes (`ConsumerFeatureKeyDefinition`, leitura via `reg query`, nunca lança exceção).
+- **Base de conhecimento:** 3 entradas novas em `knowledge-base.json` (tipo `consumer`, classificação
+  `seguro`, `valor_recomendado="0"` para todas). Confirmado (sem duplicar) que o item já existente
+  "Icone de Chat (Teams Pessoal) na Barra de Tarefas" (`TaskbarMn`, Fase 8) já tinha
+  `valor_recomendado="0"` correto.
+- **`ActionExecutor`:** nenhum método novo necessário — as 3 chaves são `HKCU` e reaproveitam
+  `setConsumerFeatureValue`/`restoreConsumerFeatureValue` (mesmo mecanismo genérico
+  `applyRegistryDwordChange`/`restoreRegistryDwordChange` usado desde a Fase 9 por todas as chaves
+  DWORD de registro do projeto).
+- **`SystemAuditEngine` — categoria de EXIBIÇÃO "Limpeza da Barra de Tarefas":** `auditConsumer` foi
+  ajustado para atribuir a categoria `"Limpeza da Barra de Tarefas"` (constante nova
+  `CATEGORY_TASKBAR_CLEANUP`) especificamente aos 4 itens (as 3 novas + `TaskbarMn`), identificados
+  por nome via um `Set<String>` (`TASKBAR_CLEANUP_ITEM_NAMES`), em vez da categoria genérica
+  `SystemScanTask.CATEGORY_CONSUMER` usada pelos demais itens de `ConsumerFeatureScanner`. Essa é
+  uma categorização **só de exibição no relatório de Diagnóstico** — a tabela de varredura geral
+  (`ScanResultsView`, via `SystemScanTask.scanConsumerFeatures`) continua mostrando os mesmos 4 itens
+  normalmente em "Recursos de Consumidor e Segundo Plano", sem nenhuma mudança nesse caminho (as duas
+  categorizações são independentes por decisão deliberada, conforme orientação da tarefa). O
+  `itemType` desses itens continua `"consumer"`, então `ItemActionDispatcher` despacha a ação
+  corretamente sem nenhuma mudança adicional.
+- **`AuditView`:** **nenhum código novo necessário** — o agrupamento por `category`
+  (`AuditReport.findingsByCategory()`) e a ação em lote "Aplicar todas as sugestões seguras desta
+  categoria" já eram genéricos o suficiente para qualquer valor de categoria, incluindo a nova
+  "Limpeza da Barra de Tarefas" — confirmado via `Phase14Part3ConsoleDemo` que os 4 itens aparecem
+  corretamente agrupados nessa categoria no relatório.
+
+### Teste de integração via console (`Phase14Part3ConsoleDemo`) — valores reais desta máquina
+
+```
+14.3.1) Leitura real das 3 chaves novas nesta maquina
+  - Caixa de Pesquisa na Barra de Tarefas         valor atual=0x0   (existe=true) recomendado=0
+  - Botao Visao de Tarefas na Barra de Tarefas    valor atual=0x0   (existe=true) recomendado=0
+  - Icone de Widgets na Barra de Tarefas          valor atual=0x1   (existe=true) recomendado=0
+
+14.3.2) Item 'Chat' (Fase 8): valor_recomendado='0' (esperado '0') -> OK
+
+14.3.3) Round-trip real (Caixa de Pesquisa na Barra de Tarefas, chave HKCU)
+    Valor ORIGINAL: 0x0
+    setConsumerFeatureValue(0) -> sucesso=true
+    Valor apos alterar: 0x0
+    restoreConsumerFeatureValue() -> sucesso=true
+    Valor apos reverter (leitura direta pos-restore): 0x0
+    [OK] Maquina confirmada restaurada ao estado original (round-trip HKCU funcionou sem elevacao).
+
+14.3.4) Diagnostico do Sistema - categoria 'Limpeza da Barra de Tarefas'
+  [OK] 4 itens encontrados:
+    SUGESTAO      Icone de Chat (Teams Pessoal) na Barra de Tarefas   atual=(nao definido) recomendado=0
+    JA_OTIMIZADO  Caixa de Pesquisa na Barra de Tarefas               atual=0x0            recomendado=0
+    JA_OTIMIZADO  Botao Visao de Tarefas na Barra de Tarefas          atual=0x0            recomendado=0
+    SUGESTAO      Icone de Widgets na Barra de Tarefas                atual=0x1            recomendado=0
+  (categoria geral 'Recursos de Consumidor e Segundo Plano' no Diagnostico tem 14 itens - os 4 de
+  barra de tarefas NAO aparecem duplicados aqui, so na categoria nova.)
+```
+
+Nesta máquina de desenvolvimento: Caixa de Pesquisa e Botão Visão de Tarefas já estavam ocultos
+(`JA_OTIMIZADO`); Ícone de Widgets e Chat ainda ativos (`SUGESTAO`) — exercitando os dois caminhos de
+status na mesma execução. O round-trip completo (ler original → aplicar → confirmar → reverter →
+confirmar leitura pós-restore) funcionou **sem elevação**, como esperado para as 4 chaves desta fase
+(todas `HKCU`, diferente de várias chaves `HKLM` de fases anteriores que exigem Administrador só
+para escrever).
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw test` — **47/47 testes passando**, nenhuma regressão (nenhum teste novo foi necessário além
+  dos já existentes de `SystemAuditEngineTest`/`AuditReportTest`, já que a mudança é uma
+  categorização condicional simples sobre um mecanismo já coberto).
+- `./mvnw -q exec:java -Dexec.mainClass=com.nitroboost.Phase14Part3ConsoleDemo` — rodado contra a
+  máquina real, confirmando os valores acima.
+
+### Checklist
+
+Todos os itens do checklist "Ícones da Barra de Tarefas" e o checklist geral da Fase 14 marcados
+`[x]` em `docs/NITRO-BOOST-fase14-melhorias-diagnostico.md` (exceto o Nível 2 de troca automática de
+taxa de tela, deixado `[ ]` de propósito desde a Parte 2 — melhoria futura opcional documentada, não
+um item pendente).
+
+**FASE 14 CONCLUÍDA POR COMPLETO (Partes 1 + 2 + 3).** Próximo passo: nenhuma fase nova foi pedida
+ainda — aguardando instrução do usuário para a próxima etapa do roadmap.
