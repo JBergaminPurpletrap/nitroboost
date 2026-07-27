@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Orquestra os scanners de chaves de registro com um "valor recomendado" objetivo e claro
@@ -35,6 +36,23 @@ public class SystemAuditEngine {
 
     /** Nome fixo do item de taxa de atualizacao da tela (Fase 14 Parte 2) - mesmo valor usado por {@code ui.SystemScanTask}. */
     private static final String DISPLAY_ITEM_NAME = "Taxa de Atualizacao da Tela";
+
+    /**
+     * Categoria de EXIBICAO usada apenas no relatorio de Diagnostico (Fase 14 Parte 3) para os 4
+     * itens de limpeza de icones da barra de tarefas - distinta e independente da categoria geral
+     * de varredura ({@code SystemScanTask.CATEGORY_CONSUMER}), onde esses mesmos itens continuam
+     * aparecendo normalmente como "Recursos de Consumidor e Segundo Plano" (mesma origem: {@link
+     * ConsumerFeatureScanner}, so muda o agrupamento aqui no Diagnostico).
+     */
+    private static final String CATEGORY_TASKBAR_CLEANUP = "Limpeza da Barra de Tarefas";
+
+    /** Nomes amigaveis (mesmos usados como "nome" na base de conhecimento) dos itens que entram em {@link #CATEGORY_TASKBAR_CLEANUP}. */
+    private static final Set<String> TASKBAR_CLEANUP_ITEM_NAMES = Set.of(
+            "Icone de Chat (Teams Pessoal) na Barra de Tarefas",
+            "Caixa de Pesquisa na Barra de Tarefas",
+            "Botao Visao de Tarefas na Barra de Tarefas",
+            "Icone de Widgets na Barra de Tarefas"
+    );
 
     private final KnowledgeBase knowledgeBase;
     private final TelemetryScanner telemetryScanner = new TelemetryScanner();
@@ -169,7 +187,11 @@ public class SystemAuditEngine {
 
     private void auditConsumer(List<AuditFinding> out, ScanProgressListener listener) {
         for (ConsumerFeatureScanner.ConsumerFeatureKeyInfo info : consumerFeatureScanner.scan(listener)) {
-            out.add(evaluate(SystemScanTask.CATEGORY_CONSUMER, "consumer", info.definition().friendlyName(),
+            String itemName = info.definition().friendlyName();
+            String category = TASKBAR_CLEANUP_ITEM_NAMES.contains(itemName)
+                    ? CATEGORY_TASKBAR_CLEANUP
+                    : SystemScanTask.CATEGORY_CONSUMER;
+            out.add(evaluate(category, "consumer", itemName,
                     info.exists() ? info.currentValue() : null, info.definition()));
         }
     }
