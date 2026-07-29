@@ -10,9 +10,10 @@ import com.nitroboost.core.TelemetryScanner;
 import com.nitroboost.knowledge.KnowledgeBase;
 import com.nitroboost.ui.SystemScanTask;
 
+import com.nitroboost.core.RegistryValueUtils;
+
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
@@ -269,23 +270,13 @@ public class SystemAuditEngine {
      * query} sempre devolve hexadecimal (ex: "0x26"), mas o "valor_recomendado" da base de
      * conhecimento as vezes esta documentado em decimal (ex: "38" para Win32PrioritySeparation, o
      * mesmo valor citado na tabela da Fase 9) - "38" e "0x26" sao numericamente iguais e devem
-     * contar como "ja otimizado". Cai para comparacao de texto se algum dos dois nao for numerico
-     * (nao deveria acontecer para chaves DWORD reais, mas evita excecao no caso raro).
+     * contar como "ja otimizado". Delega para {@link RegistryValueUtils#dwordValuesEqual} (Melhoria
+     * de Confiabilidade: a mesma logica agora e reaproveitada pelo {@code ActionExecutor} para
+     * confirmar por releitura que uma acao realmente mudou o valor) - mantido aqui com visibilidade
+     * de pacote so para nao quebrar {@code SystemAuditEngineTest}, que ja testa contra este nome.
      */
     static boolean dwordValuesEqual(String current, String recommended) {
-        try {
-            return parseDword(current) == parseDword(recommended);
-        } catch (NumberFormatException e) {
-            return current.trim().equalsIgnoreCase(recommended.trim());
-        }
-    }
-
-    private static long parseDword(String value) {
-        String trimmed = value.trim();
-        if (trimmed.toLowerCase(Locale.ROOT).startsWith("0x")) {
-            return Long.parseLong(trimmed.substring(2), 16);
-        }
-        return Long.parseLong(trimmed, 10);
+        return RegistryValueUtils.dwordValuesEqual(current, recommended);
     }
 
     /**
