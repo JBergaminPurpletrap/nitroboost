@@ -1,5 +1,6 @@
 package com.nitroboost.ui;
 
+import com.nitroboost.repair.NetworkRepairTool;
 import com.nitroboost.repair.RepairLock;
 import com.nitroboost.repair.SystemFileRepairTool;
 import com.nitroboost.repair.SystemFileRepairTool.RepairResult;
@@ -16,23 +17,32 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
+import java.util.function.Supplier;
+
 /**
- * Tela "REPARO DO SISTEMA" (Fase 15): duas frentes - Parte A (esta parte, implementada agora)
- * verifica/repara arquivos corrompidos do Windows via {@link SystemFileRepairTool} (DISM + SFC), e
- * Parte B (placeholder por enquanto, sera implementada em uma proxima tarefa apos validacao do
- * usuario) fara limpeza/reset de componentes de rede.
+ * Tela "REPARO DO SISTEMA" (Fase 15): duas frentes - Parte A verifica/repara arquivos corrompidos
+ * do Windows via {@link SystemFileRepairTool} (DISM + SFC), e Parte B limpa/reseta componentes de
+ * rede via {@link NetworkRepairTool} (DNS, Winsock, TCP/IP, IP, ARP).
  *
  * <p>Mesma natureza de {@code MemoryCleaner}/secao de limpeza de RAM do {@code DashboardView}
  * (Fase 10): acao de diagnostico/reparo pontual, sem backup/reversao associada, so um aviso de
- * confirmacao antes de rodar e o resultado exibido depois - so que aqui com log em tempo real
- * (estilo terminal) e barra de progresso alimentada pelo percentual extraido da propria saida do
- * DISM/SFC, ja que o processo pode levar varios minutos.
+ * confirmacao antes de rodar (quando a acao tem algum impacto notavel) e o resultado exibido
+ * depois. A Parte A usa log em tempo real (estilo terminal) e barra de progresso alimentada pelo
+ * percentual extraido da propria saida do DISM/SFC, ja que o processo pode levar varios minutos; a
+ * Parte B usa indicador indeterminado (mesmo padrao de {@code DashboardView#cleanRamProgress}), ja
+ * que suas acoes sao rapidas e sem percentual disponivel de forma confiavel.
+ *
+ * <p>As duas partes compartilham a mesma trava ({@link RepairLock}) e desabilitam os botoes uma da
+ * outra enquanto qualquer acao esta rodando - o layout so mostra uma tela por vez, entao rodar SFC/
+ * DISM e um reset de rede ao mesmo tempo seria um conflito de acoes administrativas simultaneas
+ * (mesmo motivo documentado na secao A.4 da Fase 15).
  */
 public class SystemRepairView extends BorderPane {
 
@@ -62,7 +72,26 @@ public class SystemRepairView extends BorderPane {
             Enquanto estiver rodando, a navegacao para as outras telas do app fica temporariamente \
             bloqueada, para evitar rodar duas acoes administrativas ao mesmo tempo.""";
 
+    private static final String WINSOCK_WARNING = """
+            Isso reseta o catalogo do Winsock (componente de baixo nivel de rede do Windows) para o \
+            padrao de fabrica - ajuda em problemas de conexao mais teimosos.
+
+            ATENCAO: so tem efeito depois que voce REINICIAR o computador. Ate la, nada muda na pratica.""";
+
+    private static final String TCPIP_WARNING = """
+            Isso restaura as configuracoes do protocolo TCP/IP para o padrao de fabrica.
+
+            ATENCAO: so tem efeito depois que voce REINICIAR o computador. Ate la, nada muda na pratica.""";
+
+    private static final String RENEW_IP_WARNING = """
+            Isso libera o endereco IP atual e pede um novo ao roteador/DHCP (ipconfig /release \
+            seguido de ipconfig /renew).
+
+            ATENCAO: a conexao de rede fica indisponivel por alguns segundos durante o processo. Nao \
+            exige reiniciar o computador.""";
+
     private final SystemFileRepairTool repairTool;
+    private final NetworkRepairTool networkRepairTool;
 
     private final Button mainButton = new Button("🛠️ Verificar e Reparar Sistema");
     private final Button dismOnlyButton = new Button("Rodar so DISM");
@@ -72,8 +101,20 @@ public class SystemRepairView extends BorderPane {
     private final TextArea logArea = new TextArea();
     private final Label resultLabel = new Label("");
 
+    private final Button dnsButton = new Button("🌐 Limpar Cache de DNS");
+    private final ProgressIndicator dnsProgress = new ProgressIndicator();
+    private final Label dnsResultLabel = new Label("");
+
+    private final Button winsockButton = new Button("Reset do Winsock");
+    private final Button tcpIpButton = new Button("Reset da Pilha TCP/IP");
+    private final Button renewIpButton = new Button("Renovar IP");
+    private final Button arpButton = new Button("Limpar Cache ARP");
+    private final ProgressIndicator advancedProgress = new ProgressIndicator();
+    private final Label advancedResultLabel = new Label("");
+
     public SystemRepairView(AppContext context) {
         this.repairTool = context.systemFileRepairTool();
+        this.networkRepairTool = context.networkRepairTool();
 
         getStyleClass().add("carbon-bg-subtle");
         setPadding(new Insets(24));
@@ -85,7 +126,7 @@ public class SystemRepairView extends BorderPane {
         VBox header = new VBox(4, title, subtitle);
 
         VBox sectionA = buildSectionA();
-        VBox sectionB = buildSectionBPlaceholder();
+        VBox sectionB = buildSectionB();
 
         VBox center = new VBox(18, header, sectionA, sectionB);
         setCenter(center);
@@ -302,22 +343,146 @@ public class SystemRepairView extends BorderPane {
     }
 
     // ------------------------------------------------------------------
-    // Secao B: rede (placeholder - Parte 3 desta fase, aguardando validacao do usuario)
+    // Secao B: limpeza e reset de componentes de rede
     // ------------------------------------------------------------------
 
-    private VBox buildSectionBPlaceholder() {
+    private VBox buildSectionB() {
         Label sectionTitle = new Label("LIMPEZA E RESET DE COMPONENTES DE REDE");
         sectionTitle.getStyleClass().add("subtitle-hud");
 
-        Label placeholder = new Label("Em breve: limpeza de cache de DNS e diagnostico de rede avancado "
-                + "(reset do Winsock, reset da pilha TCP/IP, renovar IP, limpar cache ARP). Esta secao ainda "
-                + "nao foi implementada.");
-        placeholder.getStyleClass().add("text-secondary");
-        placeholder.setWrapText(true);
+        Label description = new Label("Ferramentas de diagnostico de rede que resolvem problemas comuns de "
+                + "lentidao, sites 'nao abrindo' ou DNS desatualizado em cache. Sem backup ou reversao associada "
+                + "- assim como o reparo de arquivos do sistema acima, sao acoes pontuais, nao configuracoes a "
+                + "desfazer.");
+        description.getStyleClass().add("text-secondary");
+        description.setWrapText(true);
 
-        VBox box = new VBox(8, sectionTitle, placeholder);
+        dnsButton.getStyleClass().add("btn-turbo");
+        dnsButton.setOnAction(e -> onDnsClicked());
+
+        dnsProgress.setPrefSize(18, 18);
+        dnsProgress.setVisible(false);
+        dnsProgress.setManaged(false);
+        dnsResultLabel.getStyleClass().add("text-secondary");
+        dnsResultLabel.setWrapText(true);
+
+        HBox dnsRow = new HBox(16, dnsButton, dnsProgress, dnsResultLabel);
+        dnsRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label advancedTitle = new Label("Diagnostico de Rede Avancado");
+        advancedTitle.getStyleClass().add("subtitle-hud");
+
+        Label advancedHint = new Label("Reset do Winsock e Reset da Pilha TCP/IP so fazem efeito depois que "
+                + "voce REINICIAR o computador. Renovar IP nao exige reiniciar, mas derruba a conexao de rede "
+                + "por alguns segundos. Limpar Cache ARP e seguro e instantaneo, sem nenhum efeito colateral.");
+        advancedHint.getStyleClass().add("text-secondary");
+        advancedHint.setWrapText(true);
+
+        winsockButton.getStyleClass().add("btn-secondary");
+        winsockButton.setOnAction(e -> onAdvancedClicked("Reset do Winsock", WINSOCK_WARNING, networkRepairTool::resetWinsock));
+        tcpIpButton.getStyleClass().add("btn-secondary");
+        tcpIpButton.setOnAction(e -> onAdvancedClicked("Reset da Pilha TCP/IP", TCPIP_WARNING, networkRepairTool::resetTcpIp));
+        renewIpButton.getStyleClass().add("btn-secondary");
+        renewIpButton.setOnAction(e -> onAdvancedClicked("Renovar IP", RENEW_IP_WARNING, networkRepairTool::renewIp));
+        arpButton.getStyleClass().add("btn-secondary");
+        arpButton.setOnAction(e -> onAdvancedClicked("Limpar Cache ARP", null, networkRepairTool::clearArpCache));
+
+        HBox advancedButtons = new HBox(10, winsockButton, tcpIpButton, renewIpButton, arpButton);
+        advancedButtons.setAlignment(Pos.CENTER_LEFT);
+
+        advancedProgress.setPrefSize(18, 18);
+        advancedProgress.setVisible(false);
+        advancedProgress.setManaged(false);
+        advancedResultLabel.getStyleClass().add("text-secondary");
+        advancedResultLabel.setWrapText(true);
+
+        HBox advancedResultRow = new HBox(16, advancedProgress, advancedResultLabel);
+        advancedResultRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox box = new VBox(10, sectionTitle, description, dnsRow, advancedTitle, advancedHint,
+                advancedButtons, advancedResultRow);
         box.getStyleClass().add("card");
         box.setPadding(new Insets(16));
         return box;
+    }
+
+    private void onDnsClicked() {
+        beginNetworkRun();
+        dnsProgress.setVisible(true);
+        dnsProgress.setManaged(true);
+        dnsResultLabel.getStyleClass().removeAll("text-success", "text-danger");
+        dnsResultLabel.setText("Limpando cache de DNS...");
+
+        Thread thread = new Thread(() -> {
+            NetworkRepairTool.NetworkRepairResult result = networkRepairTool.flushDns();
+            Platform.runLater(() -> {
+                dnsProgress.setVisible(false);
+                dnsProgress.setManaged(false);
+                endNetworkRun();
+                dnsResultLabel.getStyleClass().add(result.success() ? "text-success" : "text-danger");
+                dnsResultLabel.setText((result.success() ? "✅ " : "🔴 ") + result.message());
+            });
+        }, "nitroboost-flush-dns");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /**
+     * Executa uma das 4 acoes de "Diagnostico de Rede Avancado". Quando {@code warningText} nao e
+     * nulo, exige confirmacao explicita antes de rodar (mesmo padrao ja usado para acoes impactantes
+     * do projeto, ex: desinstalacao do OneDrive na Fase 12) - usado para Winsock/TCP-IP (exigem
+     * reinicio) e Renovar IP (derruba a conexao momentaneamente). Limpar Cache ARP passa
+     * {@code null} porque e seguro e instantaneo, sem necessidade de aviso extra.
+     */
+    private void onAdvancedClicked(String actionLabel, String warningText,
+                                    Supplier<NetworkRepairTool.NetworkRepairResult> action) {
+        if (warningText != null && !confirm(actionLabel + "?", warningText)) {
+            return;
+        }
+        beginNetworkRun();
+        advancedProgress.setVisible(true);
+        advancedProgress.setManaged(true);
+        advancedResultLabel.getStyleClass().removeAll("text-success", "text-danger");
+        advancedResultLabel.setText("Executando: " + actionLabel + "...");
+
+        Thread thread = new Thread(() -> {
+            NetworkRepairTool.NetworkRepairResult result = action.get();
+            Platform.runLater(() -> {
+                advancedProgress.setVisible(false);
+                advancedProgress.setManaged(false);
+                endNetworkRun();
+                advancedResultLabel.getStyleClass().add(result.success() ? "text-success" : "text-danger");
+                advancedResultLabel.setText((result.success() ? "✅ " : "🔴 ") + result.message());
+            });
+        }, "nitroboost-network-advanced");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /** Trava a UI inteira da tela (secao A + secao B) e a navegacao global, igual ao reparo de arquivos. */
+    private void beginNetworkRun() {
+        RepairLock.start();
+        setSectionAButtonsDisabled(true);
+        setSectionBButtonsDisabled(true);
+    }
+
+    private void endNetworkRun() {
+        RepairLock.finish();
+        setSectionAButtonsDisabled(false);
+        setSectionBButtonsDisabled(false);
+    }
+
+    private void setSectionAButtonsDisabled(boolean disabled) {
+        mainButton.setDisable(disabled);
+        dismOnlyButton.setDisable(disabled);
+        sfcOnlyButton.setDisable(disabled);
+    }
+
+    private void setSectionBButtonsDisabled(boolean disabled) {
+        dnsButton.setDisable(disabled);
+        winsockButton.setDisable(disabled);
+        tcpIpButton.setDisable(disabled);
+        renewIpButton.setDisable(disabled);
+        arpButton.setDisable(disabled);
     }
 }

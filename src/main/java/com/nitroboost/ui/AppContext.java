@@ -6,6 +6,7 @@ import com.nitroboost.core.MemoryCleaner;
 import com.nitroboost.db.ActionHistoryRepository;
 import com.nitroboost.db.DatabaseManager;
 import com.nitroboost.knowledge.KnowledgeBase;
+import com.nitroboost.repair.NetworkRepairTool;
 import com.nitroboost.repair.SystemFileRepairTool;
 
 /**
@@ -17,7 +18,7 @@ import com.nitroboost.repair.SystemFileRepairTool;
 public record AppContext(DatabaseManager databaseManager, ActionExecutor actionExecutor,
                           LockManager lockManager, KnowledgeBase knowledgeBase,
                           ActionHistoryRepository historyRepository, MemoryCleaner memoryCleaner,
-                          SystemFileRepairTool systemFileRepairTool) {
+                          SystemFileRepairTool systemFileRepairTool, NetworkRepairTool networkRepairTool) {
 
     public static AppContext create() {
         DatabaseManager databaseManager = new DatabaseManager();
@@ -28,7 +29,8 @@ public record AppContext(DatabaseManager databaseManager, ActionExecutor actionE
                 new KnowledgeBase(),
                 new ActionHistoryRepository(databaseManager),
                 new MemoryCleaner(databaseManager),
-                new SystemFileRepairTool(databaseManager)
+                new SystemFileRepairTool(databaseManager),
+                new NetworkRepairTool(databaseManager)
         );
     }
 }
