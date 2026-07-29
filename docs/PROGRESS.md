@@ -2564,3 +2564,98 @@ propósito.
 
 **Parada aqui, conforme instruído** — a Parte 3 (seção B: limpeza/reset de componentes de rede)
 requer validação do usuário antes de começar.
+
+---
+
+## 2026-07-29 — Fase 15 - Parte 3 concluída: Fase 15 completa (Partes 1+2+3)
+
+Conforme `docs/NITRO-BOOST-fase15-reparo-sistema-e-rede.md`, seção B (limpeza/reset de rede) e
+checklist "Parte B — Rede" + "Fechamento". **Isso conclui toda a Fase 15.**
+
+### `repair/NetworkRepairTool.java` (mesmo pacote `repair/` da Parte A)
+
+5 métodos, um por comando da tabela B: `flushDns()` (`ipconfig /flushdns`), `resetWinsock()`
+(`netsh winsock reset`), `resetTcpIp()` (`netsh int ip reset`), `renewIp()` (`ipconfig /release`
+seguido de `ipconfig /renew`, em sequência — se o `/release` falhar o `/renew` não é tentado) e
+`clearArpCache()` (`arp -d *`). Mesma exceção documentada à regra de ouro do projeto (padrão de
+`core.MemoryCleaner` e `repair.SystemFileRepairTool`): sem `LockManager`/`BackupManager` — ação
+pontual sem "estado anterior" a reverter, registrada em `actions_history` (tipo novo
+`network_repair`) só para fins informativos, via `recordHistoryQuiet`. Execução síncrona (não
+streaming como o SFC/DISM) — estas ações são rápidas.
+
+**Achado real durante o teste na Parte 3 (corrigido no código, não só documentado):** rodando
+`clearArpCache()` de verdade nesta máquina sem elevação, `arp -d *` saiu com código 0 mesmo tendo
+**falhado** — a única indicação do erro estava no texto da saída ("A operação solicitada requer
+elevação."). Corrigido adicionando `requiresElevation(String output)` (pacote-visível, testável com
+strings fixas em `NetworkRepairToolElevationTest`), que qualquer um dos 5 métodos agora consulta
+antes de reportar sucesso — se a saída contiver `"eleva"` (prefixo ASCII de "elevação"/"elevation",
+escolhido de propósito porque ferramentas de console do Windows imprimem na codepage OEM, que não
+bate com o charset usado por `new String(bytes)`, corrompendo os caracteres acentuados tipo "ç"/"ã"
+mas preservando o prefixo ASCII) ou `"access is denied"`/`"acesso negado"`, o resultado passa a
+`success=false` com mensagem clara pedindo para rodar como Administrador, independente do código de
+saída. Sem essa correção, o app teria informado "sucesso" para uma limpeza de ARP que na verdade não
+fez nada — bug real pego só porque a regra de segurança desta fase mandou executar `clearArpCache()`
+de verdade em vez de só simular.
+
+### `ui/SystemRepairView.java` — Seção B substituída (placeholder → implementação real)
+
+- **Botão principal "🌐 Limpar Cache de DNS"** (`btn-turbo`): sem confirmação (ação segura e rápida),
+  `ProgressIndicator` pequeno indeterminado + label de resultado — mesmo padrão de
+  `DashboardView#cleanRamProgress` (limpeza de RAM, Fase 10), rodando em thread de fundo.
+- **Seção "Diagnóstico de Rede Avançado"**: 4 botões (`btn-secondary`) — Reset do Winsock, Reset da
+  Pilha TCP/IP, Renovar IP, Limpar Cache ARP — com um aviso de texto fixo explicando que Winsock e
+  TCP/IP só têm efeito após reiniciar o Windows, que Renovar IP derruba a conexão por alguns segundos
+  (mas não exige reiniciar) e que Limpar Cache ARP é seguro e instantâneo.
+- **Confirmação explícita (`Alert`) antes de executar** para Reset do Winsock, Reset da Pilha TCP/IP
+  e Renovar IP (mesmo padrão de ações impactantes já usado no projeto, ex: desinstalação do OneDrive
+  na Fase 12) — cada um com o aviso específico de reinício/derrubada de conexão no corpo do alerta.
+  Limpar Cache ARP (e o botão de DNS) rodam sem esse passo extra, por serem seguros e instantâneos.
+- **Trava compartilhada entre as duas seções da tela:** qualquer ação da Seção A (SFC/DISM) ou da
+  Seção B (rede) agora desabilita os botões de AMBAS as seções e aciona o mesmo `RepairLock` já
+  existente da Parte A — evita rodar SFC/DISM e um reset de rede ao mesmo tempo (mesmo motivo da
+  seção A.4 da Fase 15), sem duplicar nenhuma trava nova.
+- **`ui/AppContext.java`:** novo campo `networkRepairTool`, instanciado em `create()` igual aos
+  demais componentes de backend.
+
+### Teste (regra crítica de segurança seguida — resultado real documentado abaixo)
+
+- **`flushDns()` e `clearArpCache()` — EXECUTADOS DE VERDADE nesta máquina**, via
+  `Phase15Part3ConsoleDemo` (`./mvnw exec:java -Dexec.mainClass=com.nitroboost.Phase15Part3ConsoleDemo`):
+  - `flushDns()` → **sucesso=true** — saída real: "Liberação do Cache do DNS Resolver bem-sucedida."
+  - `clearArpCache()` → **sucesso=false** (corretamente, após a correção acima) — saída real: "Falha
+    na exclusão da entrada ARP: A operação solicitada requer elevação." (esta sessão de
+    desenvolvimento não estava rodando como Administrador; com elevação, o comando real teria sucesso
+    e o método reportaria `success=true`, pela mesma lógica).
+  - Ambas as execuções confirmadas no histórico (`actions_history`, tipo `network_repair`).
+- **`resetWinsock()`, `resetTcpIp()` e `renewIp()` — NÃO executados de verdade em nenhum momento**
+  (nem no console demo, nem em teste automatizado), conforme a regra crítica de segurança desta
+  tarefa — alterariam configuração de rede de baixo nível desta máquina de desenvolvimento
+  (Winsock/TCP-IP exigem reiniciar; Renovar IP derruba a conexão usada pelo próprio ambiente de
+  trabalho). Validação feita em dois lugares, ambos sem `ProcessBuilder` real:
+  - **`NetworkRepairToolCommandTest`** (5 testes JUnit) — confere a lista de argumentos exata que
+    cada um dos 5 métodos monta (`ipconfig /flushdns`, `netsh winsock reset`, `netsh int ip reset`,
+    `ipconfig /release` + `ipconfig /renew` nessa ordem, `arp -d *`), mesmo padrão de
+    `ActionExecutorDisplayCommandTest` (Fase 14).
+  - **`Phase15Part3ConsoleDemo`** imprime os mesmos 4 comandos (Winsock/TCP-IP/release/renew) como
+    texto, rotulados "NÃO EXECUTADOS DE VERDADE", para conferência visual sem rodá-los.
+- **`NetworkRepairToolElevationTest`** (5 testes JUnit) — trava com strings fixas o comportamento de
+  `requiresElevation(String)` descoberto acima (reconhece a mensagem real de elevação em PT/EN e
+  "acesso negado"/"access is denied", não reconhece saída de sucesso, trata `null`/vazio).
+
+**Comando exato para o usuário validar Winsock/TCP-IP/Renovar IP de verdade, quando quiser:** abrir
+o NITRO BOOST como Administrador → "🛠️ Reparo do Sistema" → seção "Diagnóstico de Rede Avançado" →
+clicar no botão desejado → confirmar o aviso. Equivalente manual num `cmd` como Administrador:
+`netsh winsock reset` / `netsh int ip reset` / `ipconfig /release` seguido de `ipconfig /renew`
+(**atenção:** os dois primeiros só fazem efeito após reiniciar o computador; o terceiro derruba a
+conexão de rede por alguns segundos).
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw -q test` — **75/75 testes passando** (65 já existentes + 10 novos desta parte: 5 de
+  `NetworkRepairToolCommandTest` + 5 de `NetworkRepairToolElevationTest`), nenhuma regressão.
+
+### Checklist
+
+Todos os itens de "Parte B — Rede" e "Fechamento" marcados `[x]` em
+`docs/NITRO-BOOST-fase15-reparo-sistema-e-rede.md` — **fecha a Fase 15 inteira (Partes 1+2+3).**

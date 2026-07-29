@@ -77,13 +77,13 @@ Você pediu especificamente o `ipconfig /flushdns`. Aproveitando o mesmo context
 - [x] Testar isoladamente via console antes de conectar à UI (testado via JUnit com strings fixas + mecanismo de streaming validado com comando rápido simulado - SFC/DISM reais NÃO foram executados, ver `docs/PROGRESS.md`)
 
 ### Parte B — Rede
-- [ ] Criar `NetworkRepairTool.java` (mesmo pacote `repair/`) com os 5 comandos da tabela B, cada um como método próprio
-- [ ] Implementar o botão principal "Limpar Cache de DNS" com indicador indeterminado
-- [ ] Implementar a seção "Diagnóstico de Rede Avançado" com os demais itens, avisando claramente quais exigem reinício antes de executar
-- [ ] Registrar cada execução no histórico (tipo `network_repair`), mesma lógica sem reversão
+- [x] Criar `NetworkRepairTool.java` (mesmo pacote `repair/`) com os 5 comandos da tabela B, cada um como método próprio
+- [x] Implementar o botão principal "Limpar Cache de DNS" com indicador indeterminado
+- [x] Implementar a seção "Diagnóstico de Rede Avançado" com os demais itens, avisando claramente quais exigem reinício antes de executar
+- [x] Registrar cada execução no histórico (tipo `network_repair`), mesma lógica sem reversão
 
 ### Fechamento
-- [ ] Atualizar `PROGRESS.md` com o resumo da Fase 15
+- [x] Atualizar `PROGRESS.md` com o resumo da Fase 15
 
 **Critério de conclusão:** a nova seção "Reparo do Sistema" está acessível pela barra lateral, executa DISM+SFC em sequência com log em tempo real e barra de progresso funcional, interpreta o resultado final de forma clara, e oferece as ações de rede (DNS + avançadas) com os avisos corretos sobre necessidade de reinício.
 
