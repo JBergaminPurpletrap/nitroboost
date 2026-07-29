@@ -7,6 +7,12 @@ B.1) e o checklist de teste manual/smoke test (seção B.2).
 Este arquivo fica na raiz do projeto (não em `docs/`) de propósito, conforme pedido explícito da
 documentação da Fase 12 - para ficar visível de imediato para quem abrir o repositório.
 
+> **Nota:** este documento é o registro histórico da rodada de testes da Fase 12 (data abaixo). A
+> suíte JUnit cresceu nas fases seguintes (Fases 14 e 15 adicionaram testes de `SystemAuditEngine`,
+> `DisplayScanner`, `SystemFileRepairTool` e `NetworkRepairTool`) — o total atual é **75 testes**,
+> todos passando (`.\mvnw.cmd test`). Ver `README.md` → seção "Testes" para o resumo sempre
+> atualizado, e `docs/PROGRESS.md` para o detalhamento de cada fase.
+
 **Ambiente desta rodada de testes (2026-07-26):** sessão de console **sem** privilégio de
 Administrador (confirmado via `IsInRole(...Administrator)` → `False`) e **sem sessão gráfica
 interativa** para abrir a UI JavaFX (`javafx:run` nunca é executado de forma síncrona neste

@@ -10,20 +10,96 @@ de carbono e acentos em verde neon, estilo HUD gamer.
 
 > Consulte `docs/NITRO-BOOST-documentacao-completa.md` para a documentação completa do projeto
 > (objetivo, arquitetura, checklist detalhado por fase) e `docs/NITRO-BOOST-skills-tecnicas.md` para
-> o guia de bibliotecas/comandos usados na implementação.
+> o guia de bibliotecas/comandos usados na implementação. Cada fase posterior (8 em diante) tem seu
+> próprio documento `docs/NITRO-BOOST-faseN-*.md`.
 >
 > ⚠️ **Projeto pessoal e privado.** Feito para uso individual, sem garantias, sem suporte e sem
 > distribuição pública planejada. Ele mexe em processos, serviços, registro, tarefas agendadas,
-> plano de energia e apps do Windows — use por sua conta e risco, de preferência lendo o que cada
-> ação faz antes de confirmar (é exatamente para isso que existe a tela de detalhes de cada item).
+> plano de energia, apps do Windows, e comandos de reparo de sistema/rede — use por sua conta e
+> risco, de preferência lendo o que cada ação faz antes de confirmar (é exatamente para isso que
+> existe a tela de detalhes de cada item).
 
 ## Status atual
 
-Todas as fases "core" do projeto (0 a 6) estão concluídas — o app escaneia o sistema, executa e
-reverte ações com backup automático, tem interface gráfica completa com o tema Carbono & Verde
-Turbo, tutoriais (incluindo detecção de XMP/EXPO desativado), e já pode ser empacotado como um
-executável standalone via `jpackage` (veja "Empacotamento" abaixo). Veja `docs/PROGRESS.md` para o
-histórico detalhado de cada fase e `docs/BLOCKERS.md` para bloqueios técnicos conhecidos.
+Todo o roadmap planejado (Fases 0 a 15) está concluído. O app escaneia **12 categorias** do
+sistema (~126 itens catalogados na base de conhecimento), executa e reverte ações com backup
+automático, tem um módulo de Diagnóstico que compara a configuração atual com valores recomendados,
+ferramentas de reparo de sistema/rede, verificação de BIOS/drivers da placa-mãe, limpeza pontual de
+RAM, e uma suíte de **75 testes automatizados (JUnit 5)**. Veja `docs/PROGRESS.md` para o histórico
+detalhado de cada fase, `docs/BLOCKERS.md` para bloqueios técnicos conhecidos, e `TESTING.md` para o
+checklist de testes manuais executados na máquina real.
+
+## Funcionalidades
+
+### Telas principais
+
+| Tela | O que faz | Como funciona | Resultado esperado |
+|---|---|---|---|
+| **Painel de Controle** (Dashboard) | Monitoramento de CPU/RAM em tempo real + limpeza pontual de RAM | Lê CPU/RAM via OSHI a cada 2s numa thread de fundo; velocímetro (arco) e gráfico de linha mostram os últimos 30 pontos. O botão "Limpar Cache de RAM" chama `NtSetSystemInformation` (`ntdll.dll`, técnica do RAMMap/EmptyStandbyList) via JNA, após habilitar os privilégios `SeProfileSingleProcessPrivilege`/`SeIncreaseQuotaPrivilege` | Gráfico/velocímetro atualizam a cada 2s sem travar a UI. A limpeza de RAM mostra RAM livre antes/depois; **é a única ação do projeto sem backup/reversão** (não há "estado" para desfazer), registrada no histórico só como informação |
+| **Resultados da Varredura** (Scan Results) | Tabela unificada com os itens de todas as 12 categorias | Cada categoria tem um scanner próprio em `core/` que lê o sistema (via OSHI, `reg query`, PowerShell, WMI ou JNA) e devolve uma lista tipada; a `KnowledgeBase` classifica cada item (🟢 seguro / 🟡 depende / 🔴 essencial) | Tabela com ícone de status, filtro por categoria e por status, toggle "mostrar apenas itens conhecidos" (ligado por padrão), botão de ação individual por linha, e "Fechar todos os itens verdes" (ação em lote com confirmação) |
+| **Diagnóstico do Sistema** (Audit) | Compara a configuração atual com valores recomendados e devolve um placar | `SystemAuditEngine` reaproveita os scanners de Telemetria/Performance/IA/Consumidor/Tela (os que têm um valor objetivamente comparável) e cruza com o campo `valor_recomendado` da base de conhecimento | Placar tipo "X de Y itens já otimizados", lista agrupada por categoria (✅ já otimizado / 🟡 sugestão / ⚪ não aplicável), ação individual ou em lote por categoria (com modal listando cada item antes de aplicar) |
+| **Reparo do Sistema** (System Repair) | Verificação/reparo de arquivos do Windows (SFC + DISM) e diagnóstico de rede | `SystemFileRepairTool` roda `DISM /Online /Cleanup-Image /RestoreHealth` seguido de `sfc /scannow` via `ProcessBuilder`, lendo a saída linha a linha em tempo real e extraindo percentual via regex; `NetworkRepairTool` expõe `flushDns`/`resetWinsock`/`resetTcpIp`/`renewIp`/`clearArpCache` | Log ao vivo estilo terminal (fundo preto, texto verde) + barra de progresso proporcional; resultado do SFC classificado em 3 estados (nenhum problema / corrigido / não foi possível corrigir tudo). Ações de rede que exigem reinício (Winsock/TCP-IP) ou derrubam a conexão (renovar IP) pedem confirmação extra explícita |
+| **BIOS / Drivers** (Hardware Update) | Detecta fabricante/modelo/versão da BIOS e verifica se há atualização | **Nível 1** (sempre funciona): lê fabricante/modelo/BIOS via OSHI e monta um link de suporte em 3 camadas (link direto do fabricante → busca no site do fabricante → busca externa via Google, que nunca falha). **Nível 2** (melhor esforço, só ASUS por enquanto): baixa a página de suporte real (respeitando `robots.txt`, com cache de 24h) e tenta extrair a versão mais recente listada | Card com fabricante/modelo/BIOS atual + botão "Abrir Página de Suporte" (sempre funciona) e botão "Verificar Atualização Online" (Nível 2 — se falhar por qualquer motivo, cai de volta pro Nível 1 silenciosamente, nunca trava a tela) |
+| **Histórico** (History) | Lista cronológica de todas as ações realizadas | Consulta a tabela `actions_history` do SQLite (data/hora, tipo de ação, item, sucesso/falha) | Lista das últimas 100 ações, com botão "Reverter" em cada uma (chama `restoreFromHistory`, que localiza o backup vinculado e aplica o tipo de reversão certo) |
+| **Tutoriais** (Tutorials) | Guias para ajustes que exigem ação manual do usuário | `TutorialProvider` carrega arquivos Markdown de `resources/tutorials/`; a tela mostra um alerta automático quando `XmpAdvisor` detecta indício de XMP/EXPO desativado (RAM rodando abaixo da velocidade nominal) | Lista de tutoriais (hoje: XMP/BIOS por fabricante, Recall via Configurações) com renderização leve de Markdown e alerta contextual quando aplicável |
+
+### As 12 categorias de varredura
+
+| Categoria | Scanner | Mecanismo | O que a ação faz |
+|---|---|---|---|
+| Processos | `ProcessScanner` | OSHI (`OperatingSystem.getProcesses()`) | Finaliza o processo (`ProcessHandle.destroy`) |
+| Serviços | `ServiceScanner` | PowerShell `Get-Service`/`Get-CimInstance` | Para/desativa o serviço do Windows |
+| Inicialização | `StartupScanner` | `reg query` (`HKCU`/`HKLM`\...\Run) + pasta Startup | Remove/desabilita a entrada de inicialização |
+| Tarefas Agendadas | `TaskSchedulerScanner` | `schtasks /query` | Desativa a tarefa agendada |
+| Planos de Energia | `PowerPlanScanner` | `powercfg /list` | Troca o plano de energia ativo |
+| Telemetria | `TelemetryScanner` | `reg query` em chaves de telemetria/privacidade conhecidas | Altera o valor da chave (ex: desativa telemetria, histórico de atividades, localização) |
+| Bloatware | `BloatwareScanner` | PowerShell `Get-AppxPackage` (traz **todos** os apps instalados) | Desinstala o pacote UWP (`Remove-AppxPackage`) |
+| Performance e Energia | `PerformanceScanner` | `reg query`/PowerShell (efeitos visuais, GPU scheduling, hibernação, Armazenamento Reservado, bloqueio de driver update, etc.) | Aplica a configuração recomendada de desempenho |
+| Otimizações para Jogos | `GamingScanner` | `reg query` (Game DVR, Modo de Jogo, prioridade de CPU) | Ativa/desativa conforme o item (Modo de Jogo é o único caso onde a recomendação é **ativar**) |
+| IA / Inteligência Artificial | `AiFeatureScanner` | `reg query` em políticas de Copilot/Recall/Click to Do/Cocreator | Desativa via política; Copilot e Recall também têm uma segunda ação real de **desinstalar** (Appx/DISM) |
+| Recursos de Consumidor e Segundo Plano | `ConsumerFeatureScanner` | `reg query` (anúncios, Bing Search, apps em segundo plano, ícones da barra de tarefas) | Desativa a chave correspondente |
+| Taxa de Atualização da Tela | `DisplayScanner` | JNA (`EnumDisplaySettingsEx`/`DEVMODE`, `user32.dll`) | Não altera nada sozinho — abre a tela nativa de Configurações do Windows (`ms-settings:display`) |
+
+### Segurança — mecanismo comum a quase toda ação
+
+Toda ação de desativar/alterar (exceto as 3 explicitamente documentadas como exceção) passa pelo
+mesmo fluxo, sem exceção:
+
+1. **`LockManager.isLocked()`** — se o item estiver bloqueado pelo usuário, a ação é recusada.
+2. **`BackupManager.snapshotBeforeAction()`** — salva o estado atual no SQLite antes de qualquer mudança.
+3. Aplica a ação.
+4. **Registra em `actions_history`** — mesmo quando a ação falha.
+
+**Exceções documentadas** (ações pontuais, sem "estado" para reverter): Limpeza de RAM (Fase 10),
+Reparo de Arquivos SFC/DISM e Reparo de Rede (Fase 15) — todas registradas no histórico como
+informação, mas sem backup associado.
+
+### Base remota e atualização da base de conhecimento
+
+`RemoteKnowledgeUpdater` verifica (sob demanda) se existe uma versão mais nova da base de
+conhecimento publicada numa URL configurável, comparando `version`/`updatedAt`; se a verificação
+falhar por qualquer motivo (sem internet, formato inválido), o app cai de volta para a base local
+embutida, sem quebrar.
+
+## Testes
+
+### Automatizados (JUnit 5) — `src/test/java/com/nitroboost/...`
+
+**75 testes**, cobrindo lógica pura (sem chamar comando/rede real): parsers de saída de comando
+(`ServiceScanner`, `TaskSchedulerScanner`, `PowerPlanScanner`, `SystemFileRepairTool`) com strings
+fixas simulando a saída real do Windows, `KnowledgeBase`, `ItemClassification`, `VendorLinkStrategy`
+(Fase 11), comparação de valores do `SystemAuditEngine` (Fase 9), montagem de comandos do
+`NetworkRepairTool` e detecção de erro por falta de elevação (Fase 15), entre outros.
+
+```powershell
+.\mvnw.cmd test
+```
+
+### Manual (smoke test) — `TESTING.md`
+
+Roteiro fixo de verificação na máquina real (processos/serviços/startup batendo com o Gerenciador
+de Tarefas, backup/reversão, bloqueio, histórico, contagem de bloatware, etc.), documentado com
+data e resultado de cada execução.
 
 ## Stack técnica
 
@@ -35,6 +111,7 @@ histórico detalhado de cada fase e `docs/BLOCKERS.md` para bloqueios técnicos 
 | Persistência | SQLite (JDBC) + JSON de configuração |
 | Bibliotecas nativas | OSHI (hardware/SO), JNA (acesso nativo ao Windows) |
 | Serialização JSON | Jackson |
+| Testes | JUnit 5 (`junit-jupiter`) |
 | Plataforma alvo | Windows 11 (idealmente executado como Administrador) |
 
 ## Pré-requisitos
@@ -58,15 +135,16 @@ Na raiz do projeto (PowerShell ou `cmd`):
 Isso deve:
 1. Compilar o projeto.
 2. Inicializar/validar o banco SQLite local em `%USERPROFILE%\.nitroboost\nitroboost.db`.
-3. Abrir a janela principal do NITRO BOOST (Dashboard, Resultados do Scan, Histórico, Tutoriais)
-   com o tema Carbono & Verde Turbo.
+3. Abrir a janela principal do NITRO BOOST (Painel de Controle, Resultados do Scan, Diagnóstico,
+   Reparo do Sistema, BIOS/Drivers, Histórico, Tutoriais) com o tema Carbono & Verde Turbo.
 
 Em Git Bash / Linux / macOS, use `./mvnw clean javafx:run` (embora o app em si só funcione de
 verdade no Windows, já que a maioria das ações chama comandos/registro do Windows).
 
 Como boa parte das ações (parar serviço, editar registro, trocar plano de energia, desinstalar
-bloatware) exige privilégios de Administrador, para testar o fluxo completo abra o terminal
-("PowerShell" ou "Prompt de Comando") **como Administrador** antes de rodar o comando acima.
+bloatware, reparo de sistema/rede) exige privilégios de Administrador, para testar o fluxo completo
+abra o terminal ("PowerShell" ou "Prompt de Comando") **como Administrador** antes de rodar o
+comando acima.
 
 ### Rodar apenas o build (sem abrir a janela)
 
@@ -76,9 +154,17 @@ bloatware) exige privilégios de Administrador, para testar o fluxo completo abr
 .\mvnw.cmd -q compile
 ```
 
+### Rodar a suíte de testes
+
+```powershell
+.\mvnw.cmd test
+```
+
 ### Testar módulos isoladamente (sem UI)
 
-Essas classes utilitárias imprimem no console e terminam sozinhas — não abrem janela:
+Essas classes utilitárias imprimem no console e terminam sozinhas — não abrem janela. Além das
+listadas abaixo, cada fase do projeto tem uma classe `PhaseXConsoleDemo`/`PhaseXPartYConsoleDemo`
+na raiz do pacote `com.nitroboost` com o mesmo propósito:
 
 ```powershell
 # Testa a leitura de hardware via OSHI (CPU/RAM)
@@ -137,10 +223,12 @@ UAC (prompt padrão do Windows) e abre o `NitroBoost.exe`:
 
 ## Estrutura de pastas
 
-Ver seção 3 de `docs/NITRO-BOOST-documentacao-completa.md` para a estrutura completa e o racional
-de cada pacote (`core/`, `actions/`, `knowledge/`, `ui/`, `db/`). Toda a documentação do projeto
-(incluindo os prompts de início de fase) fica em `docs/`; `README.md` é o único `.md` que permanece
-na raiz, por convenção do GitHub.
+Ver seção 3 de `docs/NITRO-BOOST-documentacao-completa.md` para a estrutura original e o racional
+de cada pacote. Pacotes adicionados nas fases posteriores: `repair/` (reparo de sistema/rede, Fase
+15), `updates/` (verificação de BIOS/drivers, Fase 11), `audit/` (Diagnóstico do Sistema, Fase 9),
+`ui/components/` (componentes reutilizáveis como `NitroProgressBar`, Fase 12). Toda a documentação
+do projeto (incluindo os prompts de início de fase) fica em `docs/`; `README.md` e `TESTING.md` são
+os únicos `.md` que permanecem na raiz, por convenção.
 
 ## Convenções do projeto
 
@@ -149,7 +237,8 @@ na raiz, por convenção do GitHub.
 - Toda função que interage com o sistema operacional tem tratamento de erro (try/catch).
 - Nenhum caminho ou nome de serviço específico de uma máquina é fixado no código — tudo é
   detectado dinamicamente em tempo de execução.
-- Commits seguem o padrão `[FaseX] Descrição curta no imperativo`.
+- Commits seguem o padrão `[FaseX] Descrição curta no imperativo` (ou `[FaseX-ParteY]` para fases
+  divididas em partes).
 
 ## Licença
 
