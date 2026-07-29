@@ -9,21 +9,27 @@ import com.nitroboost.repair.SystemFileRepairTool.SfcRunResult;
 import com.nitroboost.repair.SystemFileRepairTool.Stage;
 import com.nitroboost.repair.SystemFileRepairTool.StageResult;
 import com.nitroboost.ui.components.NitroProgressBar;
+import com.nitroboost.validation.Fase16ValidationRunner;
+import com.nitroboost.validation.ValidationReport;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.function.Supplier;
 
 /**
@@ -90,8 +96,17 @@ public class SystemRepairView extends BorderPane {
             ATENCAO: a conexao de rede fica indisponivel por alguns segundos durante o processo. Nao \
             exige reiniciar o computador.""";
 
+    private static final String SFC_DISM_OPT_IN_WARNING = """
+            O SFC sozinho pode levar de 10 a 20 minutos, e o DISM mais alguns minutos - com esta opcao \
+            marcada, o autoteste inteiro pode levar ate 30 minutos. Nao feche o aplicativo enquanto \
+            estiver rodando.
+
+            Se preferir um autoteste rapido, cancele e desmarque esta opcao antes de continuar.""";
+
     private final SystemFileRepairTool repairTool;
     private final NetworkRepairTool networkRepairTool;
+    private final AppContext context;
+    private final Fase16ValidationRunner fase16ValidationRunner;
 
     private final Button mainButton = new Button("🛠️ Verificar e Reparar Sistema");
     private final Button dismOnlyButton = new Button("Rodar so DISM");
@@ -112,9 +127,17 @@ public class SystemRepairView extends BorderPane {
     private final ProgressIndicator advancedProgress = new ProgressIndicator();
     private final Label advancedResultLabel = new Label("");
 
+    private final Button autotestButton = new Button("🧪 Rodar Autoteste (Fase 16)");
+    private final CheckBox includeSfcDismCheckBox = new CheckBox("Incluir SFC/DISM completo (adiciona 10-30 minutos)");
+    private final NitroProgressBar autotestProgressBar = new NitroProgressBar();
+    private final Label autotestResultLabel = new Label("");
+    private final TextField autotestReportPathField = new TextField();
+
     public SystemRepairView(AppContext context) {
+        this.context = context;
         this.repairTool = context.systemFileRepairTool();
         this.networkRepairTool = context.networkRepairTool();
+        this.fase16ValidationRunner = new Fase16ValidationRunner(context);
 
         getStyleClass().add("carbon-bg-subtle");
         setPadding(new Insets(24));
@@ -127,8 +150,9 @@ public class SystemRepairView extends BorderPane {
 
         VBox sectionA = buildSectionA();
         VBox sectionB = buildSectionB();
+        VBox sectionC = buildSectionC();
 
-        VBox center = new VBox(18, header, sectionA, sectionB);
+        VBox center = new VBox(18, header, sectionA, sectionB, sectionC);
         setCenter(center);
     }
 
@@ -238,9 +262,8 @@ public class SystemRepairView extends BorderPane {
     /** Trava a UI (botoes desta tela + navegacao global) e limpa o log/resultado anterior. */
     private void beginRun() {
         RepairLock.start();
-        mainButton.setDisable(true);
-        dismOnlyButton.setDisable(true);
-        sfcOnlyButton.setDisable(true);
+        setSectionAButtonsDisabled(true);
+        setSectionCButtonsDisabled(true);
         logArea.setText("");
         resultLabel.setText("");
         resultLabel.getStyleClass().removeAll("text-success", "text-danger", "text-warning");
@@ -252,9 +275,8 @@ public class SystemRepairView extends BorderPane {
     /** Libera a UI - chamado sempre ao final, independente do resultado ter sido sucesso ou falha. */
     private void endRun() {
         RepairLock.finish();
-        mainButton.setDisable(false);
-        dismOnlyButton.setDisable(false);
-        sfcOnlyButton.setDisable(false);
+        setSectionAButtonsDisabled(false);
+        setSectionCButtonsDisabled(false);
     }
 
     /**
@@ -459,17 +481,19 @@ public class SystemRepairView extends BorderPane {
         thread.start();
     }
 
-    /** Trava a UI inteira da tela (secao A + secao B) e a navegacao global, igual ao reparo de arquivos. */
+    /** Trava a UI inteira da tela (secao A + secao B + secao C) e a navegacao global, igual ao reparo de arquivos. */
     private void beginNetworkRun() {
         RepairLock.start();
         setSectionAButtonsDisabled(true);
         setSectionBButtonsDisabled(true);
+        setSectionCButtonsDisabled(true);
     }
 
     private void endNetworkRun() {
         RepairLock.finish();
         setSectionAButtonsDisabled(false);
         setSectionBButtonsDisabled(false);
+        setSectionCButtonsDisabled(false);
     }
 
     private void setSectionAButtonsDisabled(boolean disabled) {
@@ -484,5 +508,116 @@ public class SystemRepairView extends BorderPane {
         tcpIpButton.setDisable(disabled);
         renewIpButton.setDisable(disabled);
         arpButton.setDisable(disabled);
+    }
+
+    private void setSectionCButtonsDisabled(boolean disabled) {
+        autotestButton.setDisable(disabled);
+        includeSfcDismCheckBox.setDisable(disabled);
+    }
+
+    // ------------------------------------------------------------------
+    // Secao C: Autoteste (Fase 16)
+    // ------------------------------------------------------------------
+
+    private VBox buildSectionC() {
+        Label sectionTitle = new Label("🧪 AUTOTESTE (FASE 16)");
+        sectionTitle.getStyleClass().add("subtitle-hud");
+
+        Label description = new Label("Roda automaticamente o maximo possivel do roteiro de validacao com "
+                + "Administrador (docs/NITRO-BOOST-fase16-validacao-administrador.md) e gera um relatorio em "
+                + "Markdown para voce trazer de volta e finalizar a validacao. Itens que so podem ser confirmados "
+                + "visualmente (tema, animacoes, comparar com uma tela nativa do Windows) ficam marcados no "
+                + "relatorio - nunca sao fingidos como verificados.");
+        description.getStyleClass().add("text-secondary");
+        description.setWrapText(true);
+
+        includeSfcDismCheckBox.getStyleClass().add("text-secondary");
+
+        autotestButton.getStyleClass().add("btn-turbo");
+        autotestButton.setOnAction(e -> onAutotestClicked());
+
+        HBox actionsRow = new HBox(14, autotestButton, includeSfcDismCheckBox);
+        actionsRow.setAlignment(Pos.CENTER_LEFT);
+
+        autotestResultLabel.setWrapText(true);
+
+        Label reportLabel = new Label("Arquivo de relatorio gerado:");
+        reportLabel.getStyleClass().add("text-secondary");
+        autotestReportPathField.setEditable(false);
+        autotestReportPathField.setPrefWidth(520);
+        HBox reportRow = new HBox(10, reportLabel, autotestReportPathField);
+        reportRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox box = new VBox(10, sectionTitle, description, actionsRow, autotestProgressBar, autotestResultLabel, reportRow);
+        box.getStyleClass().add("card");
+        box.setPadding(new Insets(16));
+        return box;
+    }
+
+    private void onAutotestClicked() {
+        boolean includeFull = includeSfcDismCheckBox.isSelected();
+        if (includeFull && !confirm("Incluir SFC/DISM completo no autoteste?", SFC_DISM_OPT_IN_WARNING)) {
+            return;
+        }
+
+        beginAutotestRun();
+        Thread thread = new Thread(() -> {
+            ValidationReport report = fase16ValidationRunner.run(includeFull, buildAutotestListener());
+            Platform.runLater(() -> {
+                endAutotestRun();
+                showAutotestResult(report);
+            });
+        }, "nitroboost-fase16-autoteste");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private Fase16ValidationRunner.Listener buildAutotestListener() {
+        return new Fase16ValidationRunner.Listener() {
+            @Override
+            public void onCheckStarted(int section, String item) {
+                Platform.runLater(() -> autotestProgressBar.setMessage("Secao " + section + ": " + item + "..."));
+            }
+        };
+    }
+
+    private void beginAutotestRun() {
+        beginNetworkRun(); // reaproveita a trava global (RepairLock) e desabilita as secoes A e B tambem
+        autotestResultLabel.setText("");
+        autotestResultLabel.getStyleClass().removeAll("text-success", "text-danger", "text-warning");
+        autotestReportPathField.setText("");
+        autotestProgressBar.show();
+        autotestProgressBar.setMessage("Iniciando autoteste...");
+        autotestProgressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+    }
+
+    private void endAutotestRun() {
+        endNetworkRun();
+        autotestProgressBar.hide();
+    }
+
+    private void showAutotestResult(ValidationReport report) {
+        ValidationReport.Summary summary = report.summary();
+        String summaryText = summary.passed() + " passaram, " + summary.failed() + " falharam, "
+                + summary.skipped() + " puladas deliberadamente, " + summary.visual()
+                + " requerem confirmacao visual (" + summary.total() + " itens no total).";
+
+        try {
+            Path reportDir = context.databaseManager().getDatabasePath().getParent();
+            Path savedPath = report.save(reportDir);
+            autotestReportPathField.setText(savedPath.toAbsolutePath().toString());
+
+            String prefix = report.elevated() ? "✅ " : "⚠️ ";
+            String suffix = report.elevated() ? "" : " ATENCAO: esta execucao nao estava elevada (Administrador) - "
+                    + "a maioria das falhas acima e esperada por esse motivo. Rode como Administrador para uma "
+                    + "validacao completa.";
+            autotestResultLabel.setText(prefix + summaryText + suffix);
+            autotestResultLabel.getStyleClass().add(summary.failed() == 0 && report.elevated() ? "text-success" : "text-warning");
+        } catch (IOException e) {
+            autotestReportPathField.setText("(falha ao salvar: " + e.getMessage() + ")");
+            autotestResultLabel.setText("🔴 Autoteste concluido (" + summaryText + "), mas houve falha ao salvar "
+                    + "o arquivo de relatorio: " + e.getMessage());
+            autotestResultLabel.getStyleClass().add("text-danger");
+        }
     }
 }
