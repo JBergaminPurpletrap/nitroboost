@@ -340,6 +340,25 @@
 }
 
 /* ---------------------------------------------------------------------- */
+/* Painel de log estilo terminal (Fase 15 - Reparo do Sistema)            */
+/* ---------------------------------------------------------------------- */
+
+.terminal-log {
+    -fx-control-inner-background: #000000;
+    -fx-text-fill: #39FF14;
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 11.5px;
+    -fx-highlight-fill: #142614;
+    -fx-highlight-text-fill: #39FF14;
+    -fx-border-color: #2A2A2A;
+    -fx-border-width: 1;
+}
+
+.terminal-log .content {
+    -fx-background-color: #000000;
+}
+
+/* ---------------------------------------------------------------------- */
 /* TableView / ListView                                                   */
 /* ---------------------------------------------------------------------- */
 

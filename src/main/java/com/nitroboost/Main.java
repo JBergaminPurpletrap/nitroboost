@@ -6,11 +6,14 @@ import com.nitroboost.ui.DashboardView;
 import com.nitroboost.ui.HardwareUpdateView;
 import com.nitroboost.ui.HistoryView;
 import com.nitroboost.ui.ScanResultsView;
+import com.nitroboost.ui.SystemRepairView;
 import com.nitroboost.ui.Theme;
 import com.nitroboost.ui.TutorialView;
+import com.nitroboost.repair.RepairLock;
 import javafx.application.Application;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.BorderPane;
@@ -64,6 +67,7 @@ public class Main extends Application {
         ScanResultsView scanResultsView = new ScanResultsView(context, () -> navigateToTutorial[0].run());
         AuditView auditView = new AuditView(context);
         HardwareUpdateView hardwareUpdateView = new HardwareUpdateView(context.databaseManager());
+        SystemRepairView systemRepairView = new SystemRepairView(context);
         dashboardView = new DashboardView(context, () -> {
             switchTo(root, views, "Resultados do Scan");
             scanResultsView.startScan();
@@ -73,6 +77,7 @@ public class Main extends Application {
         views.put("Resultados do Scan", scanResultsView);
         views.put("Diagnostico", auditView);
         views.put("BIOS / Drivers", hardwareUpdateView);
+        views.put("Reparo do Sistema", systemRepairView);
         views.put("Historico", historyView);
         views.put("Tutoriais", tutorialView);
         navigateToTutorial[0] = () -> switchTo(root, views, "Tutoriais");
@@ -109,14 +114,26 @@ public class Main extends Application {
         VBox sidebar = new VBox();
         sidebar.getStyleClass().add("sidebar");
 
-        String[] labels = {"Dashboard", "Resultados do Scan", "Diagnostico", "BIOS / Drivers", "Historico", "Tutoriais"};
-        String[] icons = {"🏠", "📋", "🩺", "🔧", "🕒", "📖"};
+        String[] labels = {"Dashboard", "Resultados do Scan", "Diagnostico", "BIOS / Drivers", "Reparo do Sistema", "Historico", "Tutoriais"};
+        String[] icons = {"🏠", "📋", "🩺", "🔧", "🛠️", "🕒", "📖"};
         for (int i = 0; i < labels.length; i++) {
             String viewName = labels[i];
             Button navButton = new Button(icons[i] + "  " + viewName.toUpperCase());
             navButton.getStyleClass().add("nav-button");
             navButton.setMaxWidth(Double.MAX_VALUE);
             navButton.setOnAction(e -> {
+                // Reparo do Sistema (Fase 15): enquanto DISM/SFC estao rodando em segundo plano, a
+                // navegacao para QUALQUER outra tela fica bloqueada - evita rodar duas acoes
+                // administrativas ao mesmo tempo (secao A.4 da fase). A propria tela de reparo
+                // continua acessivel normalmente (usuario ja esta nela para acompanhar o log).
+                if (RepairLock.isRunning() && !"Reparo do Sistema".equals(viewName)) {
+                    Alert busy = new Alert(Alert.AlertType.INFORMATION);
+                    busy.setTitle("NITRO BOOST");
+                    busy.setHeaderText("Reparo do sistema em andamento");
+                    busy.setContentText("Aguarde o reparo do sistema (DISM/SFC) terminar antes de navegar para outra tela.");
+                    busy.showAndWait();
+                    return;
+                }
                 if ("Historico".equals(viewName)) {
                     historyView.refresh();
                 } else if ("Diagnostico".equals(viewName)) {
