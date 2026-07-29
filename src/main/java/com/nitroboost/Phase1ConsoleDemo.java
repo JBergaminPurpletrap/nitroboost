@@ -2,14 +2,13 @@ package com.nitroboost;
 
 import com.nitroboost.actions.ActionExecutor;
 import com.nitroboost.actions.BackupManager;
+import com.nitroboost.core.ElevationChecker;
 import com.nitroboost.core.ProcessScanner;
 import com.nitroboost.core.ServiceScanner;
 import com.nitroboost.core.StartupScanner;
 import com.nitroboost.db.ActionHistoryRepository;
 import com.nitroboost.db.DatabaseManager;
 import com.nitroboost.knowledge.KnowledgeBase;
-
-import oshi.SystemInfo;
 
 import java.util.List;
 import java.util.Optional;
@@ -83,16 +82,12 @@ public final class Phase1ConsoleDemo {
     // ------------------------------------------------------------------
 
     private static void printElevationStatus() {
-        try {
-            boolean elevated = new SystemInfo().getOperatingSystem().isElevated();
-            System.out.println("Executando como Administrador: " + (elevated ? "SIM" : "NAO"));
-            if (!elevated) {
-                System.out.println("(esperado neste ambiente de desenvolvimento - acoes que exigem elevacao "
-                        + "vao falhar de forma controlada, sem derrubar a aplicacao, conforme a regra de "
-                        + "tratamento de erro do projeto.)");
-            }
-        } catch (Exception e) {
-            System.err.println("[NITRO BOOST] Nao foi possivel determinar se o app roda como Administrador: " + e.getMessage());
+        boolean elevated = ElevationChecker.isElevated();
+        System.out.println("Executando como Administrador: " + (elevated ? "SIM" : "NAO"));
+        if (!elevated) {
+            System.out.println("(esperado neste ambiente de desenvolvimento - acoes que exigem elevacao "
+                    + "vao falhar de forma controlada, sem derrubar a aplicacao, conforme a regra de "
+                    + "tratamento de erro do projeto.)");
         }
     }
 
