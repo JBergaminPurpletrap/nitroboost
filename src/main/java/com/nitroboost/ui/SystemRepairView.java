@@ -27,9 +27,13 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+import javafx.stage.Window;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.function.Supplier;
 
 /**
@@ -132,6 +136,8 @@ public class SystemRepairView extends BorderPane {
     private final NitroProgressBar autotestProgressBar = new NitroProgressBar();
     private final Label autotestResultLabel = new Label("");
     private final TextField autotestReportPathField = new TextField();
+    private final Button downloadReportButton = new Button("⬇️ Baixar Relatorio");
+    private Path lastAutotestReportPath;
 
     public SystemRepairView(AppContext context) {
         this.context = context;
@@ -539,6 +545,14 @@ public class SystemRepairView extends BorderPane {
         HBox actionsRow = new HBox(14, autotestButton, includeSfcDismCheckBox);
         actionsRow.setAlignment(Pos.CENTER_LEFT);
 
+        // Fica logo abaixo da opcao de rodar o autoteste - so habilita depois que um relatorio
+        // existe de verdade (nesta execucao ou de uma pasta ja salva), nunca antes.
+        downloadReportButton.getStyleClass().add("btn-secondary");
+        downloadReportButton.setDisable(true);
+        downloadReportButton.setOnAction(e -> onDownloadReportClicked());
+        HBox downloadRow = new HBox(downloadReportButton);
+        downloadRow.setAlignment(Pos.CENTER_LEFT);
+
         autotestResultLabel.setWrapText(true);
 
         Label reportLabel = new Label("Arquivo de relatorio gerado:");
@@ -548,10 +562,48 @@ public class SystemRepairView extends BorderPane {
         HBox reportRow = new HBox(10, reportLabel, autotestReportPathField);
         reportRow.setAlignment(Pos.CENTER_LEFT);
 
-        VBox box = new VBox(10, sectionTitle, description, actionsRow, autotestProgressBar, autotestResultLabel, reportRow);
+        VBox box = new VBox(10, sectionTitle, description, actionsRow, downloadRow, autotestProgressBar,
+                autotestResultLabel, reportRow);
         box.getStyleClass().add("card");
         box.setPadding(new Insets(16));
         return box;
+    }
+
+    /**
+     * Abre um dialogo "Salvar como" para o usuario escolher onde guardar uma copia do relatorio do
+     * autoteste (ex: area de trabalho, pendrive) - o relatorio ja fica salvo automaticamente em
+     * {@code %USERPROFILE%\.nitroboost\}, este botao e so uma forma mais direta de levar o arquivo
+     * para onde o usuario quiser sem precisar navegar ate essa pasta manualmente.
+     */
+    private void onDownloadReportClicked() {
+        if (lastAutotestReportPath == null || !Files.exists(lastAutotestReportPath)) {
+            autotestResultLabel.getStyleClass().removeAll("text-success", "text-warning");
+            autotestResultLabel.getStyleClass().add("text-danger");
+            autotestResultLabel.setText("🔴 Nenhum relatorio disponivel para baixar ainda - rode o autoteste primeiro.");
+            return;
+        }
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar relatorio do Autoteste (Fase 16)");
+        chooser.setInitialFileName(lastAutotestReportPath.getFileName().toString());
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Markdown (*.md)", "*.md"));
+
+        Window ownerWindow = getScene() != null ? getScene().getWindow() : null;
+        java.io.File destination = chooser.showSaveDialog(ownerWindow);
+        if (destination == null) {
+            return;
+        }
+
+        try {
+            Files.copy(lastAutotestReportPath, destination.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            autotestResultLabel.getStyleClass().removeAll("text-danger", "text-warning");
+            autotestResultLabel.getStyleClass().add("text-success");
+            autotestResultLabel.setText("✅ Relatorio salvo em: " + destination.getAbsolutePath());
+        } catch (IOException e) {
+            autotestResultLabel.getStyleClass().removeAll("text-success", "text-warning");
+            autotestResultLabel.getStyleClass().add("text-danger");
+            autotestResultLabel.setText("🔴 Falha ao salvar copia do relatorio: " + e.getMessage());
+        }
     }
 
     private void onAutotestClicked() {
@@ -586,6 +638,8 @@ public class SystemRepairView extends BorderPane {
         autotestResultLabel.setText("");
         autotestResultLabel.getStyleClass().removeAll("text-success", "text-danger", "text-warning");
         autotestReportPathField.setText("");
+        lastAutotestReportPath = null;
+        downloadReportButton.setDisable(true);
         autotestProgressBar.show();
         autotestProgressBar.setMessage("Iniciando autoteste...");
         autotestProgressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
@@ -606,6 +660,8 @@ public class SystemRepairView extends BorderPane {
             Path reportDir = context.databaseManager().getDatabasePath().getParent();
             Path savedPath = report.save(reportDir);
             autotestReportPathField.setText(savedPath.toAbsolutePath().toString());
+            lastAutotestReportPath = savedPath;
+            downloadReportButton.setDisable(false);
 
             String prefix = report.elevated() ? "✅ " : "⚠️ ";
             String suffix = report.elevated() ? "" : " ATENCAO: esta execucao nao estava elevada (Administrador) - "
