@@ -2770,3 +2770,129 @@ automação para agilizar aquela rodada já existe e está pronta para uso** (bo
 (Fase 16)" na tela "Reparo do Sistema"). Próximo passo real: o usuário roda o NITRO BOOST como
 Administrador na máquina gamer, clica no botão, e traz o `.md` gerado de volta para fechar a
 validação junto com o restante do checklist manual (itens visuais e de empacotamento).
+
+## 2026-07-29 — [Confiabilidade] Verificação pós-ação por releitura (fora do roadmap numerado)
+
+### O problema original
+
+O usuário perguntou: "há algum sistema no projeto que garante que mudanças (sugestão e etc)
+realmente fizeram alguma alteração no computador?". Investigação confirmou um ponto fraco real:
+`ActionExecutor` (então com 1600 linhas) decidia sucesso/falha de quase TODAS as ações olhando **só
+o código de saída do comando** (`result.exitCode() == 0`), sem nunca reler o valor real depois para
+confirmar que a mudança aconteceu de verdade. Isso funciona na maioria dos casos (`reg add`,
+`Set-Service`, `powercfg` retornam código != 0 quando falham por falta de elevação), mas já existe
+um precedente documentado de exit code mentiroso no próprio projeto: `arp -d *`
+(`NetworkRepairTool.requiresElevation`, Fase 15) sempre retorna 0 mesmo falhando por falta de
+elevação — só dava para saber a verdade lendo o texto da saída. O mesmo tipo de mentira é possível
+em qualquer `reg add` (ex: uma política de grupo sobrescrevendo o valor no instante seguinte, sem o
+comando notar).
+
+### O que foi implementado
+
+**Mecanismo central**: `ActionExecutor.verifyPostAction(...)` — método `static` novo, sem estado de
+instância, testável isoladamente. Recebe o resultado baseado em código de saída, uma releitura
+(`Callable<String>`, reaproveitando os scanners já existentes) e um comparador. Regra:
+- comando já falhou pelo código de saída → devolve a falha original, sem tentar reler;
+- comando reportou sucesso E a releitura confirma o valor esperado → sucesso mantido;
+- comando reportou sucesso MAS a releitura mostra outro valor → falha real reportada, com o valor
+  atual e o esperado na mensagem ("...pode estar sendo controlado por uma política de grupo, ou o
+  efeito pode exigir reinício do Windows...");
+- a própria releitura lança exceção (comando de verificação não roda) → cai de volta, gracioso, para
+  o resultado original baseado no código de saída — nunca inventa uma falha nova, mas a mensagem diz
+  claramente "(não foi possível confirmar a mudança por releitura do estado real - resultado baseado
+  apenas no código de saída do comando)".
+
+**Utilitário compartilhado novo**: `core/RegistryValueUtils.java` — `dwordValuesEqual`/`parseDword`
+foram MOVIDOS de `SystemAuditEngine` (Fase 9, package-private, só acessível dentro de `audit`) para
+cá, público, e `parseRegQueryValue(output, valueName)` foi adicionado (mesmo regex já usado em
+`TelemetryScanner.readValue`). `SystemAuditEngine.dwordValuesEqual` virou um delegate de uma linha —
+nenhuma lógica de comparação foi reescrita, só movida/exposta; `SystemAuditEngineTest` (11 testes)
+continua passando sem alteração.
+
+**Ações que ganharam verificação pós-ação real (releitura + comparação)**:
+1. `applyRegistryDwordChange` (mecânica genérica de Performance/Jogos/IA/Recursos de Consumidor) —
+   depois de `reg add` reportar sucesso, roda `reg query` e compara com `RegistryValueUtils.dwordValuesEqual`.
+2. `setTelemetryValue` — mesmo mecanismo de verificação (via o mesmo `verifyPostAction`/`queryRegistryDwordValue`
+   compartilhados), mantido como método separado (ver decisão de não-unificação abaixo).
+3. `runServiceAction` — releitura via `ServiceScanner.findByName`: `disable` confirma `startMode ==
+   "Disabled"`, `stop` confirma `state == "Stopped"`. `enable` (só usado em restores) fica no padrão
+   antigo de propósito — ver Javadoc de `verifyServiceAction`.
+4. `switchPowerPlan` — releitura via `PowerPlanScanner.findActive()`, confirma o GUID ativo.
+5. `disableStartupItem` (caso de registro) — releitura via `StartupScanner.scan()`, confirma que o
+   item não aparece mais pelo mesmo nome/chave. O caso de arquivo (`.nitroboost-disabled`) continua
+   sem releitura extra — `Files.move` já é determinístico (sucesso/exceção), não há "código de saída
+   mentiroso" possível ali.
+6. `disableScheduledTask` — releitura via `TaskSchedulerScanner.scan()`, confirma `status ==
+   "Disabled"`.
+7. `performAppxUninstall` (compartilhado por `uninstallBloatwareApp` e `uninstallAiFeatureApp`) —
+   releitura via `BloatwareScanner.scan()`, confirma que o `packageFullName` não aparece mais. Pulada
+   de propósito quando `whatIf=true` (simulação `-WhatIf` não muda nada de verdade).
+8. `setHibernationEnabled` — releitura via `PerformanceScanner.checkHibernationFile()` (efeito
+   imediato, sem exigir reinício, então a releitura é confiável na hora).
+9. `setReservedStorageEnabled` — releitura via `PerformanceScanner.checkReservedStorageState()`. Nota
+   importante: o efeito COMPLETO deste cmdlet só aparece após reiniciar o Windows — se a releitura
+   ainda mostrar o estado antigo, a mensagem genérica de mismatch já cobre essa possibilidade
+   explicitamente ("...ou o efeito pode exigir reinício..."), então não há risco de mensagem
+   enganosa mesmo nesse caso limítrofe.
+
+**Ações que continuam só com checagem de código de saída (decisão deliberada)**:
+- Reversões (`restore*`) — fora do escopo pedido (o problema relatado era sobre "a mudança
+  aconteceu", não sobre "a reversão aconteceu"); mudar isso é um passo natural futuro, mas não foi
+  puxado para não inflar ainda mais esta tarefa.
+- `killProcess`/`restoreProcess` — já usa `ProcessHandle.destroy()`/checagem própria, não passa por
+  `reg`/`Set-Service`/exit code de comando externo; fora do padrão que motivou a tarefa.
+- `disableRecallFeature`/`restoreRecallFeature` (DISM) — já tinha uma interpretação de código de
+  saída própria e cuidadosa (`interpretDismResult`, códigos 0/3010/740/87/11), decisão anterior já
+  bem fundamentada; não haveria releitura simples e confiável (não existe um "scanner" de recursos
+  opcionais do Windows no projeto).
+- `uninstallOneDriveCompletely`/`restoreOneDriveInstallation`, limpeza de RAM, SFC/DISM, reparo de
+  rede (`NetworkRepairTool`) — deliberadamente fora (ações pontuais/irreversíveis, já tratadas com
+  cautela específica documentada em fases anteriores; `NetworkRepairTool` já tem sua própria detecção
+  de falha por elevação da Fase 15, mantida intacta, sem duplicar).
+- `runServiceAction` com `actionType="enable"` — ver item 3 acima.
+
+### `setTelemetryValue` vs `applyRegistryDwordChange`: NÃO foram unificados
+
+Avaliado e descartado deliberadamente. As duas fazem o mesmo `reg add` por baixo, mas
+`setTelemetryValue` usa `itemName = definition.id()` (ex: `"allow_telemetry"`) enquanto
+`applyRegistryDwordChange` usa `itemName = friendlyName` (nome de exibição) — essa diferença afeta a
+chave usada pelo `LockManager`/catálogo/histórico para telemetria, um comportamento já validado desde
+a Fase 3 que não vale o risco de mudar só para reduzir duplicação de código. Em vez de unificar as
+duas, ambas passaram a reutilizar os MESMOS blocos de baixo nível (`verifyPostAction` e
+`queryRegistryDwordValue`) — elimina a duplicação da lógica de verificação (o pedaço novo desta
+tarefa) sem tocar no comportamento antigo já testado.
+
+### Testes novos
+
+- `core/RegistryValueUtilsTest.java` (7 testes) — `dwordValuesEqual` (hex vs decimal, iguais,
+  diferentes, não-numérico) e `parseRegQueryValue` com strings fixas simulando a saída real do
+  `reg query` (inclusive o formato real confirmado nesta máquina — ver validação end-to-end abaixo).
+- `actions/ActionExecutorVerificationTest.java` (5 testes) — cobre `verifyPostAction` diretamente,
+  com callbacks fixos (nenhum comando real chamado): (a) comando com sucesso + releitura confirma →
+  sucesso; (b) comando com sucesso + releitura mostra valor diferente → falha detectada, com o valor
+  atual/esperado na mensagem; (c) releitura lança exceção → cai para o resultado original com nota
+  explícita na mensagem; mais o caso de comando já falho (releitura nem é tentada) e o padrão real de
+  `Optional.orElseThrow()` usado nos call sites.
+
+### Validação end-to-end nesta máquina (chave HKCU de teste, sem precisar de Administrador)
+
+Rodado meio manualmente (via `reg add`/`reg query`/`reg delete` diretos, os MESMOS comandos que
+`ActionExecutor` executa por baixo) contra `HKCU\Software\NitroBoostTest\Reliability\TestValue`
+(chave de teste própria, nunca uma chave real do usuário):
+1. `reg add ... /d 1 /f` → código 0; `reg query` releu `TestValue REG_DWORD 0x1` — formato idêntico
+   ao que `RegistryValueUtils.parseRegQueryValue` espera (confirmado, não só assumido).
+2. `reg add ... /d 2 /f` → código 0; `reg query` releu `0x2`, confirmando que a releitura reflete a
+   escrita mais recente (o "novo valor" de verdade, não um valor em cache).
+3. `reg delete HKCU\Software\NitroBoostTest /f` → código 0 (chave de teste removida por completo).
+4. `reg query` final na chave já removida → código 1 ("não pôde localizar"), confirmando que a
+   limpeza funcionou e não sobrou nada da chave de teste nesta máquina.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw -q test` — **95/95 testes passando** (83 já existentes, sem nenhuma regressão, + 7 de
+  `RegistryValueUtilsTest` + 5 de `ActionExecutorVerificationTest`).
+
+### Bloqueios
+
+Nenhum.
