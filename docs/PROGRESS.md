@@ -2659,3 +2659,114 @@ conexão de rede por alguns segundos).
 
 Todos os itens de "Parte B — Rede" e "Fechamento" marcados `[x]` em
 `docs/NITRO-BOOST-fase15-reparo-sistema-e-rede.md` — **fecha a Fase 15 inteira (Partes 1+2+3).**
+
+---
+
+## 2026-07-29 — Fase 16: ferramenta de Autoteste implementada (validação manual em si ainda NÃO executada)
+
+**Importante — isso NÃO é a "Fase 16" em si.** `docs/NITRO-BOOST-fase16-validacao-administrador.md`
+descreve uma rodada de validação manual que precisa rodar como Administrador, numa máquina com GPU
+dedicada, com um humano acompanhando visualmente — essa rodada **não foi executada nesta sessão**
+(sessão de desenvolvimento sem elevação e sem GPU dedicada real, mesma limitação de sempre). O que
+foi construído aqui é uma **ferramenta nova dentro do próprio app** ("🧪 Autoteste (Fase 16)") para
+agilizar aquela rodada manual quando o usuário rodar o NITRO BOOST como Administrador na máquina
+gamer dele: ela roda automaticamente o máximo possível do roteiro do documento e gera um relatório
+em Markdown para trazer de volta a uma conversa de fechamento da validação.
+
+### Pacote novo `validation/`
+
+- **`ElevationChecker.java`** (`core/`, não `validation/`) — extraído de
+  `Phase1ConsoleDemo.printElevationStatus()` (Fase 1), que repetia
+  `new SystemInfo().getOperatingSystem().isElevated()` em vários `PhaseXConsoleDemo` sem nunca virar
+  uma classe reutilizável. `Phase1ConsoleDemo` já foi migrado para usá-la (comportamento idêntico);
+  os demais `PhaseXConsoleDemo` não foram tocados (não fazia parte do pedido, e mexer em demos já
+  fechados/documentados sem necessidade seria risco desnecessário).
+- **`ValidationStatus.java`** — enum `PASSOU` / `FALHOU` / `PULADO_DELIBERADAMENTE` /
+  `REQUER_CONFIRMACAO_VISUAL`.
+- **`ValidationResult.java`** — record (seção do documento 0-10, item, status, detalhes, comando de
+  verificação nativo usado quando aplicável).
+- **`ValidationReport.java`** — agrega uma `List<ValidationResult>` + contexto da execução (elevado
+  ou não, se o SFC/DISM completo foi incluído, timestamp). `summary()` conta por status;
+  `toMarkdown()` gera o relatório no mesmo estilo de tabela já usado em `TESTING.md`; `save(Path)`
+  grava em arquivo com nome derivado do timestamp.
+- **`Fase16ValidationRunner.java`** — orquestrador. Cada check passa por `runCheck(...)`, que isola
+  o item em try/catch (uma falha real ou uma exceção inesperada em UM item nunca impede os demais) e
+  notifica um `Listener` opcional (usado pela UI para atualizar a mensagem da barra de progresso).
+  **Não reimplementa nenhuma lógica de negócio** — só chama `ActionExecutor`, `LockManager`,
+  `MemoryCleaner`, `SystemFileRepairTool`, `NetworkRepairTool`, `ActionHistoryRepository` e os
+  scanners já existentes (`ServiceScanner`, `GamingScanner`, `ConsumerFeatureScanner`,
+  `AiFeatureScanner`, `BloatwareScanner`, `StartupScanner`, `DisplayScanner`), recebidos via
+  `AppContext` (mesmo objeto já usado por todas as views).
+
+### Cobertura por seção do documento da Fase 16
+
+| Seção | Cobertura |
+|---|---|
+| 0 (pré-requisitos) | Automatizada por completo — `ElevationChecker.isElevated()`. Se não elevado, `FALHOU` com aviso bem explícito no topo do relatório (via `ValidationReport.toMarkdown()`), mas o autoteste continua até o fim mesmo assim. |
+| 1 (visual) | Todos os 4 itens `REQUER_CONFIRMACAO_VISUAL` — decisão deliberada de **não** instanciar as views de produção fora do ciclo de vida normal da UI (risco de deixar timers/threads órfãos rodando, ex: o gráfico do Dashboard), documentada no próprio `details` de cada item. |
+| 2 (ações de escrita) | Automatizada por completo — 1 item seguro/reversível por categoria: Serviço (`MapsBroker`), Registro (`start_menu_suggestions`, anúncio do Menu Iniciar), Startup (**item de teste próprio** criado e removido pelo runner, nunca um item real do usuário — mesmo padrão já usado em `Phase1ConsoleDemo`), Bloqueio (`MapsBroker` bloqueado, confirma recusa, desbloqueia). Mais um item que consulta `ActionHistoryRepository` confirmando que as 4 ações acima ficaram registradas. |
+| 3 (RAM) | Automatizada por completo — `MemoryCleaner.purgeStandbyList()` rodado de verdade, RAM livre antes/depois via OSHI (`GlobalMemory.getAvailable()`), mais checagem de histórico (tipo `memory_cleanup`). Os 2 itens que exigem olhar a tela (UI não travar, comparar com o Gerenciador de Tarefas) ficam `REQUER_CONFIRMACAO_VISUAL`. |
+| 4 (Copilot) | Presença de pacote Appx separado detectada (`BloatwareScanner`, categoria `AI_COPILOT`). Round-trip completo de Desativar/Reverter via `windows_copilot_user` (chave HKCU, não exige Admin). Desinstalar o pacote Appx fica `PULADO_DELIBERADAMENTE` (mesma cautela já aplicada à desinstalação do OneDrive na Fase 12 — ação difícil de reverter 100%). Ícone sumindo da barra de tarefas fica `REQUER_CONFIRMACAO_VISUAL`. |
+| 5 (GPU) | Varredura dos 4 serviços conhecidos sempre roda (informativa). Os serviços de maior impacto (`NVDisplay.ContainerLocalSystem` / `AMD External Events Utility`) **nunca** são tocados — sempre `PULADO_DELIBERADAMENTE` com o motivo, mesmo que existam na máquina. Round-trip completo só no item "seguro" (`NvTelemetryContainer` ou `AMD Crash Defender Service`, o que existir); se nenhum existir (ex: sem GPU dedicada), `PULADO_DELIBERADAMENTE`. |
+| 6 (SFC/DISM) | Só roda se a opção "Incluir SFC/DISM completo" estiver marcada (padrão: `PULADO_DELIBERADAMENTE`, autoteste rápido). Reaproveita `SystemFileRepairTool.runFullRepair()` integralmente, sem reimplementar nada. |
+| 7 (Rede) | `flushDns()`, `clearArpCache()` e `renewIp()` automáticos (reaproveitando `NetworkRepairTool`). Winsock/TCP-IP **sempre** `PULADO_DELIBERADAMENTE` (exigem reinício) — nenhuma flag para forçá-los foi exposta (avaliado e descartado: complexidade desnecessária para um caso de uso que já tem um caminho manual claro na tela). |
+| 8 (Modo de Jogo) | Automatizada por completo — o item mais crítico do documento. Um check confirma que `ItemActionDispatcher.primaryActionLabel(...)` devolve **"Ativar Modo de Jogo"** (não um texto genérico de desativar) para a chave `game_mode_auto`, sem precisar abrir UI de verdade. Outro check faz o round-trip real: aplica (deve **ATIVAR**), lê de volta confirmando que o valor ficou "ativado" (não invertido), reverte, confirma volta ao original. |
+| 9 (Taxa de tela) | Taxa atual/máxima/suportadas lidas via `DisplayScanner` e incluídas automaticamente no relatório — item fica `REQUER_CONFIRMACAO_VISUAL` só para a comparação final com a tela nativa do Windows (os valores já vêm prontos para comparar). "Abrir Configurações de Tela" roda de verdade (`ActionExecutor.openDisplaySettings()`, ação já documentada como "sempre segura"). |
+| 10 (empacotamento) | Fora de escopo — item único `PULADO_DELIBERADAMENTE` apontando para `scripts\jpackage-build.bat`/`run-as-admin.bat`, conforme já esperado (rodar um `.bat` externo não faz sentido de dentro do app rodando). |
+
+### UI — `ui/SystemRepairView.java`
+
+Nova "Seção C" (`🧪 AUTOTESTE (FASE 16)`), adicionada à mesma tela de "Reparo do Sistema" em vez de
+uma tela nova na navegação lateral — decisão de projeto: é uma ferramenta de diagnóstico/validação
+do mesmo espírito das Seções A (SFC/DISM) e B (Rede) já existentes ali, reaproveitando o mesmo
+padrão visual (`NitroProgressBar`, `card`, `btn-turbo`) e a mesma trava (`RepairLock`) — as três
+seções agora se desabilitam mutuamente enquanto qualquer uma está rodando (`setSectionCButtonsDisabled`
+somado aos já existentes `setSectionAButtonsDisabled`/`setSectionBButtonsDisabled`). Botão principal
+"🧪 Rodar Autoteste (Fase 16)" + `CheckBox` "Incluir SFC/DISM completo" (com diálogo de confirmação
+explícito avisando sobre os até 30 minutos antes de rodar, só quando marcada). Roda em thread de
+fundo (`Fase16ValidationRunner.run(...)`, nunca a FX thread). Ao final, mostra o resumo
+("X passaram, Y falharam, Z puladas deliberadamente, W requerem confirmação visual") e o caminho
+completo do arquivo salvo, num `TextField` não-editável para facilitar copiar.
+
+### Onde o relatório é salvo
+
+`ValidationReport.save(Path)` recebe `context.databaseManager().getDatabasePath().getParent()` —
+reaproveita a MESMA resolução de pasta que o banco SQLite já usa (`%USERPROFILE%\.nitroboost`), sem
+duplicar a lógica de "nunca hardcodar caminho de uma máquina específica". Nome do arquivo:
+`fase16-autoteste-<yyyy-MM-dd_HH-mm-ss>.md`.
+
+### Segurança seguida nesta tarefa (conforme pedido explicitamente)
+
+**Nada foi executado de verdade nesta sessão.** O autoteste completo (`Fase16ValidationRunner.run`)
+não foi rodado nem uma vez — nem sequer os checks "seguros" (leitura de RAM/taxa de tela/elevação)
+foram disparados isoladamente, porque a lógica real dessas leituras está entrelaçada com ações de
+escrita dentro dos mesmos métodos de seção (ex: o check de RAM já dispara `purgeStandbyList()` de
+verdade). Em vez de tentar separar isso só para uma execução de smoke-test nesta sessão, a decisão
+foi validar a lógica de agregação/relatório inteiramente via JUnit com resultados simulados (ver
+abaixo) — a primeira execução real do autoteste fica para o usuário, na máquina gamer dele, como
+Administrador.
+
+### Teste (`src/test/java/com/nitroboost/validation/ValidationReportTest.java`, 8 testes novos)
+
+Segue o mesmo padrão de `audit.AuditReportTest` (Fase 12 Parte B): `ValidationResult` simulados
+diretamente, sem rodar `Fase16ValidationRunner` contra o Windows real. Cobre: contagem de `summary()`
+por status (incluindo relatório vazio), presença/ausência do aviso de "não elevado" no Markdown
+conforme o campo `elevated`, presença do comando de verificação nas linhas da tabela, texto correto
+sobre SFC/DISM incluído ou não, e `save(Path)` (nome de arquivo com timestamp, conteúdo gravado,
+criação do diretório se ainda não existir, via `@TempDir`).
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw -q test` — **83/83 testes passando** (75 já existentes, sem nenhuma regressão, + 8 novos
+  de `ValidationReportTest`).
+
+### Checklist
+
+`docs/NITRO-BOOST-fase16-validacao-administrador.md` **não foi executado** (rodada manual continua
+pendente, precisa de Administrador + GPU real + humano acompanhando visualmente) — os checkboxes do
+documento continuam desmarcados de propósito. O que fica marcado aqui é que **a ferramenta de
+automação para agilizar aquela rodada já existe e está pronta para uso** (botão "🧪 Autoteste
+(Fase 16)" na tela "Reparo do Sistema"). Próximo passo real: o usuário roda o NITRO BOOST como
+Administrador na máquina gamer, clica no botão, e traz o `.md` gerado de volta para fechar a
+validação junto com o restante do checklist manual (itens visuais e de empacotamento).
