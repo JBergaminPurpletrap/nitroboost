@@ -2456,3 +2456,111 @@ um item pendente).
 
 **FASE 14 CONCLUÍDA POR COMPLETO (Partes 1 + 2 + 3).** Próximo passo: nenhuma fase nova foi pedida
 ainda — aguardando instrução do usuário para a próxima etapa do roadmap.
+
+---
+
+## 2026-07-29 — Fase 15 - Partes 1 e 2 concluídas (Estrutura/Navegação + Reparo de Arquivos do Sistema via SFC/DISM)
+
+Conforme `docs/NITRO-BOOST-fase15-reparo-sistema-e-rede.md`, seções A (SFC/DISM) e o checklist
+"Estrutura e Navegação" / "Parte A — SFC/DISM". **A Parte 3 (seção B, rede/DNS/Winsock/TCP-IP) NÃO
+foi iniciada, conforme instruído** — o documento pede validação do usuário antes dela; a
+`SystemRepairView` já tem a seção B como placeholder simples, sem nenhum conteúdo de rede inventado.
+
+### Estrutura e Navegação
+
+- **`Main.java`:** novo item "🛠️ Reparo do Sistema" na barra lateral, entre "BIOS / Drivers" e
+  "Histórico", seguindo o mesmo padrão de `LinkedHashMap<String, Node>` + `switchTo` já usado pelas
+  demais telas.
+- **`ui/SystemRepairView.java`:** duas seções dentro de um único `BorderPane`, mesmo padrão visual
+  (`title-hud`/`subtitle-hud`/`card`) das demais telas:
+  - **Seção A (implementada nesta tarefa):** descrição, botão principal "🛠️ Verificar e Reparar
+    Sistema" (`btn-turbo`, roda DISM→SFC em sequência), dois botões secundários avançados "Rodar só
+    DISM" / "Rodar só SFC" (`btn-secondary`), `NitroProgressBar` reaproveitada (Fase 12 Parte C, sem
+    nenhum componente de progresso novo), painel de log em tempo real estilo terminal (`TextArea`
+    com a classe CSS nova `.terminal-log` — fundo preto, texto verde neon, fonte `Consolas`) e um
+    label de resultado final com ícone/cor conforme os 3 estados do SFC.
+  - **Seção B (placeholder, NÃO implementada):** card simples avisando que a limpeza/reset de rede
+    (DNS, Winsock, TCP/IP, renovar IP, ARP) chega em uma próxima tarefa, aguardando validação do
+    usuário — nenhuma lógica de rede foi criada.
+
+### Parte A — SFC/DISM
+
+- **`repair/SystemFileRepairTool.java` (pacote novo `repair/`):**
+  - `runFullRepair(listener)` — roda `DISM /Online /Cleanup-Image /RestoreHealth` e, na sequência,
+    `sfc /scannow` (ordem da seção A.1: o DISM corrige a fonte que o SFC usa como referência).
+    `runDismOnly(listener)` / `runSfcOnly(listener)` para os botões avançados individuais.
+  - Execução via `ProcessBuilder` com `redirectErrorStream(true)`, lendo a saída linha a linha em
+    um `BufferedReader` na própria thread de fundo chamada pela UI (nunca a JavaFX Application
+    Thread) — cada linha é repassada ao `ProgressListener.onLogLine`, e o percentual extraído dela
+    (se houver) ao `ProgressListener.onProgress`.
+  - **Extração de percentual:** um único regex (`(\d{1,3}(?:[.,]\d+)?)\s*%`) cobre tanto o formato
+    do SFC (`"Verificação 45% concluída."` / `"Verification 45% complete."`) quanto o do DISM
+    (`"[==========60.0%==========          ]"`), aceitando ponto ou vírgula decimal — método
+    estático `extractPercent(String)`, testável isoladamente sem `ProcessBuilder`.
+  - **Classificação melhor-esforço do resultado do SFC** (`classifySfcResult(String rawLog)`, 3
+    estados da seção A.3): normaliza acentos via `java.text.Normalizer` (assim `"não"` casa com
+    `"nao"`, `"êxito"` com `"exito"`) e reconhece palavras-chave em português E inglês para
+    `NO_PROBLEMS` / `FIXED` / `UNABLE_TO_FIX`, com `UNKNOWN` como fallback — o log bruto completo é
+    **sempre** exibido na UI independente da classificação funcionar.
+  - **Exceção documentada à regra de ouro do projeto** (mesmo padrão do `core.MemoryCleaner`, Fase
+    10): sem `LockManager`/`BackupManager` — não há item a bloquear nem estado anterior a reverter.
+    Registra a execução em `actions_history` (tipo novo `system_repair`) apenas para fins
+    informativos/de auditoria, via `ActionHistoryRepository` direto (`recordHistoryQuiet`), igual ao
+    `MemoryCleaner`.
+- **`repair/RepairLock.java`:** trava simples (`AtomicBoolean` estático) — enquanto um reparo está
+  rodando, `Main.java` bloqueia a navegação da barra lateral para QUALQUER outra tela (exceto a
+  própria "Reparo do Sistema"), mostrando um aviso. Como o layout principal só exibe uma tela por
+  vez no centro (`BorderPane.setCenter`), travar a navegação já impede o acesso a qualquer outro
+  botão de ação/scan do app — abordagem mais simples do que espalhar checagens em cada botão de cada
+  tela, conforme sugerido no próprio documento da fase.
+- **`ui/AppContext.java`:** novo campo `systemFileRepairTool`, instanciado em `create()` igual aos
+  demais componentes de backend.
+- **CSS (`nitroboost-carbon.css`):** nova classe `.terminal-log` (+ `.terminal-log .content`) —
+  fundo `#000000`, texto `#39FF14` (verde neon já usado no resto do tema), fonte `Consolas`
+  monoespaçada — reaproveita a paleta existente, nenhuma cor nova introduzida.
+
+### Teste (regra crítica de segurança seguida — SFC/DISM reais NÃO foram executados)
+
+Conforme instruído, `DISM /RestoreHealth` (10-20+ min, requer internet) e `sfc /scannow` (10-20 min)
+**não foram rodados de verdade** nesta tarefa — rodar os dois sem supervisão dentro do ambiente
+automatizado arriscaria travar a sessão por tempo longo. Em vez disso:
+
+1. **`SystemFileRepairToolParsingTest`** (16 testes) — mesmo padrão de `ServiceScannerParsingTest`
+   (Fase 12 Parte B): strings de exemplo FIXAS simulando a saída real do SFC/DISM em PT/EN, sem
+   nenhum `ProcessBuilder`. Cobre `extractPercent` (SFC PT/EN, DISM com ponto e com vírgula decimal,
+   linha sem percentual, entrada nula, clamp de valor > 100%) e `classifySfcResult` (os 3 estados em
+   PT e em EN, mensagem desconhecida, log vazio/nulo) + `describeOutcome` para todos os estados.
+2. **`SystemFileRepairToolStreamingTest`** (2 testes) — valida o MECANISMO de ponta a ponta (rodar
+   processo externo real via `ProcessBuilder`, ler linha a linha em tempo real, repassar ao
+   listener, extrair percentual) usando `cmd /c echo ...` com linhas que IMITAM o formato do SFC
+   (percentuais 10%/50%/100% crescentes + mensagem final "nenhuma violação de integridade" em
+   português) — comando rápido e seguro (roda em ~0.2s), não o SFC/DISM real. Confirma: processo
+   inicia, `onStageStarted` chamado 1x, as 4 linhas chegam ao listener na ordem certa, as 3
+   atualizações de progresso chegam com os valores certos (0.10/0.50/1.00), o log bruto acumulado
+   bate com `classifySfcResult` → `NO_PROBLEMS`. Um segundo teste confirma que um comando inexistente
+   retorna falha sem lançar exceção. **Isso valida o mecanismo de streaming/parsing/UI, não o
+   comportamento real do SFC/DISM** — documentado explicitamente no Javadoc da classe de teste.
+
+**Comando exato para o usuário validar o fluxo completo de verdade, na própria máquina, quando
+quiser:** abrir o NITRO BOOST **como Administrador**, ir em "🛠️ Reparo do Sistema" → clicar em
+"🛠️ Verificar e Reparar Sistema" → confirmar o aviso. Isso roda de verdade, nesta ordem:
+`DISM /Online /Cleanup-Image /RestoreHealth` (requer internet, pode levar 10-20+ min) seguido de
+`sfc /scannow` (10-20 min) — o log aparece em tempo real no painel estilo terminal e o resultado
+final classificado (nenhum problema / corrigido / não foi possível corrigir tudo) aparece abaixo dele.
+Equivalente rodando os mesmos comandos manualmente num `cmd` como Administrador, para comparar:
+`DISM /Online /Cleanup-Image /RestoreHealth` e depois `sfc /scannow`.
+
+### Build e testes
+
+- `./mvnw -q compile` — OK, sem erros.
+- `./mvnw -q test` — **65/65 testes passando** (47 já existentes + 18 novos desta parte: 16 de
+  `SystemFileRepairToolParsingTest` + 2 de `SystemFileRepairToolStreamingTest`), nenhuma regressão.
+
+### Checklist
+
+Itens de "Estrutura e Navegação" e "Parte A — SFC/DISM" marcados `[x]` em
+`docs/NITRO-BOOST-fase15-reparo-sistema-e-rede.md`. Checklist "Parte B — Rede" deixado `[ ]` de
+propósito.
+
+**Parada aqui, conforme instruído** — a Parte 3 (seção B: limpeza/reset de componentes de rede)
+requer validação do usuário antes de começar.
