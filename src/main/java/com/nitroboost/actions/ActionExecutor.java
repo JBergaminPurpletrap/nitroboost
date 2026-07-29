@@ -7,8 +7,10 @@ import com.nitroboost.core.GamingScanner;
 import com.nitroboost.core.PerformanceScanner;
 import com.nitroboost.core.PowerPlanScanner;
 import com.nitroboost.core.ProcessScanner;
+import com.nitroboost.core.RegistryValueUtils;
 import com.nitroboost.core.ServiceScanner;
 import com.nitroboost.core.StartupScanner;
+import com.nitroboost.core.TaskSchedulerScanner;
 import com.nitroboost.core.TelemetryScanner;
 import com.nitroboost.db.ActionHistoryRepository;
 import com.nitroboost.db.DatabaseManager;
@@ -26,7 +28,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 /**
  * Executa acoes reais que alteram o estado do sistema (matar processo,
@@ -66,6 +70,8 @@ public class ActionExecutor {
     private final AiFeatureScanner aiFeatureScanner = new AiFeatureScanner();
     private final ConsumerFeatureScanner consumerFeatureScanner = new ConsumerFeatureScanner();
     private final BloatwareScanner bloatwareScanner = new BloatwareScanner();
+    private final StartupScanner startupScanner = new StartupScanner();
+    private final TaskSchedulerScanner taskSchedulerScanner = new TaskSchedulerScanner();
 
     /** DISM pode demorar bem mais que os outros comandos (reg/schtasks/powercfg) - timeout maior e explicito. */
     private static final int DISM_TIMEOUT_SECONDS = 120;
@@ -228,19 +234,47 @@ public class ActionExecutor {
         try {
             String script = String.format(scriptTemplate, escapePowerShellSingleQuoted(serviceName));
             CommandResult result = runPowerShell(script);
-            boolean success = result.exitCode() == 0;
-            String message = success
+            boolean commandSucceeded = result.exitCode() == 0;
+            String commandMessage = commandSucceeded
                     ? "Acao '" + actionType + "' aplicada com sucesso ao servico '" + serviceName + "'."
                     : "Falha ao aplicar acao '" + actionType + "' ao servico '" + serviceName + "' "
                         + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
 
-            recordHistory(itemId, serviceName, itemType, actionType, previousState, success ? actionType : null, success, success ? null : message, backupId);
-            return new ActionResult(success, message, backupId);
+            ActionResult verified = verifyServiceAction(actionType, serviceName, commandSucceeded, commandMessage, backupId);
+
+            recordHistory(itemId, serviceName, itemType, actionType, previousState, verified.success() ? actionType : null,
+                    verified.success(), verified.success() ? null : verified.message(), backupId);
+            return verified;
         } catch (Exception e) {
             String errorMessage = "Erro ao executar acao '" + actionType + "' no servico '" + serviceName + "': " + e.getMessage();
             recordHistory(itemId, serviceName, itemType, actionType, previousState, null, false, errorMessage, backupId);
             return new ActionResult(false, errorMessage, backupId);
         }
+    }
+
+    /**
+     * Confirma por releitura ({@link ServiceScanner#findByName}) as acoes "disable" (startMode
+     * deve virar "Disabled") e "stop" (state deve virar "Stopped") - os dois casos onde uma falha
+     * silenciosa (comando diz sucesso, mas nada mudou de verdade) importa de verdade. "enable" NAO
+     * e verificado aqui de proposito: so acontece durante um restore, com o tipo de inicializacao
+     * pedido variavel (extraido dinamicamente do {@code scriptTemplate}), e o passo seguinte de
+     * {@link #restoreService} ja tenta iniciar o servico, o que exercitaria o servico de qualquer
+     * forma - mantido no padrao antigo (so codigo de saida) por simplicidade.
+     */
+    private ActionResult verifyServiceAction(String actionType, String serviceName, boolean commandSucceeded,
+                                              String commandMessage, Long backupId) {
+        boolean checkStartMode = "disable".equals(actionType);
+        boolean checkState = "stop".equals(actionType);
+        if (!checkStartMode && !checkState) {
+            return new ActionResult(commandSucceeded, commandMessage, backupId);
+        }
+        String expected = checkStartMode ? "Disabled" : "Stopped";
+        return verifyPostAction(commandSucceeded, commandMessage, backupId,
+                () -> serviceScanner.findByName(serviceName)
+                        .map(checkStartMode ? ServiceScanner.ServiceInfo::startMode : ServiceScanner.ServiceInfo::state)
+                        .orElseThrow(() -> new IllegalStateException("Servico '" + serviceName + "' nao encontrado na releitura")),
+                actual -> expected.equalsIgnoreCase(actual),
+                expected);
     }
 
     public ActionResult restoreService(long backupId) {
@@ -319,11 +353,18 @@ public class ActionExecutor {
             String message;
             if (item.registryKey() != null) {
                 CommandResult result = runCommand("reg", "delete", item.registryKey(), "/v", item.name(), "/f");
-                success = result.exitCode() == 0;
-                message = success
+                boolean commandSucceeded = result.exitCode() == 0;
+                String commandMessage = commandSucceeded
                         ? "Entrada de registro '" + item.name() + "' removida de " + item.registryKey() + "."
                         : "Falha ao remover entrada de registro '" + item.name() + "' "
                             + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
+
+                ActionResult verified = verifyPostAction(commandSucceeded, commandMessage, backupId,
+                        () -> startupItemStillPresent(item.name(), item.registryKey()) ? "presente" : "ausente",
+                        actual -> "ausente".equals(actual),
+                        "ausente");
+                success = verified.success();
+                message = verified.message();
             } else if (item.filePath() != null) {
                 Path original = item.filePath();
                 Path disabled = original.resolveSibling(original.getFileName() + ".nitroboost-disabled");
@@ -342,6 +383,16 @@ public class ActionExecutor {
             recordHistory(itemId, item.name(), itemType, "disable", "enabled", null, false, errorMessage, backupId);
             return new ActionResult(false, errorMessage, backupId);
         }
+    }
+
+    /**
+     * Releitura de confirmacao para {@link #disableStartupItem} (caso de registro): reaproveita
+     * {@link StartupScanner#scan()} (mesma varredura completa ja usada para exibir os itens de
+     * startup na UI) para checar se o item ainda aparece pelo mesmo nome/chave de registro.
+     */
+    private boolean startupItemStillPresent(String name, String registryKey) {
+        return startupScanner.scan().stream()
+                .anyMatch(i -> registryKey.equalsIgnoreCase(i.registryKey()) && name.equalsIgnoreCase(i.name()));
     }
 
     public ActionResult restoreStartupItem(long backupId) {
@@ -422,14 +473,24 @@ public class ActionExecutor {
 
         try {
             CommandResult result = runCommand("schtasks", "/change", "/tn", itemName, "/disable");
-            boolean success = result.exitCode() == 0;
-            String message = success
+            boolean commandSucceeded = result.exitCode() == 0;
+            String commandMessage = commandSucceeded
                     ? "Tarefa agendada '" + itemName + "' desativada com sucesso."
                     : "Falha ao desativar a tarefa '" + itemName + "' "
                         + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
 
-            recordHistory(itemId, itemName, itemType, "disable", task.status(), success ? "Disabled" : null, success, success ? null : message, backupId);
-            return new ActionResult(success, message, backupId);
+            ActionResult verified = verifyPostAction(commandSucceeded, commandMessage, backupId,
+                    () -> taskSchedulerScanner.scan().stream()
+                            .filter(t -> itemName.equalsIgnoreCase(t.name()))
+                            .findFirst()
+                            .map(TaskSchedulerScanner.TaskInfo::status)
+                            .orElseThrow(() -> new IllegalStateException("Tarefa '" + itemName + "' nao encontrada na releitura")),
+                    actual -> "Disabled".equalsIgnoreCase(actual),
+                    "Disabled");
+
+            recordHistory(itemId, itemName, itemType, "disable", task.status(), verified.success() ? "Disabled" : null,
+                    verified.success(), verified.success() ? null : verified.message(), backupId);
+            return verified;
         } catch (Exception e) {
             String errorMessage = "Erro ao desativar a tarefa agendada '" + itemName + "': " + e.getMessage();
             recordHistory(itemId, itemName, itemType, "disable", task.status(), null, false, errorMessage, backupId);
@@ -507,14 +568,22 @@ public class ActionExecutor {
 
         try {
             CommandResult result = runCommand("powercfg", "/setactive", targetGuid);
-            boolean success = result.exitCode() == 0;
-            String message = success
+            boolean commandSucceeded = result.exitCode() == 0;
+            String commandMessage = commandSucceeded
                     ? "Plano de energia alterado para '" + targetName + "'."
                     : "Falha ao trocar o plano de energia para '" + targetName + "': " + result.output().trim();
 
+            ActionResult verified = verifyPostAction(commandSucceeded, commandMessage, backupId,
+                    () -> powerPlanScanner.findActive()
+                            .map(PowerPlanScanner.PowerPlanInfo::guid)
+                            .orElseThrow(() -> new IllegalStateException("Nenhum plano de energia ativo encontrado na releitura")),
+                    actual -> actual.equalsIgnoreCase(targetGuid),
+                    targetGuid);
+
             recordHistory(itemId, POWER_PLAN_ITEM_NAME, itemType, "switch", previousState,
-                    success ? targetName + " (" + targetGuid + ")" : null, success, success ? null : message, backupId);
-            return new ActionResult(success, message, backupId);
+                    verified.success() ? targetName + " (" + targetGuid + ")" : null,
+                    verified.success(), verified.success() ? null : verified.message(), backupId);
+            return verified;
         } catch (Exception e) {
             String errorMessage = "Erro ao trocar o plano de energia: " + e.getMessage();
             recordHistory(itemId, POWER_PLAN_ITEM_NAME, itemType, "switch", previousState, null, false, errorMessage, backupId);
@@ -591,14 +660,20 @@ public class ActionExecutor {
         try {
             CommandResult result = runCommand("reg", "add", definition.registryPath(),
                     "/v", definition.valueName(), "/t", "REG_DWORD", "/d", newValue, "/f");
-            boolean success = result.exitCode() == 0;
-            String message = success
+            boolean commandSucceeded = result.exitCode() == 0;
+            String commandMessage = commandSucceeded
                     ? "Valor de '" + definition.friendlyName() + "' alterado para " + newValue + "."
                     : "Falha ao alterar '" + definition.friendlyName() + "' "
                         + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
 
-            recordHistory(itemId, itemName, itemType, "set", previousState, success ? newValue : null, success, success ? null : message, backupId);
-            return new ActionResult(success, message, backupId);
+            ActionResult verified = verifyPostAction(commandSucceeded, commandMessage, backupId,
+                    () -> queryRegistryDwordValue(definition.registryPath(), definition.valueName()).orElse("nao definido"),
+                    actual -> RegistryValueUtils.dwordValuesEqual(actual, newValue),
+                    newValue);
+
+            recordHistory(itemId, itemName, itemType, "set", previousState, verified.success() ? newValue : null,
+                    verified.success(), verified.success() ? null : verified.message(), backupId);
+            return verified;
         } catch (Exception e) {
             String errorMessage = "Erro ao alterar valor de telemetria '" + definition.friendlyName() + "': " + e.getMessage();
             recordHistory(itemId, itemName, itemType, "set", previousState, null, false, errorMessage, backupId);
@@ -704,9 +779,9 @@ public class ActionExecutor {
             script.append(" -ErrorAction Stop");
 
             CommandResult result = runPowerShell(script.toString());
-            boolean success = result.exitCode() == 0;
+            boolean commandSucceeded = result.exitCode() == 0;
             String actionLabel = whatIf ? "uninstall-simulado" : "uninstall";
-            String message = success
+            String commandMessage = commandSucceeded
                     ? (whatIf
                         ? "[SIMULACAO -WhatIf] Comando de desinstalacao valido para '" + itemName + "' - nada foi alterado. " + result.output().trim()
                         : "App '" + itemName + "' desinstalado com sucesso.")
@@ -714,9 +789,20 @@ public class ActionExecutor {
                         + "(comum se o app nao estiver rodando como Administrador, quando -AllUsers e usado, ou se for "
                         + "um pacote protegido do sistema que o Windows recusa remover): " + result.output().trim();
 
+            // -WhatIf nunca altera nada de verdade (simulacao) - releitura nao faz sentido nesse caso,
+            // so no uninstall real.
+            ActionResult verified = whatIf
+                    ? new ActionResult(commandSucceeded, commandMessage, backupId)
+                    : verifyPostAction(commandSucceeded, commandMessage, backupId,
+                            () -> bloatwareScanner.scan().stream()
+                                    .anyMatch(a -> app.packageFullName().equalsIgnoreCase(a.packageFullName())) ? "presente" : "ausente",
+                            actual -> "ausente".equals(actual),
+                            "ausente");
+
             recordHistory(itemId, itemName, itemType, actionLabel, "installed",
-                    success ? (whatIf ? "installed (simulado)" : "uninstalled") : null, success, success ? null : message, backupId);
-            return new ActionResult(success, message, backupId);
+                    verified.success() ? (whatIf ? "installed (simulado)" : "uninstalled") : null,
+                    verified.success(), verified.success() ? null : verified.message(), backupId);
+            return verified;
         } catch (Exception e) {
             String errorMessage = "Erro ao desinstalar app '" + itemName + "': " + e.getMessage();
             recordHistory(itemId, itemName, itemType, whatIf ? "uninstall-simulado" : "uninstall", "installed", null, false, errorMessage, backupId);
@@ -1039,14 +1125,20 @@ public class ActionExecutor {
         try {
             CommandResult result = runCommand("reg", "add", registryPath,
                     "/v", valueName, "/t", "REG_DWORD", "/d", newValue, "/f");
-            boolean success = result.exitCode() == 0;
-            String message = success
+            boolean commandSucceeded = result.exitCode() == 0;
+            String commandMessage = commandSucceeded
                     ? "Valor de '" + friendlyName + "' alterado para " + newValue + "."
                     : "Falha ao alterar '" + friendlyName + "' "
                         + "(comum se o app nao estiver rodando como Administrador, para chaves em HKLM): " + result.output().trim();
 
-            recordHistory(itemId, itemName, itemType, "set", previousState, success ? newValue : null, success, success ? null : message, backupId);
-            return new ActionResult(success, message, backupId);
+            ActionResult verified = verifyPostAction(commandSucceeded, commandMessage, backupId,
+                    () -> queryRegistryDwordValue(registryPath, valueName).orElse("nao definido"),
+                    actual -> RegistryValueUtils.dwordValuesEqual(actual, newValue),
+                    newValue);
+
+            recordHistory(itemId, itemName, itemType, "set", previousState, verified.success() ? newValue : null,
+                    verified.success(), verified.success() ? null : verified.message(), backupId);
+            return verified;
         } catch (Exception e) {
             String errorMessage = "Erro ao alterar valor de '" + friendlyName + "': " + e.getMessage();
             recordHistory(itemId, itemName, itemType, "set", previousState, null, false, errorMessage, backupId);
@@ -1121,15 +1213,30 @@ public class ActionExecutor {
 
         try {
             CommandResult result = runCommand("powercfg", "/hibernate", enable ? "on" : "off");
-            boolean success = result.exitCode() == 0;
+            boolean commandSucceeded = result.exitCode() == 0;
             String newState = enable ? "ativado" : "desativado";
-            String message = success
+            String commandMessage = commandSucceeded
                     ? "Arquivo de hibernacao " + newState + " com sucesso."
                     : "Falha ao " + (enable ? "ativar" : "desativar") + " o arquivo de hibernacao "
                         + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
 
-            recordHistory(itemId, HIBERNATION_ITEM_NAME, itemType, "set", previousState, success ? newState : null, success, success ? null : message, backupId);
-            return new ActionResult(success, message, backupId);
+            // powercfg /hibernate cria/apaga o hiberfil.sys de forma sincrona (nao exige reinicio) -
+            // diferente do Armazenamento Reservado (ver setReservedStorageEnabled), a releitura aqui
+            // reflete o efeito real imediatamente.
+            ActionResult verified = verifyPostAction(commandSucceeded, commandMessage, backupId,
+                    () -> {
+                        PerformanceScanner.HibernationStatus status = performanceScanner.checkHibernationFile();
+                        if (status.checkFailed()) {
+                            throw new IllegalStateException("Nao foi possivel verificar o arquivo de hibernacao na releitura");
+                        }
+                        return status.fileExists() ? "ativado" : "desativado";
+                    },
+                    actual -> newState.equals(actual),
+                    newState);
+
+            recordHistory(itemId, HIBERNATION_ITEM_NAME, itemType, "set", previousState, verified.success() ? newState : null,
+                    verified.success(), verified.success() ? null : verified.message(), backupId);
+            return verified;
         } catch (Exception e) {
             String errorMessage = "Erro ao alterar o arquivo de hibernacao: " + e.getMessage();
             recordHistory(itemId, HIBERNATION_ITEM_NAME, itemType, "set", previousState, null, false, errorMessage, backupId);
@@ -1215,15 +1322,32 @@ public class ActionExecutor {
         try {
             String targetState = enable ? "Enabled" : "Disabled";
             CommandResult result = runPowerShell("Set-WindowsReservedStorageState -State " + targetState);
-            boolean success = result.exitCode() == 0;
-            String message = success
+            boolean commandSucceeded = result.exitCode() == 0;
+            String commandMessage = commandSucceeded
                     ? "Armazenamento Reservado " + (enable ? "ativado" : "desativado") + " com sucesso "
                         + "(efeito completo requer reinicio do Windows)."
                     : "Falha ao " + (enable ? "ativar" : "desativar") + " o Armazenamento Reservado "
                         + "(comum se o app nao estiver rodando como Administrador): " + result.output().trim();
 
-            recordHistory(itemId, RESERVED_STORAGE_ITEM_NAME, itemType, "set", previousState, success ? targetState : null, success, success ? null : message, backupId);
-            return new ActionResult(success, message, backupId);
+            // Nota: o EFEITO COMPLETO deste cmdlet so aparece apos reiniciar o Windows (ver Javadoc de
+            // setReservedStorageEnabled), mas Get-WindowsReservedStorageState e a fonte de verdade mais
+            // proxima disponivel sem exigir reinicio - se ela ainda mostrar o estado antigo, a mensagem
+            // de mismatch generica de verifyPostAction ja avisa que pode ser so questao de reinicio (nao
+            // necessariamente falha real), entao nao ha risco de mensagem enganosa.
+            ActionResult verified = verifyPostAction(commandSucceeded, commandMessage, backupId,
+                    () -> {
+                        PerformanceScanner.ReservedStorageStatus status = performanceScanner.checkReservedStorageState();
+                        if (!status.supported() || status.checkFailed()) {
+                            throw new IllegalStateException("Nao foi possivel confirmar o estado do Armazenamento Reservado na releitura");
+                        }
+                        return status.state();
+                    },
+                    actual -> targetState.equalsIgnoreCase(actual),
+                    targetState);
+
+            recordHistory(itemId, RESERVED_STORAGE_ITEM_NAME, itemType, "set", previousState, verified.success() ? targetState : null,
+                    verified.success(), verified.success() ? null : verified.message(), backupId);
+            return verified;
         } catch (Exception e) {
             String errorMessage = "Erro ao alterar o Armazenamento Reservado: " + e.getMessage();
             recordHistory(itemId, RESERVED_STORAGE_ITEM_NAME, itemType, "set", previousState, null, false, errorMessage, backupId);
@@ -1442,6 +1566,87 @@ public class ActionExecutor {
     // ------------------------------------------------------------------
     // Utilitarios internos
     // ------------------------------------------------------------------
+
+    // ------------------------------------------------------------------
+    // Confirmacao pos-acao por releitura (Melhoria de Confiabilidade)
+    // ------------------------------------------------------------------
+    //
+    // Motivacao (ver docs/PROGRESS.md): ate aqui, quase toda acao desta classe decidia sucesso/falha
+    // olhando SO o codigo de saida do comando (result.exitCode() == 0). Isso funciona na maioria dos
+    // casos (reg add/Set-Service/powercfg retornam codigo != 0 quando falham por falta de elevacao),
+    // mas ja foi encontrado um caso real onde isso mente: "arp -d *" (NetworkRepairTool, Fase 15)
+    // sempre retorna 0 mesmo falhando por falta de elevacao. O mesmo tipo de mentira e possivel aqui
+    // (ex: uma politica de grupo pode sobrescrever um valor de registro exatamente como "reg add"
+    // termina, sem o comando notar). {@link #verifyPostAction} adiciona uma releitura real do estado
+    // (reaproveitando os scanners ja existentes) depois que o comando reporta sucesso, so confirmando
+    // o resultado se o valor relido realmente bater com o esperado.
+
+    /**
+     * Confirma, por releitura do estado real, um resultado que ja foi determinado com sucesso pelo
+     * codigo de saida do comando.
+     *
+     * <p>Fluxo:
+     * <ul>
+     *   <li>comando ja falhou pelo codigo de saida -&gt; devolve a falha original, SEM tentar reler
+     *       (nao ha o que confirmar);</li>
+     *   <li>comando reportou sucesso E a releitura confirma o valor esperado -&gt; sucesso mantido,
+     *       mensagem original preservada;</li>
+     *   <li>comando reportou sucesso MAS a releitura mostra um valor diferente -&gt; falha "de
+     *       verdade" e reportada, com o valor atual e o esperado na mensagem (o codigo de saida
+     *       sozinho nunca foi garantia suficiente);</li>
+     *   <li>a propria releitura falha (excecao) -&gt; cai de volta, gracioso, para o resultado
+     *       original baseado no codigo de saida (nunca inventa uma falha nova so por nao conseguir
+     *       confirmar), mas a mensagem deixa isso explicito para quem le.</li>
+     * </ul>
+     *
+     * <p>Metodo estatico, sem estado de instancia - testavel isoladamente com valores fixos (ver
+     * {@code ActionExecutorVerificationTest}), sem chamar nenhum comando real.
+     *
+     * @param commandSucceeded  resultado do comando original, baseado so no codigo de saida
+     * @param commandMessage    mensagem ja formatada para o caso de sucesso OU falha do comando
+     * @param backupId          repassado sem alteracao para o {@link ActionResult} devolvido
+     * @param rereadCurrentState releitura do estado real (via scanner ja existente) - pode lancar
+     *                          qualquer excecao para sinalizar "nao foi possivel confirmar"
+     * @param matchesExpected   compara o valor relido com o esperado
+     * @param expectedDescription descricao do valor esperado, usada na mensagem de mismatch
+     */
+    static ActionResult verifyPostAction(boolean commandSucceeded, String commandMessage, Long backupId,
+                                          Callable<String> rereadCurrentState,
+                                          Predicate<String> matchesExpected,
+                                          String expectedDescription) {
+        if (!commandSucceeded) {
+            return new ActionResult(false, commandMessage, backupId);
+        }
+        try {
+            String actual = rereadCurrentState.call();
+            if (matchesExpected.test(actual)) {
+                return new ActionResult(true, commandMessage, backupId);
+            }
+            String message = commandMessage + " ATENCAO: o comando reportou sucesso, mas a releitura do "
+                    + "estado real mostrou um valor diferente do esperado (esperado: " + expectedDescription
+                    + ", atual: " + actual + ") - pode estar sendo controlado por uma politica de grupo, ou o "
+                    + "efeito pode exigir reinicio do Windows para aparecer.";
+            return new ActionResult(false, message, backupId);
+        } catch (Exception e) {
+            return new ActionResult(true, commandMessage + " (nao foi possivel confirmar a mudanca por "
+                    + "releitura do estado real - resultado baseado apenas no codigo de saida do comando)", backupId);
+        }
+    }
+
+    /**
+     * Le o valor atual de uma chave/valor DWORD via {@code reg query} - usado SO pela releitura de
+     * confirmacao pos-acao ({@link #verifyPostAction}) depois que {@code reg add} ja reportou
+     * sucesso pelo codigo de saida. Optional vazio = valor nao encontrado (reg query terminou com
+     * codigo != 0) - um resultado LEGITIMO (chave/valor removido ou nunca existiu), nao uma falha de
+     * leitura. So lanca excecao em falha real de execucao do comando (IOException/timeout).
+     */
+    private Optional<String> queryRegistryDwordValue(String registryPath, String valueName) throws IOException, InterruptedException {
+        CommandResult result = runCommand("reg", "query", registryPath, "/v", valueName);
+        if (result.exitCode() != 0) {
+            return Optional.empty();
+        }
+        return RegistryValueUtils.parseRegQueryValue(result.output(), valueName);
+    }
 
     private Long upsertItemQuiet(String name, String type, String classification, String currentState) {
         try {
