@@ -6,6 +6,7 @@ import com.nitroboost.core.MemoryCleaner;
 import com.nitroboost.db.ActionHistoryRepository;
 import com.nitroboost.db.DatabaseManager;
 import com.nitroboost.knowledge.KnowledgeBase;
+import com.nitroboost.repair.SystemFileRepairTool;
 
 /**
  * Agrupa as instancias unicas do backend (banco, executor de acoes, base de
@@ -15,7 +16,8 @@ import com.nitroboost.knowledge.KnowledgeBase;
  */
 public record AppContext(DatabaseManager databaseManager, ActionExecutor actionExecutor,
                           LockManager lockManager, KnowledgeBase knowledgeBase,
-                          ActionHistoryRepository historyRepository, MemoryCleaner memoryCleaner) {
+                          ActionHistoryRepository historyRepository, MemoryCleaner memoryCleaner,
+                          SystemFileRepairTool systemFileRepairTool) {
 
     public static AppContext create() {
         DatabaseManager databaseManager = new DatabaseManager();
@@ -25,7 +27,8 @@ public record AppContext(DatabaseManager databaseManager, ActionExecutor actionE
                 new LockManager(databaseManager),
                 new KnowledgeBase(),
                 new ActionHistoryRepository(databaseManager),
-                new MemoryCleaner(databaseManager)
+                new MemoryCleaner(databaseManager),
+                new SystemFileRepairTool(databaseManager)
         );
     }
 }
