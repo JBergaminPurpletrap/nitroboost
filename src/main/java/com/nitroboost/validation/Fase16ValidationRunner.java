@@ -399,7 +399,7 @@ public class Fase16ValidationRunner {
     private ValidationResult checkRamCleanupHistory() {
         try {
             List<ActionHistoryRepository.HistoryEntry> recent = historyRepository.findRecent(10);
-            boolean found = recent.stream().anyMatch(h -> "memory_cleanup".equals(h.itemType()));
+            boolean found = recent.stream().anyMatch(h -> "memory_cleanup".equals(h.actionType()));
             return new ValidationResult(3, "Limpeza de RAM - registrada no historico (tipo memory_cleanup)",
                     found ? ValidationStatus.PASSOU : ValidationStatus.FALHOU,
                     "Entrada tipo 'memory_cleanup' encontrada no historico recente: " + found);

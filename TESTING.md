@@ -146,3 +146,71 @@ Administrador, e o mecanismo de backup/histórico/lock funcionou corretamente em
   `BLOCKERS.md`** além da já existente cobertura dessa classe de limitação.
 - O único problema real encontrado durante esta fase foi de **dado** (7 entradas duplicadas em
   `knowledge-base.json`, uma delas com classificação conflitante) - corrigido, ver seção B.1 acima.
+
+---
+
+## Rodada 2 — Validação com Administrador (Fase 16, 2026-07-30)
+
+Cobre `docs/NITRO-BOOST-fase16-validacao-administrador.md`, gerada pelo botão "🧪 Autoteste (Fase 16)"
+(`validation/Fase16ValidationRunner.java`) rodando de verdade numa máquina elevada (Administrador
+confirmado), com SFC/DISM completo incluído. Relatório bruto salvo em
+`docs/fase16-autoteste-2026-07-30_16-20-11.md` — esta seção resume o resultado e documenta o que foi
+feito com os 2 itens que retornaram FALHOU.
+
+**Resultado bruto do autoteste:** 17 passaram, 2 falharam, 5 pulados deliberadamente, 8 exigem
+confirmação visual (32 itens no total).
+
+| # | Item | Resultado | Observações |
+|---|---|---|---|
+| 1 | Privilégio de Administrador | Verificado | `ElevationChecker.isElevated()` confirmou sessão elevada |
+| 2 | Serviços/Registro/Startup/Bloqueio - round trip completo | Verificado | 4 categorias, aplicar→confirmar→reverter→confirmar, todas voltaram ao estado original (`MapsBroker`, sugestão do Menu Iniciar, item de teste próprio de Startup, bloqueio recusado corretamente) |
+| 3 | Limpeza de Cache de RAM (`purgeStandbyList`) | Verificado | RAM livre (OSHI) subiu de 7148.3 MB para 7674.8 MB, comando nativo retornou sucesso |
+| 3 | Limpeza de RAM registrada no histórico (tipo `memory_cleanup`) | **Bug real encontrado e corrigido** | Ver "Bug encontrado" abaixo |
+| 4 | Copilot - Desativar/Reverter | Verificado | Chave `TurnOffWindowsCopilot` (HKCU) alterada e revertida corretamente. Nenhum pacote Appx separado nesta máquina - só a ação "Desativar" se aplica |
+| 5 | GPU - varredura/round-trip do item seguro | Verificado | `AMD Crash Defender Service` (seguro) desativado/revertido com sucesso; `AMD External Events Utility` (risco em overlay) corretamente **não** tocado |
+| 6 | Verificação e Reparo Completo (SFC + DISM) | Falhou (ambiente, não é bug) | Ver "DISM falhou" abaixo |
+| 7 | Rede - DNS/ARP/Renovar IP | Verificado | As 3 ações rápidas concluídas com sucesso; Winsock/TCP-IP Reset pulados deliberadamente (exigem reinício) |
+| 8 | Modo de Jogo - lógica não invertida | Verificado | Rótulo do botão = "Ativar Modo de Jogo" (correto); aplicar realmente ativou (`0x1`), reverter voltou ao estado original |
+| 9 | Taxa de atualização da tela | Detectado, aguarda confirmação visual | Atual/máxima = 240 Hz, taxas suportadas `[59,60,100,119,120,144,165,180,200,240]` |
+
+### Bug real encontrado e corrigido: check de histórico da limpeza de RAM usava a coluna errada
+
+`Fase16ValidationRunner.checkRamCleanupHistory()` procurava uma entrada no histórico com
+`h.itemType()` igual a `"memory_cleanup"`. Mas `MemoryCleaner.recordHistoryQuiet()` sempre gravou
+(desde a Fase 10) com `item_type = "memory"` e `action_type = "memory_cleanup"` — a limpeza de RAM
+**estava sendo registrada corretamente no histórico o tempo todo**; o autoteste que checava a coluna
+errada. Corrigido em
+[`src/main/java/com/nitroboost/validation/Fase16ValidationRunner.java`](src/main/java/com/nitroboost/validation/Fase16ValidationRunner.java)
+trocando a checagem para `h.actionType()`. Nenhum outro item do autoteste tinha esse mesmo padrão de
+bug (os demais checks de histórico, ex. `checkSection2History()`, já comparavam pelos campos certos).
+Confirmado com `./mvnw.cmd test` (**95/95 testes passando, nenhuma regressão**) que a mudança não
+quebrou nada — após instalar o JDK 21 nesta sessão (ver `BLOCKERS.md` item 14 para o detalhe, o
+ambiente só tinha JRE 8 até então). O teste automatizado não exercita `Fase16ValidationRunner`
+contra o Windows real (só `ValidationReport`/`ValidationReportTest` com resultados simulados) —
+usuário deve reexecutar o botão "🧪 Autoteste (Fase 16)" numa máquina elevada para confirmar que o
+item agora retorna `PASSOU` de verdade.
+
+### DISM falhou (código -2146498283 / 0x800F0915) — não é um bug do NITRO BOOST
+
+`DISM /Online /Cleanup-Image /RestoreHealth` retornou o código de saída `-2146498283`
+(`0x800F0915` em hexadecimal) nesta máquina. Pesquisado: esse código é um erro conhecido e
+documentado do próprio Windows (não do NITRO BOOST) — geralmente indica que o DISM não conseguiu
+localizar/baixar os arquivos de reparo (component store corrompido, Windows Update inacessível, ou
+um deadlock conhecido entre o servicing stack e o component store que ele mesmo precisa atualizar).
+`SystemFileRepairTool` capturou o código de saída corretamente e reportou a falha sem lançar exceção
+nem travar a interface - comportamento correto do ponto de vista do código. O SFC rodado em seguida
+não teve o resultado classificado automaticamente (`UNKNOWN`) - o log bruto completo (exibido na tela
+de Reparo do Sistema e salvo no relatório) deve ser conferido manualmente.
+
+- **Ação recomendada para o usuário:** rodar `DISM /Online /Cleanup-Image /RestoreHealth` manualmente
+  com um `/Source` válido (ex: ISO do Windows montada) se a falha persistir, ou confirmar acesso à
+  internet/Windows Update. Ver `BLOCKERS.md` item 13 para o detalhe completo e a fonte da pesquisa.
+
+### Itens que ainda exigem confirmação visual humana (não automatizáveis)
+
+Tema visual, velocímetro/gráfico do Dashboard, barra de progresso do scan, navegação pelas 7 telas
+(seção 1), indicador de limpeza de RAM não travando a UI e comparação com o Gerenciador de Tarefas
+(seção 3), ícone do Copilot sumindo/voltando da barra de tarefas (seção 4), e a comparação final da
+taxa de atualização com a tela nativa do Windows (seção 9) — nenhum desses foi nem pode ser marcado
+como verificado automaticamente. Ficam pendentes de confirmação visual direta pelo usuário na próxima
+execução da UI.

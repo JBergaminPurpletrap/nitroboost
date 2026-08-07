@@ -306,6 +306,119 @@ projeto (nunca pular uma tarefa silenciosamente por causa de um bloqueio).
 
 ---
 
+## Fase 16 - Validação com Administrador (Rodada 2, autoteste real numa máquina elevada)
+
+### 13. DISM (`/Online /Cleanup-Image /RestoreHealth`) falhou com 0x800F0915 numa máquina real - não é um bug do NITRO BOOST
+
+- **Status:** Não resolvido (limitação do Windows na máquina de validação, não do código) - o
+  código do NITRO BOOST se comportou corretamente (capturou o código de saída, não travou, não
+  lançou exceção, registrou a falha no histórico e no relatório do autoteste).
+- **Descrição:** ao rodar o "🧪 Autoteste (Fase 16)" numa máquina elevada de verdade (a validação da
+  seção 6 do documento), `SystemFileRepairTool.runFullRepair()` executou
+  `dism /Online /Cleanup-Image /RestoreHealth` e recebeu o código de saída `-2146498283`
+  (`0x800F0915` em hexadecimal). Pesquisado: esse é um código de erro conhecido e documentado do
+  próprio Windows, não específico do NITRO BOOST - geralmente indica que o DISM não conseguiu
+  localizar/baixar os arquivos de reparo (component store corrompido, Windows Update inacessível,
+  antivírus/VPN interferindo, ou um deadlock conhecido entre o servicing stack e o component store
+  que ele mesmo precisa atualizar para funcionar). Ver fontes consultadas abaixo.
+- **Mitigação aplicada:** nenhuma mudança de código foi necessária - `runStage()` já captura
+  qualquer código de saída sem lançar exceção, e a UI/relatório do autoteste já exibem o log bruto
+  completo junto com o código, exatamente para permitir esse tipo de diagnóstico. O SFC rodado em
+  seguida não teve o resultado classificado automaticamente pela heurística de palavras-chave
+  (`SfcOutcome.UNKNOWN`) - também esperado, já que o log bruto continua sempre visível como fonte
+  de verdade (ver Javadoc de `classifySfcResult`).
+- **Ação pendente:** o usuário deve investigar essa falha diretamente na máquina afetada - checar
+  conectividade com o Windows Update, ou rodar `DISM /Online /Cleanup-Image /RestoreHealth` com um
+  `/Source` válido (ex: ISO oficial do Windows montada) caso a falha persista. O NITRO BOOST
+  atualmente não expõe uma opção de `/Source` customizado para o DISM - possível melhoria futura,
+  fora do escopo desta rodada de validação.
+- **Fontes consultadas:** [DISM.exe Online Cleanup-image Restorehealth Error (BleepingComputer)](https://www.bleepingcomputer.com/forums/t/812929/dismexe-online-ceanup-image-restorehealth-error/),
+  [Solução para DISM RestoreHealth 0x800f0915 (Microsoft Q&A)](https://learn.microsoft.com/en-us/answers/questions/5926213/solution-dism-restorehealth-error-0x800f0915-repai)
+
+### 14. `Fase16ValidationRunner.checkRamCleanupHistory()` checava a coluna errada do histórico (bug real, corrigido)
+
+- **Status:** Resolvido.
+- **Descrição:** o autoteste real (rodado numa máquina elevada, ver `TESTING.md` "Rodada 2")
+  reportou `FALHOU` no item "Limpeza de RAM - registrada no historico (tipo memory_cleanup)", mesmo
+  com a limpeza de RAM em si tendo funcionado (RAM livre subiu de verdade). Investigando: o método
+  comparava `h.itemType()` com `"memory_cleanup"`, mas `MemoryCleaner.recordHistoryQuiet()` sempre
+  gravou (desde a Fase 10) com `item_type = "memory"` e `action_type = "memory_cleanup"` - a
+  gravação em si sempre esteve correta, o bug era só na checagem do autoteste.
+- **Solução aplicada:** corrigida a comparação em
+  `src/main/java/com/nitroboost/validation/Fase16ValidationRunner.java` (método
+  `checkRamCleanupHistory`) para usar `h.actionType()` em vez de `h.itemType()`.
+- **Ação pendente:** o ambiente de desenvolvimento desta sessão só tinha JRE 8 instalado (sem JDK 21,
+  exigido por `maven.compiler.release` no `pom.xml`) - **corrigido nesta mesma sessão**, instalado o
+  Eclipse Temurin JDK 21 via `winget install --id EclipseAdoptium.Temurin.21.JDK` (o instalador já
+  configurou `JAVA_HOME`/`PATH` a nível de máquina). Com o JDK 21 disponível, `./mvnw.cmd -q compile`,
+  `./mvnw.cmd test` (**95/95 testes passando**, nenhuma regressão) e
+  `./mvnw.cmd -q package -DskipTests` rodaram e passaram nesta máquina, confirmando que a correção
+  acima não quebrou nada. Falta apenas reexecutar o botão "🧪 Autoteste (Fase 16)" numa máquina
+  elevada de verdade para confirmar que o item passa a retornar `PASSOU` contra o Windows real (o
+  teste automatizado não exercita `Fase16ValidationRunner` contra o sistema real, só `ValidationReport`
+  com resultados simulados - ver `ValidationReportTest`).
+
+## Fase 16 - Investigacao: "sugestoes clicadas nao aplicam mudanca real" (docs/prompt-investigacao-sugestoes-nao-aplicadas.md)
+
+### 15. Bug relatado NAO reproduziu na maquina gamer elevada de verdade - causa raiz real era outra (protecao do proprio Windows numa unica chave, nao um bug generalizado do NITRO BOOST)
+
+- **Status:** Investigado e resolvido (com uma ressalva documentada abaixo, que nao e um bug do app).
+- **Descricao:** a maquina gamer havia relatado que clicar em "Aplicar" numa sugestao nao mudava nada
+  de verdade no Windows, mesmo com Administrador. Reproduzido sistematicamente nesta sessao (VSCode
+  ja elevado de verdade nesta maquina, confirmado via `whoami /groups | findstr /i "S-1-5-32-544"` e
+  `IsInRole(Administrator)` = `true`):
+  1. Criado `Phase16ReproConsoleDemo.java` (temporario, removido apos a investigacao) reproduzindo
+     exatamente o caminho de codigo que `AuditView.applySingle()` percorre (`SystemAuditEngine` →
+     `AuditFinding` → `SystemScanTask.buildItem` → `ItemActionDispatcher.performPrimaryAction` →
+     `ActionExecutor`), sem clicar em nada na UI. Testado com um item de Performance (`GPU
+     Hardware-Accelerated Scheduling`, nunca exercitado por esse caminho especifico antes): **o valor
+     realmente mudou no Windows** (confirmado via `reg query` nativo antes/depois, backup criado,
+     revertido com sucesso ao final).
+  2. Conferido o historico real (`ActionHistoryRepository.findRecent`) de tentativas feitas hoje via a
+     UI de verdade nesta mesma maquina, ja antes desta investigacao comecar: a maioria teve
+     `sucesso=true` com mudanca real confirmada (Modo de Jogo, Botao Visao de Tarefas, Caixa de
+     Pesquisa) — cobrindo 3 categorias diferentes (gaming, consumer, performance) sem reproduzir o
+     problema relatado.
+  3. **Uma unica falha real encontrada**, isolada e investigada a parte (ver "achado secundario"
+     abaixo) - nao e representativa do problema generalizado relatado.
+- **Conclusao sobre a causa raiz do relato original:** o cenario descrito ("nenhum item aplicado")
+  nao reproduziu contra o codigo atual nesta maquina, com elevacao real confirmada. A hipotese mais
+  provavel (nao 100% confirmavel retroativamente) e a **Hipotese A** do prompt de investigacao: a
+  sessao original de teste nao estava de fato herdando a elevacao do token (VSCode/terminal → processo
+  Java), mesmo com VSCode "parecendo" elevado - o mesmo tipo de falha silenciosa de token de UAC que o
+  prompt ja antecipava como possibilidade. Nao ha nenhuma mudanca de codigo entre aquele teste e agora
+  que explicaria a diferenca (nenhum commit relevante no meio).
+- **Acao pendente:** nenhuma no codigo - **nao aplicar nenhum fix**, conforme a regra explicita do
+  prompt de investigacao (nao propor fix sem causa raiz confirmada, e a causa raiz aqui e ambiental/de
+  sessao anterior, nao reprodutivel agora). Se o problema voltar a acontecer, confirmar primeiro, no
+  MESMO terminal que lanca o app, que `whoami /groups | findstr /i "S-1-5-32-544"` mostra
+  `BUILTIN\Administradores` como `Enabled` antes de investigar mais fundo.
+
+### Achado secundario (nao e bug do NITRO BOOST): valor `TaskbarDa` (icone de Widgets) recusa escrita mesmo com Administrador, mesmo fora do app
+
+- **Status:** Confirmado como restricao do proprio Windows, fora do controle do NITRO BOOST.
+- **Descricao:** durante a investigacao acima, o historico mostrou uma falha real isolada: "Icone de
+  Widgets na Barra de Tarefas" (`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced`,
+  valor `TaskbarDa`) falhou com "ERRO: Acesso negado" ao tentar `reg add`, apesar de ser uma chave
+  `HKCU` (normalmente nunca exige elevacao) e apesar do processo estar genuinamente elevado. Isolado
+  fora do app: rodando o **mesmo comando `reg add` manualmente**, direto no terminal (fora do NITRO
+  BOOST inteiramente), a escrita **tambem** falhou com "Acesso negado" - confirma que nao e um bug de
+  como o app monta/executa o comando. A ACL da chave (`Get-Acl`) mostra `FullControl` para o usuario
+  atual, para `BUILTIN\Administradores` e para `SYSTEM` - ou seja, a recusa nao vem de uma ACL comum
+  de registro, e sim, muito provavelmente, de um filtro de registro do proprio Windows especificamente
+  protegendo esse valor (comportamento documentado na comunidade de ferramentas de "debloat": builds
+  recentes do Windows 11 passaram a proteger certos valores ligados a Widgets/Copilot contra edicao
+  direta via `reg add`, mesmo por processos elevados, para dificultar esse tipo de ferramenta).
+- **Mitigacao aplicada:** nenhuma no codigo - `ActionExecutor` ja trata e reporta essa falha
+  corretamente (mensagem clara, backup intacto, nada corrompido, historico registrado). Nao ha nada
+  para o NITRO BOOST corrigir aqui; e uma restricao do sistema operacional, nao um bug do app.
+- **Acao pendente:** nenhuma de codigo. Se o usuario quiser mesmo assim esconder o icone de Widgets,
+  a via suportada pelo proprio Windows e a Configuracoes do sistema (Configuracoes > Personalizar >
+  Barra de tarefas), nao edicao direta de registro - fora do escopo do NITRO BOOST tentar contornar
+  uma protecao deliberada do sistema operacional.
+
+---
+
 ## Itens sem bloqueio (apenas para referência)
 
 - Repositório GitHub remoto: criado com `gh repo create nitroboost --private --source=. --remote=origin`

@@ -2896,3 +2896,120 @@ Rodado meio manualmente (via `reg add`/`reg query`/`reg delete` diretos, os MESM
 ### Bloqueios
 
 Nenhum.
+
+## 2026-07-30 — Fase 16: Rodada 2 de validação executada numa máquina real elevada (autoteste rodou pela primeira vez)
+
+Primeira execução real do botão "🧪 Autoteste (Fase 16)" (ferramenta construída em 2026-07-29, ver
+entrada acima), rodada pelo usuário como Administrador numa máquina com GPU dedicada, com o
+checkbox "Incluir SFC/DISM completo" marcado. Relatório bruto trazido de volta:
+`docs/fase16-autoteste-2026-07-30_16-20-11.md`.
+
+**Resultado:** 17 passaram, 2 falharam, 5 pulados deliberadamente, 8 exigem confirmação visual
+(32 itens no total). Resumo completo e detalhamento por seção em `TESTING.md` → "Rodada 2 —
+Validação com Administrador".
+
+### Os 2 itens que falharam
+
+1. **Limpeza de RAM não aparecia como registrada no histórico** — investigado e corrigido: era um
+   bug real no *autoteste em si* (`Fase16ValidationRunner.checkRamCleanupHistory()` comparava
+   `item_type` em vez de `action_type` — a limpeza de RAM sempre foi gravada corretamente no
+   histórico desde a Fase 10, `MemoryCleaner` nunca teve o bug). Corrigido trocando a comparação
+   para `h.actionType()`. Ver `BLOCKERS.md` item 14 para o detalhe completo.
+2. **DISM falhou com o código `-2146498283` (`0x800F0915`)** — investigado (pesquisa web): é um
+   erro conhecido e documentado do próprio Windows (component store corrompido / Windows Update
+   inacessível / deadlock do servicing stack), não um bug do NITRO BOOST. O código já capturou e
+   reportou a falha corretamente, sem travar. Ver `BLOCKERS.md` item 13 para o detalhe completo e
+   as fontes consultadas.
+
+### O que ficou pendente
+
+Os 8 itens `REQUER_CONFIRMACAO_VISUAL` (tema, velocímetro/gráfico do Dashboard, barra de progresso
+do scan, navegação pelas 7 telas, indicador de limpeza de RAM, comparação de RAM com o Gerenciador
+de Tarefas, ícone do Copilot na barra de tarefas, comparação da taxa de tela) continuam exigindo
+confirmação visual humana — nunca são automatizáveis por decisão de projeto (ver Javadoc de
+`Fase16ValidationRunner`). Os 5 itens `PULADO_DELIBERADAMENTE` (desinstalar Copilot Appx, serviço de
+GPU de maior impacto, Winsock Reset, TCP/IP Reset, empacotamento `.exe`) continuam pendentes de
+teste manual dedicado, mesma cautela documentada desde a criação da ferramenta.
+
+### Build e testes
+
+Este ambiente de desenvolvimento só tinha JRE 8 disponível no início desta sessão (sem JDK 21, exigido
+por `maven.compiler.release=21` do `pom.xml`) - **instalado o Eclipse Temurin JDK 21** via
+`winget install --id EclipseAdoptium.Temurin.21.JDK` (instalador oficial via GitHub Releases da
+Adoptium, hash verificado pelo próprio winget; configurou `JAVA_HOME`/`PATH` a nível de máquina
+automaticamente). Com o JDK 21 disponível:
+- `./mvnw.cmd -q compile` — OK, sem erros.
+- `./mvnw.cmd test` — **95/95 testes passando**, nenhuma regressão da correção do item 1 acima.
+- `./mvnw.cmd -q package -DskipTests` — OK, gera `target/nitroboost.jar` sem erros.
+
+### Bloqueios
+
+2 novos (`BLOCKERS.md` itens 13 e 14, ver acima) - item 14 já resolvido e confirmado via build/testes
+reais; item 13 pendente de investigação pelo usuário na própria máquina (falha do DISM do Windows).
+
+## 2026-08-07 — Investigação concluída: "sugestões clicadas não aplicam mudança real" NÃO reproduziu (resumo consolidado para a sessão da máquina de desenvolvimento)
+
+Continuação direta de `docs/prompt-investigacao-sugestoes-nao-aplicadas.md` (commit `5c7401f`, o
+último trazido da máquina gamer). Rodado nesta sessão **na própria máquina gamer**, com VSCode e o
+terminal genuinamente elevados (confirmado via `whoami /groups | findstr /i "S-1-5-32-544"` e
+`IsInRole(Administrator) = true`, no mesmo terminal que rodaria o app).
+
+**Resultado da investigação: o bug relatado (clicar em "Aplicar" não muda nada no Windows) não
+reproduziu.** Em vez de propor um fix às cegas, foi criado um script de reprodução temporário
+(`Phase16ReproConsoleDemo.java`, removido ao final) que reproduz exatamente o caminho de código de
+`AuditView.applySingle()` (`SystemAuditEngine` → `AuditFinding` → `SystemScanTask.buildItem` →
+`ItemActionDispatcher.performPrimaryAction` → `ActionExecutor`) sem precisar clicar em nada:
+
+- Testado com um item de Performance (`GPU Hardware-Accelerated Scheduling`, categoria nunca
+  exercitada por esse caminho específico antes) — **o valor mudou de verdade no Windows** (`reg
+  query` nativo confirmou antes/depois), backup criado e revertido corretamente ao final.
+- Conferido o histórico real de tentativas feitas nesta mesma máquina, via a UI de verdade, já antes
+  desta investigação começar hoje: sucesso real confirmado em 3 categorias diferentes (Modo de Jogo,
+  Botão Visão de Tarefas, Caixa de Pesquisa) — nenhum sinal do problema generalizado relatado.
+- Conclusão: não há nenhuma mudança de código entre o teste original (que gerou o relatório de bug) e
+  agora que explicasse a diferença — a hipótese mais provável é que a sessão de teste original não
+  estava, de fato, herdando a elevação (mesma suspeita já levantada no prompt de investigação,
+  "Hipótese A"), não um bug de lógica no `ActionExecutor`/`verifyPostAction`. **Nenhum fix foi
+  aplicado** — não haveria o que corrigir sem uma causa raiz reproduzível, e a regra do prompt de
+  investigação foi seguida à risca (nunca "tentar um fix" sem reproduzir primeiro).
+
+**Achado secundário real, não relacionado ao bug investigado:** durante a checagem do histórico, uma
+falha isolada e genuína apareceu — "Ícone de Widgets na Barra de Tarefas" (`TaskbarDa`, uma chave
+`HKCU`) recusa escrita com "Acesso negado", **mesmo rodando `reg add` manualmente, fora do NITRO
+BOOST inteiramente**. A ACL da chave mostra `FullControl` para o usuário/Administradores/SYSTEM, então
+não é uma ACL comum — é quase certamente uma proteção do próprio Windows 11 contra edição direta de
+valores ligados a Widgets/Copilot (padrão conhecido de builds recentes, para dificultar ferramentas de
+"debloat"). Não é um bug do NITRO BOOST e não há nada a corrigir no app - documentado em
+`BLOCKERS.md` item 15 (achado secundário).
+
+### Sincronização entre máquinas nesta sessão
+
+A pasta local (nesta máquina) não tinha `.git` configurado, apesar do conteúdo já estar idêntico ao
+último commit do repositório remoto (`JBergaminPurpletrap/nitroboost`, provavelmente por causa do
+OneDrive sincronizando a pasta `Documentos`). Instalado Git + GitHub CLI nesta sessão,
+autenticado (`gh auth login`), e o repositório local foi inicializado apontando pro remoto existente
+(`git init` + `git remote add origin` + `git fetch` + `git reset origin/master`, preservando os
+arquivos de trabalho intactos) — confirmado por hash SHA-256 de todos os ~150 arquivos que o único
+conteúdo realmente divergente eram os arquivos já editados nesta própria sessão (o resto era
+idêntico, ignorando diferenças de quebra de linha CRLF/LF do Git no Windows).
+
+### Build e testes
+
+- `./mvnw.cmd -q compile` — OK.
+- `Phase16ReproConsoleDemo` rodou com sucesso, efeito revertido ao final, máquina no mesmo estado de
+  antes.
+- `Phase16ReproConsoleDemo.java` foi **removido** após a investigação (não fazia parte do roadmap
+  numerado, só uma ferramenta de reprodução pontual - mesma regra de nunca deixar artefato de teste
+  para trás).
+
+### Bloqueios
+
+1 novo, não é bug do app (`BLOCKERS.md` item 15, achado secundário - `TaskbarDa`/Widgets protegido
+pelo próprio Windows).
+
+### Próximos passos (para quem continuar, em qualquer máquina)
+
+Com a investigação encerrada, retomar o checklist completo de
+`docs/NITRO-BOOST-fase16-validacao-administrador.md` a partir da seção 1 (itens visuais, que
+continuam exigindo confirmação humana direta) — a seção 2 (ações de escrita) já está coberta por
+evidência real desta sessão e pelo autoteste anterior.
