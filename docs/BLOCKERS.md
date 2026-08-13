@@ -169,8 +169,14 @@ projeto (nunca pular uma tarefa silenciosamente por causa de um bloqueio).
   scanner quebrado caso alguém rode `Phase3ConsoleDemo`/`BloatwareScanner` e note 0 resultados nessas
   3 categorias.
 
-### 7. Inconsistência pré-existente no nome usado para lock em `setTelemetryValue` (Fase 3) - não corrigida nesta fase
-- **Status:** Registrado, não corrigido (fora do escopo desta tarefa).
+### 7b. Inconsistência pré-existente no nome usado para lock em `setTelemetryValue` (Fase 3) - ✅ CORRIGIDA em 2026-08-07
+
+> **Nota de numeração:** este item foi originalmente criado como um segundo "item 7" (duplicado com o
+> item 7 acima, sobre escrita em HKLM). Renumerado para **7b** em 2026-08-07 para desfazer a
+> ambiguidade - as referências a "item 7" em `TESTING.md` apontam para o item 7 (HKLM); a referência
+> em `PROGRESS.md` (Fase 8 - Ajuste) sobre "lock órfão" aponta para este item 7b.
+- **Status:** **Resolvido** (ver "Correção aplicada" ao final deste item). O texto abaixo é o
+  registro histórico original de quando o bug foi encontrado e deliberadamente adiado.
 - **Descrição:** `ActionExecutor.setTelemetryValue` (Fase 3) usa `definition.id()` (ex:
   `"allow_telemetry_policy"`) como nome do item para o catálogo/lock/histórico internamente, enquanto
   a UI (`SystemScanTask.scanTelemetry`, `ScanResultsView`, `ItemDetailView`) exibe e bloqueia o item
@@ -189,10 +195,26 @@ projeto (nunca pular uma tarefa silenciosamente por causa de um bloqueio).
   `ActionExecutor` (ver `PROGRESS.md`, Fase 9 Parte 1) - confirmado funcionando corretamente no teste
   de bloqueio/desbloqueio real (`Phase9Part1ConsoleDemo`, seção 9.1). O mesmo bug não foi introduzido
   nas categorias novas.
-- **Ação pendente:** corrigir `setTelemetryValue`/`restoreTelemetryValue` para usar `friendlyName()`
-  em vez de `id()` como nome do item (mesmo padrão agora usado em `performance`/`gaming`), com um
-  teste de regressão específico para confirmar que o bloqueio de um item de Telemetria real passa a
-  funcionar. Fica para uma fase de manutenção/polimento futura, fora do escopo atual.
+- **Correção aplicada (2026-08-07):** `ActionExecutor.setTelemetryValue` passou a usar
+  `definition.friendlyName()` como nome do item (uma linha, `ActionExecutor.java`), tornando-o
+  consistente com o que a UI (`SystemScanTask.scanTelemetry`) e o diagnóstico
+  (`SystemAuditEngine.auditTelemetry`) sempre usaram. Detalhes da correção:
+  - **`restoreTelemetryValue` NÃO precisou mudar:** ele já derivava o nome de `backup.itemName()`
+    (o nome gravado no próprio backup), nunca de `definition.id()` - então backups criados antes da
+    correção continuam restaurando normalmente. **Nenhuma migração de dados foi necessária.**
+  - **Teste de regressão novo:** `src/test/java/com/nitroboost/actions/ActionExecutorTelemetryLockTest.java`
+    (3 testes) - bloqueia o item pelo `friendlyName()` (exatamente como a UI faz), confirma que a ação
+    é recusada, que a recusa aparece no histórico sob o nome amigável, e um teste de controle
+    garantindo que, sem bloqueio, a ação não passa a ser recusada indevidamente (protege contra um
+    "fix" exagerado). Usa um banco SQLite temporário (`@TempDir` + `new DatabaseManager(Path)`), então
+    nunca toca o banco real do usuário, e nunca escreve no registro (a recusa por lock acontece antes
+    de qualquer comando `reg add`). **Confirmado que os testes falham sem a correção** (o teste
+    principal reportava `success=true` com o item bloqueado) e passam com ela.
+  - **Validação real:** além dos testes, foi feito o round-trip completo contra o banco REAL e o
+    Windows REAL numa sessão elevada (bloquear → tentar alterar → recusa confirmada → desbloquear),
+    com o item "ID de Publicidade". Recusa correta: *"Acao 'set' recusada: o item 'ID de Publicidade'
+    esta bloqueado (protegido)"*. Estado da máquina restaurado ao final (item desbloqueado).
+  - **Suíte completa:** 98/98 testes passando (95 anteriores, sem nenhuma regressão, + 3 novos).
 
 ---
 

@@ -1786,7 +1786,7 @@ documento revisado pedia — nenhuma desinstalação artificial foi inventada pa
   `disableRecallFeature` usava um nome de item inventado
   ("Windows Recall (Retomar) - Recurso Opcional do Windows") em vez de `definition.friendlyName()`
   ("Windows Recall (Retomar)", o mesmo nome usado por `setAiFeatureValue` e pela UI). Isso teria
-  reproduzido exatamente o bug já documentado no item 7 do `BLOCKERS.md` (lock "órfão" por
+  reproduzido exatamente o bug já documentado no item 7b do `BLOCKERS.md` (lock "órfão" por
   inconsistência de nome) — bloquear o item pela ação "Desativar" não bloquearia a ação
   "Desinstalar", já que o `LockManager` verifica por par (nome, tipo) exato. Corrigido antes de
   qualquer commit: `disableRecallFeature` agora recebe a `AiFeatureKeyDefinition` e usa
@@ -3013,3 +3013,79 @@ Com a investigação encerrada, retomar o checklist completo de
 `docs/NITRO-BOOST-fase16-validacao-administrador.md` a partir da seção 1 (itens visuais, que
 continuam exigindo confirmação humana direta) — a seção 2 (ações de escrita) já está coberta por
 evidência real desta sessão e pelo autoteste anterior.
+
+## 2026-08-07 — [Confiabilidade] Corrigido o bug de lock "órfão" de Telemetria (aberto desde a Fase 3)
+
+Correção do único bug de código genuinamente aberto que restava no projeto, registrado em
+`BLOCKERS.md` (item **7b**) desde a Fase 9 Parte 1 e deliberadamente adiado desde então ("fica para
+uma fase de manutenção/polimento futura").
+
+### O bug
+
+`ActionExecutor.setTelemetryValue` usava `definition.id()` (ex: `allow_telemetry_policy`) como nome
+do item para catálogo/lock/histórico, enquanto **toda** a camada de cima sempre usou
+`definition.friendlyName()` (ex: `ID de Publicidade`):
+
+- `SystemScanTask.scanTelemetry` (tela "Resultados da Varredura") — cria o `ScannedItem` com `friendlyName()`
+- `SystemAuditEngine.auditTelemetry` (tela "Diagnóstico do Sistema") — mesma coisa
+- `ItemDetailView` / `ScanResultsView` — o botão "Bloquear" grava o lock com `item.name()`
+
+Como `LockManager.isLocked` compara o par (nome, tipo) por igualdade exata de string, o lock gravado
+pela interface nunca era encontrado por `refuseIfLocked`. Efeito prático: **bloquear um item de
+Telemetria pela interface não impedia que ele fosse alterado** — o cadeado aparecia na tela, o usuário
+confiava nele, e a ação passava direto. Um furo justamente na "regra de ouro" do projeto (item
+bloqueado nunca deve ser alterado), com falha silenciosa: nada de exceção, nada no log.
+
+### A correção
+
+Uma linha em `ActionExecutor.setTelemetryValue` (`definition.id()` → `definition.friendlyName()`),
+mais um comentário explicando por que o `friendlyName` é a chave canônica do item no projeto inteiro.
+
+**`restoreTelemetryValue` não precisou mudar** — ele já derivava o nome de `backup.itemName()` (o
+nome gravado no próprio backup), nunca de `definition.id()`. Ou seja, backups criados antes desta
+correção continuam restaurando normalmente: **nenhuma migração de dados foi necessária**. O único
+resíduo é uma linha órfã na tabela `items` por item de telemetria que já tenha sido alterado antes
+(chaveada pelo id antigo), inofensiva.
+
+### Teste de regressão (novo, `ActionExecutorTelemetryLockTest`, 3 testes)
+
+Escrito **antes** da correção e confirmado que falhava sem ela (o teste principal reportava
+`success=true` com o item bloqueado — o bug reproduzido de forma inequívoca):
+
+1. Bloqueia o item pelo `friendlyName()` (exatamente como a UI faz) e confirma que `setTelemetryValue`
+   é recusado com mensagem de "bloqueado".
+2. Confirma que a recusa é registrada no histórico sob o nome amigável (o mesmo que o usuário vê na
+   tela), não sob o id interno.
+3. Teste de controle: sem lock gravado, a ação **não** pode passar a ser recusada por bloqueio —
+   protege contra um "fix" exagerado que recusasse tudo.
+
+Detalhes de segurança do próprio teste: usa um banco SQLite temporário (`@TempDir` + o construtor
+`DatabaseManager(Path)`, que existia desde a Fase 0 marcado como "util para testes" mas nunca tinha
+sido usado por nenhum teste), então nunca toca o banco real do usuário. E nunca escreve no registro,
+porque `refuseIfLocked` roda antes de qualquer `reg add`. Os testes ainda revertem qualquer escrita
+que porventura aconteça **antes** de qualquer asserção (para a limpeza não depender de o teste passar).
+
+### Validação real, além dos testes
+
+Round-trip completo contra o banco REAL e o Windows REAL, em sessão elevada de verdade nesta máquina
+gamer: bloquear "ID de Publicidade" → tentar alterar → recusa confirmada (*"Acao 'set' recusada: o
+item 'ID de Publicidade' esta bloqueado (protegido)"*) → desbloquear. Estado da máquina restaurado ao
+final. O script usado foi temporário e removido em seguida.
+
+### Build e testes
+
+- `./mvnw.cmd -q compile` — OK.
+- `./mvnw.cmd test` — **98/98 testes passando** (95 anteriores sem nenhuma regressão + 3 novos).
+
+### Ajuste de documentação junto
+
+`BLOCKERS.md` tinha **dois itens numerados como 7** (o de escrita em HKLM e o de lock de Telemetria),
+e as referências cruzadas em `TESTING.md`/`PROGRESS.md` apontavam ambiguamente para "item 7".
+O de Telemetria foi renumerado para **7b**, com nota explicando, e a referência correspondente em
+`PROGRESS.md` (Fase 8 - Ajuste) foi atualizada.
+
+### Bloqueios
+
+Nenhum novo. Com este item fechado, **não há mais nenhum bug de código conhecido em aberto** no
+projeto — o que resta em `BLOCKERS.md` são limitações de ambiente/sistema operacional (itens 4, 13,
+15) e itens de validação manual pendentes da Fase 16.

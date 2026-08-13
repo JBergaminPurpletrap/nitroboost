@@ -206,6 +206,24 @@ de Reparo do Sistema e salvo no relatório) deve ser conferido manualmente.
   com um `/Source` válido (ex: ISO do Windows montada) se a falha persistir, ou confirmar acesso à
   internet/Windows Update. Ver `BLOCKERS.md` item 13 para o detalhe completo e a fonte da pesquisa.
 
+### Correção posterior (2026-08-07): bug de lock "órfão" de Telemetria
+
+Durante a revisão final do projeto (após esta rodada), foi corrigido o último bug de código
+genuinamente aberto, registrado em `docs/BLOCKERS.md` item **7b** desde a Fase 9 Parte 1:
+`ActionExecutor.setTelemetryValue` verificava o bloqueio pelo `definition.id()`, enquanto a interface
+gravava o bloqueio pelo `friendlyName()` — os dois nunca coincidiam, então **bloquear um item de
+Telemetria pela tela não impedia, de fato, que ele fosse alterado**.
+
+Vale notar por que a Rodada 1 (item 5 da tabela B.2 acima) não pegou isso: o teste de bloqueio de lá
+foi feito com um **serviço** (`MapsBroker`), categoria que sempre usou o nome amigável
+consistentemente. Nenhuma rodada de teste tinha exercitado o round-trip de bloqueio especificamente
+em um item de **Telemetria** — a categoria mais antiga do projeto (Fase 3) e a única com essa
+inconsistência.
+
+Corrigido com teste de regressão dedicado (`ActionExecutorTelemetryLockTest`, 3 testes, confirmados
+falhando antes da correção) mais validação real de bloquear → tentar alterar → recusa → desbloquear
+contra o Windows e o banco reais. Suíte completa: **98/98 passando**.
+
 ### Itens que ainda exigem confirmação visual humana (não automatizáveis)
 
 Tema visual, velocímetro/gráfico do Dashboard, barra de progresso do scan, navegação pelas 7 telas

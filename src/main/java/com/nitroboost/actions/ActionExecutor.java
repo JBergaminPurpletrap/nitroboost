@@ -633,7 +633,12 @@ public class ActionExecutor {
     /** Altera um valor de telemetria conhecido, com backup previo do valor atual (ou de sua ausencia). */
     public ActionResult setTelemetryValue(TelemetryScanner.TelemetryKeyDefinition definition, String newValue) {
         String itemType = "telemetry";
-        String itemName = definition.id();
+        // friendlyName (nao id) e a chave canonica do item no projeto inteiro: a UI
+        // (SystemScanTask.scanTelemetry, SystemAuditEngine.auditTelemetry) sempre exibiu e gravou o
+        // bloqueio sob esse nome. Enquanto aqui se usava definition.id(), o lock gravado pela tela
+        // nunca era encontrado por refuseIfLocked - ou seja, bloquear um item de Telemetria pela
+        // interface NAO impedia a alteracao (lock orfao). Ver ActionExecutorTelemetryLockTest.
+        String itemName = definition.friendlyName();
         TelemetryScanner.TelemetryKeyInfo before = telemetryScanner.readValue(definition);
         String previousState = before.exists() ? before.currentValue() : "nao definido";
         Long itemId = upsertItemQuiet(itemName, itemType, null, previousState);
